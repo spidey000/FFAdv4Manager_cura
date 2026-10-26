@@ -1,3 +1,193 @@
 :root{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#e5ede7;background:#111a17;font-synthesis:none}*{box-sizing:border-box}html,body,#root{margin:0;width:100%;height:100%}button{font:inherit}.app-shell{height:100dvh;min-height:420px;display:flex;flex-direction:column;overflow:hidden}.top-bar{height:66px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:10px 18px;gap:12px;border-bottom:1px solid #34463e;background:#18251f}.brand,.top-actions,.job-actions,.job-state{display:flex;align-items:center;gap:12px}.brand strong,.job-state strong{font-size:14px;display:block;letter-spacing:-.02em}.brand small,.job-state small{display:block;color:#9fb2a7;font-size:11px;margin-top:3px}.logo{background:#baf2cd;color:#142d20;width:40px;height:40px;display:grid;place-items:center;border-radius:12px;font-weight:800;font-size:16px}.status{color:#a7bcb0;font-size:12px;white-space:nowrap}.status i{display:inline-block;width:7px;height:7px;margin-right:7px;border-radius:50%;background:#8ba598}.btn{border:1px solid transparent;padding:10px 15px;border-radius:11px;cursor:pointer;white-space:nowrap;font-weight:650;font-size:13px;transition:background .15s}.btn:disabled{opacity:.45;cursor:not-allowed}.primary{background:#b7f0ca;color:#153220}.primary:hover:not(:disabled){background:#d2f7df}.secondary{background:#26382f;border-color:#486050;color:#e1efe5}.secondary:hover:not(:disabled){background:#35503e}.workspace{flex:1;min-height:0}.slicer-area{height:100%;width:100%;background:#f3f5f6}.slicer-area iframe{display:block;border:0;width:100%;height:100%}.action-bar{min-height:77px;flex-shrink:0;background:#18251f;border-top:1px solid #34463e;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px}.signal{display:block;width:11px;height:11px;flex:none;border-radius:50%;background:#728179}.signal.active{background:#8aeeb1;box-shadow:0 0 0 3px #2e5740}.toast{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);z-index:20;display:flex;gap:16px;max-width:min(740px,94vw);padding:14px 17px;border:1px solid #41654a;border-radius:12px;background:#183823;color:#e7f7ea;box-shadow:0 15px 35px #0008;font-size:13px}.toast.bad{border-color:#b96363;background:#3f2424}.toast button{background:none;border:0;color:inherit;font-size:22px;cursor:pointer}@media(max-width:700px){.top-bar{height:60px;padding:8px 10px}.top-actions{gap:5px}.top-actions .status{display:none}.brand{gap:8px}.brand small{font-size:10px}.brand strong{font-size:12px}.logo{width:34px;height:34px;font-size:13px}.btn{padding:9px 10px;font-size:12px}.action-bar{padding:9px 10px;min-height:68px}.job-state small{max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.job-state strong{font-size:12px}.job-actions{gap:6px}.toast{bottom:78px}}
 .demo-banner{background:#173d31;color:#d6f4df;border-bottom:1px solid #3c7759;padding:8px 18px;font-size:12px;text-align:center;flex-shrink:0}
 @media(max-width:700px){.demo-banner{font-size:11px;padding:7px 10px}.top-actions .btn{font-size:10px}}
+
+
+/* ThreeSlicer-inspired Cura shell: canvas first, compact tool dock, lime actions. */
+:root {
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #f0f5f7;
+  background: #101419;
+  color-scheme: dark;
+}
+html,body,#root { overflow:hidden; }
+button { -webkit-tap-highlight-color:transparent; }
+button:focus-visible, input:focus-visible { outline: 2px solid #a3e635; outline-offset:2px; }
+.app-shell { position:relative; min-height:0; background:#101419; }
+.top-bar {
+  z-index:3;
+  height:62px;
+  min-height:0;
+  padding:8px 16px;
+  background:#141b22;
+  border-bottom:1px solid #303e49;
+  box-shadow:0 3px 16px #0003;
+}
+.brand { min-width:0; gap:10px; }
+.brand > div { min-width:0; }
+.logo {
+  flex:0 0 37px;
+  width:37px; height:37px;
+  border-radius:11px;
+  color:#18240d;
+  background:#a3e635;
+  font-weight:850;
+  letter-spacing:-.05em;
+}
+.brand strong { font-size:15px; color:#eff5f7; }
+.brand small { font-size:10px; color:#aab8c3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.top-actions { min-width:0; }
+.status-dot { display:inline-block; width:7px; height:7px; margin-right:6px; border-radius:50%; background:#8a9ba3; }
+.status.demo-status { white-space:nowrap; color:#c4d1d9; font-size:11px; }
+.printer-access {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:40px;
+  max-width:240px;
+  padding:5px 9px;
+  border:1px solid #465563;
+  border-radius:11px;
+  background:#25303a;
+  color:#f0f4f7;
+  cursor:pointer;
+  text-align:left;
+}
+.printer-access:hover { border-color:#709346; background:#2d3b40; }
+.printer-access-icon { font-size:20px; color:#a3e635; }
+.printer-access-label { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.printer-access-label strong { font-size:11px; line-height:1; }
+.printer-access-label small { display:block; font-size:10px; line-height:1.2; color:#a9bbc6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.printer-access-arrow { color:#b5c4cd; font-size:22px; }
+.workspace { flex:1 1 auto; min-height:0; min-width:0; background:#11191d; }
+.slicer-area { position:relative; background:#121b22; overflow:hidden; }
+.slicer-area iframe { width:100%; height:100%; display:block; }
+.shell-file-picker { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; left:-10000px; }
+.action-bar {
+  z-index:4;
+  min-height:76px;
+  background:#141b22;
+  border-top:1px solid #374651;
+  box-shadow:0 -7px 26px #0006;
+  padding:10px 15px max(10px,env(safe-area-inset-bottom));
+  gap:14px;
+}
+.job-state { min-width:0; flex:1 1 auto; gap:9px; }
+.job-state div { min-width:0; }
+.job-state strong { font-size:12px; color:#f1f5f7; }
+.job-state small { max-width:100%; color:#aebcc7; font-size:10px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+.signal { width:9px; height:9px; background:#647683; }
+.signal.active { background:#a3e635; box-shadow:0 0 0 3px #394d2c; }
+.job-actions { justify-content:flex-end; gap:7px; min-width:0; }
+.btn { border-radius:10px; min-height:42px; }
+.primary { color:#15210a; background:#a3e635; border-color:#a3e635; }
+.primary:hover:not(:disabled) { background:#baf16c; }
+.secondary { background:#2b3540; color:#f2f5f7; border-color:#495763; }
+.secondary:hover:not(:disabled) { background:#35444d; }
+.quick-action {
+  flex:0 0 auto;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  gap:3px;
+  min-width:58px;
+  min-height:48px;
+  padding:5px 7px;
+  border:1px solid #404f5c;
+  border-radius:11px;
+  background:#293540;
+  color:#edf4f6;
+  cursor:pointer;
+}
+.quick-action:hover, .quick-action.is-on { background:#354835; border-color:#739748; }
+.quick-action:disabled { opacity:.45; cursor:not-allowed; }
+.quick-icon { font-size:20px; line-height:1; color:#c4ef85; }
+.quick-label { font-size:10px; line-height:1.1; font-weight:700; }
+.main-action { flex:0 1 190px; min-width:115px; font-size:13px; font-weight:800; }
+.print-split {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  min-width:185px;
+  min-height:48px;
+  border:1px solid #67787d;
+  border-radius:11px;
+  overflow:hidden;
+}
+.print-split button {
+  min-width:0;
+  padding:6px;
+  font:750 12px/1.1 Inter, system-ui, sans-serif;
+  border:0;
+  cursor:pointer;
+}
+.print-split button:disabled { opacity:.5; cursor:not-allowed; }
+.print-action { color:#19270e; background:#a3e635; }
+.send-action { color:#f0f4f7; background:#2d3b45; border-left:1px solid #6d8189!important; }
+.toast {
+  position:absolute;
+  z-index:90;
+  bottom:95px;
+  border-radius:11px;
+  background:#263820;
+  border-color:#557b33;
+  box-shadow:0 16px 50px #0009;
+}
+.toast.bad { background:#452c2d; border-color:#93524e; }
+.demo-banner { color:#b9d4c5; background:#1c3031; border-bottom-color:#385b53; }
+
+@media(max-width:767px) {
+  .top-bar { height:52px; padding:6px 10px; }
+  .brand { gap:7px; }
+  .logo { flex-basis:33px; width:33px; height:33px; font-size:13px; border-radius:9px; }
+  .brand strong { font-size:12px; }
+  .brand small { font-size:9px; margin-top:2px; max-width:184px; }
+  .printer-access { min-height:35px; max-width:132px; padding:4px 6px; gap:5px; }
+  .printer-access-icon { font-size:15px; }
+  .printer-access-label strong { font-size:10px; }
+  .printer-access-label small { max-width:88px; font-size:9px; }
+  .printer-access-arrow { font-size:16px; }
+  .status.demo-status { font-size:10px; }
+  .demo-banner { font-size:10px; padding:4px 8px; line-height:1.35; }
+  .action-bar {
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:stretch;
+    gap:7px;
+    min-height:86px;
+    padding:7px max(9px,env(safe-area-inset-right))
+      max(8px,env(safe-area-inset-bottom)) max(9px,env(safe-area-inset-left));
+  }
+  .job-state { flex:0 0 auto; width:100%; gap:6px; min-height:14px; }
+  .job-state strong { display:inline; font-size:10px; }
+  .job-state small { display:inline; margin-left:7px; font-size:10px; max-width:57%; vertical-align:baseline; }
+  .signal { width:7px; height:7px; }
+  .job-actions { width:100%; display:flex; gap:6px; justify-content:stretch; }
+  .quick-action { min-height:43px; min-width:0; flex:0 0 45px; border-radius:9px; padding:3px; gap:1px; }
+  .quick-icon { font-size:18px; }
+  .quick-label { font-size:9px; }
+  .main-action { flex:1 1 auto; min-width:0; min-height:43px; font-size:12px; }
+  .print-split { flex:1 1 auto; min-width:0; min-height:43px; border-radius:9px; }
+  .print-split button { padding:3px; font-size:11px; }
+  .toast {
+    max-width:calc(100vw - 20px);
+    width:max-content;
+    bottom:104px;
+    left:50%;
+    padding:11px 12px;
+    font-size:12px;
+  }
+  .toast button { font-size:20px; }
+}
+@media(max-width:360px) {
+  .brand small { max-width:150px; }
+  .quick-action { flex-basis:39px; }
+  .quick-icon { font-size:17px; }
+  .quick-label { font-size:8px; }
+  .print-split button { font-size:10px; }
+  .job-state small { max-width:48%; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .btn, .quick-action, .printer-access { transition:none; }
+}
