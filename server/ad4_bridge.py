@@ -4,6 +4,9 @@ The GitHub Pages demo has no printer API. Protected remote access must use
 Cloudflare Access JWT verification at this loopback-only origin.
 """
 import atexit
+from datetime import datetime, timezone
+import http.client
+import struct
 import ipaddress
 import json
 import os
@@ -19,9 +22,11 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 if __package__:
+    from .timelapse_service import TimelapseService
     from .gcode_safety import require_safe_artillery_heating
     from .cloudflare_access import load_access_config, verify_access_jwt, _jwks_client
 else:
+    from timelapse_service import TimelapseService
     from gcode_safety import require_safe_artillery_heating
     from cloudflare_access import load_access_config, verify_access_jwt, _jwks_client
 
@@ -38,8 +43,11 @@ PROFILE_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9_. -]{0,63}\Z')
 STATE_LOCK = threading.RLock()
 SELECTED = {'host': None, 'profile': None}
 DISCOVERED = {}
-WORKERS = {'timelapse': None, 'notifications': None}
-TIMELAPSE_DIR = None
+WORKERS = {'notifications': None}
+DATA_DIR = Path(os.environ.get('AD4_DATA_DIR', Path(os.environ.get('XDG_DATA_HOME', Path.home() / '.local/share')) / 'ffadv4manager-cura'))
+TIMELAPSE_ROOT = DATA_DIR / 'timelapses'
+FILE_METADATA_PATH = DATA_DIR / 'uploaded-files.json'
+TIMELAPSES = TimelapseService(TIMELAPSE_ROOT)
 
 
 def private_ip(value):
@@ -97,25 +105,148 @@ def worker_running(name):
 
 
 def timelapse_state():
+    return TIMELAPSES.state()
+
+
+def selected_status_reader(argv):
+    """Pin a session to its initial printer, even if the UI selection changes."""
+    def get_status():
+        result = subprocess.run([*argv, 'status', '--json'], capture_output=True, text=True,
+                                timeout=15, check=False)
+        if result.returncode:
+            raise RuntimeError('Printer status unavailable')
+        return json.loads(result.stdout)
+    return get_status
+
+
+def start_print_timelapse():
+    argv = cli_argv()
+    return TIMELAPSES.start(argv, selected_status_reader(argv), auto=True)
+
+
+def _metadata_scope():
     with STATE_LOCK:
-        folder = TIMELAPSE_DIR
-    return {'running': worker_running('timelapse'),
-            'frames': len(list(folder.glob('frame-*.jpg'))) if folder and folder.is_dir() else 0}
+        profile, host = SELECTED['profile'], SELECTED['host']
+    return ('profile:' + profile) if profile else ('host:' + (host or HOST or 'default'))
+
+
+def _read_file_metadata():
+    try:
+        content = json.loads(FILE_METADATA_PATH.read_text(encoding='utf-8'))
+        return content if isinstance(content, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _print_seconds(value):
+    value = value.strip().lower()
+    if value.isdecimal():
+        return int(value)
+    parts = re.findall(r'(\d+)\s*([hms])\b', value)
+    if not parts:
+        return None
+    units = {'h': 3600, 'm': 60, 's': 1}
+    return sum(int(amount) * units[unit] for amount, unit in parts)
+
+
+def inspect_upload_metadata(file):
+    """Read recognized source-file metadata, never claim the printer reported it."""
+    with file.open('rb') as handle:
+        prefix = handle.read(1024 * 1024)
+    metadata = {'estimated_seconds': None, 'hotend': None, 'bed': None}
+    if prefix.startswith(b'xgcode 1.0\n\0') and len(prefix) >= 58:
+        seconds = struct.unpack_from('<i', prefix, 28)[0]
+        gx_values = struct.unpack_from('<8h', prefix, 42)
+        if 1 < seconds < 30 * 86400:
+            metadata['estimated_seconds'] = seconds
+        if 0 < gx_values[5] <= 350:
+            metadata['hotend'] = gx_values[5]
+        if 0 < gx_values[4] <= 150:
+            metadata['bed'] = gx_values[4]
+        return metadata
+    if b'\0' in prefix:
+        return metadata
+    body = prefix.decode('utf-8', errors='replace')
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(';'):
+            comment = stripped[1:].strip()
+            for pattern in (r'estimated printing time \(normal mode\)\s*=\s*(.+)',
+                            r'(?:print time|estimated_print_time)\s*=\s*(.+)',
+                            r'TIME\s*:\s*(\d+)'):
+                match = re.fullmatch(pattern, comment, flags=re.I)
+                if match:
+                    seconds = _print_seconds(match.group(1))
+                    if seconds and 1 < seconds < 30 * 86400:
+                        metadata['estimated_seconds'] = seconds
+            for key, pattern in (('hotend', r'(?:nozzle_temperature|first_layer_temperature)\s*=\s*(\d+)'),
+                                 ('bed', r'(?:bed_temperature|first_layer_bed_temperature)\s*=\s*(\d+)')):
+                match = re.fullmatch(pattern, comment, flags=re.I)
+                if match and metadata[key] is None:
+                    value = int(match.group(1))
+                    if 0 < value <= (350 if key == 'hotend' else 150):
+                        metadata[key] = value
+        else:
+            match = re.match(r'^M(?:104|109|140|190)\b.*?\bS(\d+(?:\.\d+)?)', stripped, flags=re.I)
+            if match:
+                key = 'hotend' if stripped.upper().startswith(('M104', 'M109')) else 'bed'
+                if metadata[key] is None:
+                    value = round(float(match.group(1)))
+                    if 0 < value <= (350 if key == 'hotend' else 150):
+                        metadata[key] = value
+        if all(metadata.values()):
+            break
+    return metadata
+
+
+def save_upload_metadata(filename, metadata):
+    scope = _metadata_scope()
+    with STATE_LOCK:
+        values = _read_file_metadata()
+        values.setdefault(scope, {})[filename] = {
+            **metadata, 'uploaded_at': datetime.now(timezone.utc).isoformat()
+        }
+        DATA_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = FILE_METADATA_PATH.with_suffix('.tmp')
+        temporary.write_text(json.dumps(values, ensure_ascii=False), encoding='utf-8')
+        os.replace(temporary, FILE_METADATA_PATH)
+
+
+def printer_file_details():
+    names = json.loads(command('files', '--json'))
+    if not isinstance(names, list):
+        raise ValueError('Invalid printer file listing')
+    metadata = _read_file_metadata().get(_metadata_scope(), {})
+    result = []
+    for name in names:
+        if not isinstance(name, str):
+            continue
+        fields = metadata.get(name.rsplit('/', 1)[-1], {})
+        result.append({'path': name, 'name': name.rsplit('/', 1)[-1],
+                       'estimated_seconds': fields.get('estimated_seconds'),
+                       'hotend': fields.get('hotend'), 'bed': fields.get('bed'),
+                       'uploaded_at': fields.get('uploaded_at')})
+    return result
+
+
+def timelapse_folder(value):
+    return TIMELAPSES.folder_for(value)
+
+
+def timelapse_frames(folder):
+    from_timelapse = folder.glob('frame-*.jpg')
+    return sorted(f for f in from_timelapse if f.is_file() and not f.is_symlink())
+
+
+def list_timelapses():
+    return TIMELAPSES.list()
 
 
 def cleanup():
-    with STATE_LOCK:
-        workers = list(WORKERS.values())
-        folder = TIMELAPSE_DIR
-    for worker in workers:
-        if worker and worker.poll() is None:
-            worker.terminate()
-            try:
-                worker.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                worker.kill()
-    if folder:
-        shutil.rmtree(folder, ignore_errors=True)
+    TIMELAPSES.shutdown()
+    worker = WORKERS.get('notifications')
+    if worker and worker.poll() is None:
+        worker.terminate()
 
 
 atexit.register(cleanup)
@@ -143,6 +274,83 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.end_headers()
         self.wfile.write(data)
+
+    def send_video(self, folder, download=False):
+        """Authenticated MP4 response with seek support for HTML5 <video>."""
+        video = folder / 'timelapse.mp4'
+        if not video.is_file() or video.is_symlink():
+            raise ValueError('MP4 not ready; recording/encoding may still be in progress')
+        size = video.stat().st_size
+        start, end = 0, size - 1
+        range_header = self.headers.get('Range')
+        if range_header:
+            match = re.fullmatch(r'bytes=(\d*)-(\d*)', range_header.strip())
+            if not match or (not match.group(1) and not match.group(2)):
+                self.send_error(416)
+                return
+            if not match.group(1):
+                suffix = int(match.group(2))
+                start = max(0, size - suffix)
+            else:
+                start = int(match.group(1))
+                if match.group(2):
+                    end = min(size - 1, int(match.group(2)))
+            if start >= size or start > end:
+                self.send_response(416)
+                self.send_header('Content-Range', 'bytes */' + str(size))
+                self.end_headers()
+                return
+        self.send_response(206 if range_header else 200)
+        self.send_header('Content-Type', 'video/mp4')
+        self.send_header('Content-Length', str(end - start + 1))
+        self.send_header('Accept-Ranges', 'bytes')
+        if range_header:
+            self.send_header('Content-Range', f'bytes {start}-{end}/{size}')
+        if download:
+            self.send_header('Content-Disposition', 'attachment; filename="timelapse-' + folder.name + '.mp4"')
+        self.send_header('Cache-Control', 'private, no-store')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.end_headers()
+        with video.open('rb') as stream:
+            stream.seek(start)
+            remaining = end - start + 1
+            while remaining > 0:
+                block = stream.read(min(64 * 1024, remaining))
+                if not block:
+                    break
+                self.wfile.write(block)
+                remaining -= len(block)
+
+    def camera_live(self):
+        # Resolve camera on the protected bridge; never expose its private URL to the browser.
+        camera_url = command('camera', 'url', timeout=10).strip()
+        target = urlsplit(camera_url)
+        if (target.scheme != 'http' or not private_ip(target.hostname)
+                or target.username or target.password or not target.port
+                or target.fragment or len(camera_url) > 2048):
+            raise ValueError('Camera URL must point to a private IPv4 HTTP camera')
+        connection = http.client.HTTPConnection(target.hostname, target.port, timeout=15)
+        try:
+            connection.request('GET', target.path + ('?' + target.query if target.query else ''),
+                               headers={'Accept': 'multipart/x-mixed-replace'})
+            stream = connection.getresponse()
+            mime = stream.getheader('Content-Type', '')
+            if stream.status != 200 or not re.fullmatch(
+                    r'multipart/x-mixed-replace\s*;\s*boundary="?[-\w]+"?', mime, re.I):
+                raise ValueError('The printer camera did not return an MJPEG stream')
+            self.send_response(200)
+            self.send_header('Content-Type', mime)
+            self.send_header('Cache-Control', 'no-store, no-transform')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Connection', 'close')
+            self.end_headers()
+            self.close_connection = True
+            while chunk := stream.read(16 * 1024):
+                self.wfile.write(chunk)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError):
+            pass  # Browser closed the feed.
+        finally:
+            connection.close()
 
     def request_authorized(self, write=False):
         host = self.headers.get('Host', '').lower()
@@ -200,6 +408,8 @@ class Handler(SimpleHTTPRequestHandler):
                                        if isinstance(d, dict) and private_ip(d.get('ip'))})
                 return self.json(200, devices)
             if path == '/api/printer/files':
+                if parse_qs(url.query).get('details') == ['1']:
+                    return self.json(200, printer_file_details())
                 return self.json(200, json.loads(command('files', '--json')))
             if path == '/api/printer/profiles':
                 return self.json(200, json.loads(command('profiles', 'list', selected=False)))
@@ -211,6 +421,23 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json(200, {'output': json.loads(output) if kind != 'doctor' else output})
             if path == '/api/printer/timelapse':
                 return self.json(200, timelapse_state())
+            if path == '/api/printer/timelapses':
+                return self.json(200, list_timelapses())
+            if path == '/api/printer/timelapses/frame':
+                query = parse_qs(url.query)
+                folder = timelapse_folder(query.get('id', [''])[0])
+                index = int(query.get('index', ['0'])[0])
+                frames = timelapse_frames(folder)
+                if not 0 <= index < len(frames):
+                    raise ValueError('Invalid frame index')
+                return self.picture(frames[index].read_bytes())
+            if path in ('/api/printer/timelapses/video', '/api/printer/timelapses/download'):
+                query = parse_qs(url.query)
+                return self.send_video(timelapse_folder(query.get('id', [''])[0]),
+                                       download=path.endswith('/download'))
+            if path == '/api/printer/camera/live':
+                return self.camera_live()
+
             if path == '/api/printer/camera':
                 with tempfile.TemporaryDirectory() as directory:
                     frame = Path(directory) / 'frame.jpg'
@@ -232,6 +459,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path not in ('/api/printer/jobs', '/api/printer/upload', '/api/printer/actions',
                         '/api/printer/selection', '/api/printer/profiles',
                         '/api/printer/profiles/delete', '/api/printer/timelapse',
+                        '/api/printer/timelapses/delete',
                         '/api/printer/notifications'):
             return self.send_error(404)
         if not self.request_authorized(write=True):
@@ -260,11 +488,18 @@ class Handler(SimpleHTTPRequestHandler):
                     require_safe_artillery_heating(data, name)
                 except ValueError as exc:
                     return self.json(422, {'error': str(exc)})
-                start = parse_qs(url.query).get('start', ['false'])[0] == 'true'
+                query = parse_qs(url.query)
+                start = query.get('start', ['false'])[0] == 'true'
+                auto_timelapse = start and query.get('timelapse', ['false'])[0] == 'true'
+                if auto_timelapse:
+                    TIMELAPSES.require_encoder()
+                    if TIMELAPSES.state()['id'] or TIMELAPSES.state()['encoding']:
+                        raise ValueError('A timelapse session is already active')
                 with tempfile.TemporaryDirectory() as directory:
                     filename = Path(directory) / name
                     filename.write_bytes(data)
                     output = command('upload', str(filename), *(['--start'] if start else []), timeout=3600)
+                    metadata = inspect_upload_metadata(filename)
                 # The CLI chooses the printer filename using GX header metadata;
                 # report the actual destination returned by the CLI, not the
                 # temporary name used to pass the file to the converter.
@@ -272,8 +507,19 @@ class Handler(SimpleHTTPRequestHandler):
                 if not match:
                     raise RuntimeError('The CLI did not report a confirmed remote upload')
                 remote_path = match.group(1).strip()
+                save_upload_metadata(remote_path.rsplit('/', 1)[-1], metadata)
+                timelapse_capture = None
+                timelapse_error = None
+                if auto_timelapse:
+                    try:
+                        timelapse_capture = start_print_timelapse()
+                    except (OSError, ValueError, RuntimeError) as exc:
+                        # The physical print already started; report capture failure honestly.
+                        timelapse_error = str(exc)
                 return self.json(200, {'remote_name': remote_path.rsplit('/', 1)[-1],
                                        'remote_path': remote_path, 'started': start,
+                                       'timelapse': timelapse_capture,
+                                       'timelapse_error': timelapse_error,
                                        'detail': output[-1000:]})
             body = self.data()
             if not isinstance(body, dict):
@@ -283,15 +529,27 @@ class Handler(SimpleHTTPRequestHandler):
                 simple = {'pause': ('pause',), 'resume': ('resume',), 'cancel': ('cancel',),
                           'fan_on': ('fan', 'on'), 'fan_off': ('fan', 'off')}
                 if action == 'print':
+                    auto_timelapse = body.get('timelapse') is True
+                    if auto_timelapse:
+                        TIMELAPSES.require_encoder()
+                        if TIMELAPSES.state()['id'] or TIMELAPSES.state()['encoding']:
+                            raise ValueError('A timelapse session is already active')
                     filename = body.get('file')
                     listed = json.loads(command('files', '--json'))
                     if not isinstance(filename, str) or filename not in listed:
                         raise ValueError('El archivo no está en el listado actual')
                     output = command('print', filename, timeout=50)
+                    if auto_timelapse:
+                        try:
+                            start_print_timelapse()
+                        except (OSError, ValueError, RuntimeError) as exc:
+                            return self.json(200, {'detail': output[-1000:], 'timelapse_error': str(exc)})
                 elif action in simple:
                     output = command(*simple[action], timeout=50)
                 else:
                     raise ValueError('Acción no admitida')
+                if action == 'cancel':
+                    TIMELAPSES.stop('print_cancelled')
                 return self.json(200, {'detail': output[-1000:]})
             if path == '/api/printer/selection':
                 profile = body.get('profile')
@@ -329,27 +587,18 @@ class Handler(SimpleHTTPRequestHandler):
                     if SELECTED['profile'] == name:
                         SELECTED.update(host=None, profile=None)
                 return self.json(200, {'deleted': name})
+            if path == '/api/printer/timelapses/delete':
+                return self.json(200, TIMELAPSES.delete(body.get('id')))
             if path == '/api/printer/timelapse':
                 action = body.get('action')
-                with STATE_LOCK:
-                    worker = WORKERS['timelapse']
-                    if action == 'stop':
-                        if worker and worker.poll() is None:
-                            worker.terminate()
-                        return self.json(200, timelapse_state())
-                    if action != 'start':
-                        raise ValueError('Acción de timelapse inválida')
-                    if worker and worker.poll() is None:
-                        raise ValueError('Timelapse ya activo')
-                    if TIMELAPSE_DIR:
-                        shutil.rmtree(TIMELAPSE_DIR, ignore_errors=True)
-                    TIMELAPSE_DIR = Path(tempfile.mkdtemp(prefix='ad4-timelapse-'))
-                    WORKERS['timelapse'] = subprocess.Popen(
-                        cli_argv('camera', 'timelapse', str(TIMELAPSE_DIR),
-                                 '--interval', '10', '--count', '20'),
-                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL)
-                return self.json(200, timelapse_state())
+                if action == 'stop':
+                    return self.json(200, TIMELAPSES.stop('manual'))
+                if action == 'start':
+                    # Manual recordings made during a print also stop at print completion.
+                    argv = cli_argv()
+                    return self.json(200, TIMELAPSES.start(
+                        argv, selected_status_reader(argv), auto=False))
+                raise ValueError('Acción de timelapse inválida')
             if path == '/api/printer/notifications':
                 action = body.get('action')
                 with STATE_LOCK:
@@ -384,6 +633,7 @@ def serve(*, require_access=False):
         print('Cloudflare Access validation enabled: ' + ACCESS_CONFIG['public_origin'], flush=True)
     else:
         print('Local-only mode: Cloudflare authentication disabled; do NOT publish a Tunnel route', flush=True)
+    TIMELAPSES.recover()
     port = int(os.environ.get('AD4_WEB_PORT', '8765'))
     print('FFAdv4Manager: http://127.0.0.1:' + str(port) + '/', flush=True)
     server = ThreadingHTTPServer(('127.0.0.1', port), Handler)

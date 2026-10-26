@@ -21,6 +21,8 @@ jobs:
         run: |
           .venv/bin/python -m pip install pytest
           .venv/bin/python -m pytest -q tests/cura tests/cli tests/integration tests/server
+      - name: Validate bundled FFmpeg encoder
+        run: .venv/bin/python -c "from imageio_ffmpeg import get_ffmpeg_exe; import subprocess; result=subprocess.run([get_ffmpeg_exe(), '-encoders'], capture_output=True, text=True, check=True); assert 'libx264' in result.stdout"
       - name: Run frontend profile tests
         run: npm test --prefix frontend
       - name: Smoke-test local Cura routing without contacting the printer

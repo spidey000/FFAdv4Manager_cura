@@ -95,3 +95,7 @@ Printer hardware is **not tested** by installing or running CI. The original fro
 ## Licenses
 
 AGPL-3.0-or-later applies to the web UI and Symple Slicer; the imported FFAD4Manager CLI is GPL-3.0-or-later. Preserve the original license notices and publish the corresponding source when required by these licenses. This repository is not affiliated with FlashForge, Cura/UltiMaker, SynDaver, or Artillery.
+
+## Camera, uploads and MP4 timelapses
+
+The local bridge now exposes an on-demand, authenticated MJPEG stream (never the camera LAN URL), a paginated printer-file viewer with metadata learned only from uploads made by this host, and an MP4 timelapse gallery with HTML5 seek/download. Timelapses are recorded by a server-owned process and survive closing the browser. Auto recording is opt-in per print; if FFmpeg fails after printing has started, the API reports `timelapse_error` without pretending the print was cancelled. A recovered session is encoded at server restart when JPEG frames exist. The Python venv includes `imageio-ffmpeg` to provide an FFmpeg binary without global package installation (host FFmpeg is fallback). This is interval-based capture; hardware layer synchronization is not guaranteed.
