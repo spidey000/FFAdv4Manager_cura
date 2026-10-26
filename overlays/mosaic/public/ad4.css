@@ -1,52 +1,24 @@
-/* Mosaic-native desktop/mobile printer management; lime accents. */
-#ad4-open-manager{margin:0 12px 0 0;align-self:center;border-radius:10px;padding:8px 12px;
-color:#d3f2a2;background:#263c31;border:1px solid #58794b;cursor:pointer;font-size:12px;font-weight:650}
-#ad4-manager{width:min(860px,96vw);max-width:96vw;max-height:94dvh;overscroll-behavior:contain;overflow-y:auto;
-background:#161e26;color:#edf4f6;border:1px solid #4a6060;padding:16px;border-radius:17px;box-shadow:0 20px 75px #000a}
-#ad4-manager::backdrop{background:#02070be0}
-#ad4-manager .ad4-head{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid #33444b;padding-bottom:12px}
-#ad4-manager .ad4-head h2{margin:0;font-size:19px}
-#ad4-manager .ad4-head small{color:#a9bcbf;font-size:11px}
-#ad4-manager .ad4-section{margin:12px 0;padding:12px;background:#1c2930;border:1px solid #3a5055;border-radius:12px}
-#ad4-manager .ad4-section h3{font-size:14px;margin:0 0 8px}
-#ad4-manager .ad4-section-title{display:flex;justify-content:space-between;align-items:center;gap:8px}
-#ad4-manager .ad4-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
-#ad4-manager .ad4-stat{padding:9px;background:#24363b;border:1px solid #395355;border-radius:9px;min-width:0}
-#ad4-manager .ad4-stat span{display:block;font-size:10px;color:#a9bcc2}
-#ad4-manager .ad4-stat strong{display:block;font-size:13px;overflow-wrap:anywhere}
-#ad4-manager .ad4-tools,#ad4-manager .ad4-profile-buttons{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;align-items:center}
-#ad4-manager button,#ad4-manager .ad4-download{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
-min-height:35px;padding:8px 11px;border-radius:9px;background:#273d43;border:1px solid #52706a;color:#edf8ef;cursor:pointer;font:inherit;font-size:12px}
-#ad4-manager button:hover:not(:disabled),#ad4-manager .ad4-download:hover{background:#40564b;border-color:#a3e635}
-#ad4-manager button:focus-visible,#ad4-manager select:focus-visible,#ad4-manager input:focus-visible{outline:2px solid #a3e635;outline-offset:2px}
-#ad4-manager button:disabled{opacity:.4;cursor:not-allowed}
-#ad4-manager .ad4-primary{background:#a3e635!important;color:#15260b!important;border-color:#a3e635!important;font-weight:750!important}
-#ad4-manager .ad4-destructive{border-color:#8e5357;color:#ffcfcd}
-#ad4-manager select,#ad4-manager input:not([type=checkbox]){max-width:100%;min-height:35px;padding:7px;background:#17282d;color:#f1f7f1;border:1px solid #527070;border-radius:8px;min-width:0}
-#ad4-manager .ad4-file-filters{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-#ad4-manager .ad4-file-filters label,#ad4-manager .ad4-option{display:flex;align-items:center;gap:7px;color:#cfe0d7;font-size:12px}
-#ad4-manager .ad4-option{margin:9px 0}
-#ad4-manager input[type=checkbox]{width:16px;height:16px;accent-color:#a3e635}
-#ad4-manager .ad4-file-list{display:grid;gap:6px;max-height:260px;overflow-y:auto;overscroll-behavior:contain}
-#ad4-manager .ad4-file-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px;border-bottom:1px solid #35464f}
-#ad4-manager .ad4-file-meta{min-width:0;flex:1 1 auto}
-#ad4-manager .ad4-file-meta strong{display:block;font-size:12px;overflow-wrap:anywhere}
-#ad4-manager .ad4-file-meta small{display:block;color:#a5b9b9;font-size:10px;margin-top:4px;overflow-wrap:anywhere}
-#ad4-manager .ad4-item-buttons{display:flex;flex-wrap:wrap;gap:5px;flex-shrink:0}
-#ad4-manager .ad4-pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin:9px 0}
-#ad4-manager .ad4-help{font-size:11px;color:#aabfb9}
-#ad4-manager-status{font-size:12px;color:#b9ec9b;overflow-wrap:anywhere}
-#ad4-manager-status[data-error=true]{color:#ffb1ad}
-#ad4-camera{display:block;max-height:340px;max-width:100%;object-fit:contain;margin:8px auto;border-radius:9px}
-#ad4-camera[hidden],#ad4-timelapse-preview[hidden]{display:none}
-#ad4-timelapse-preview{width:100%;max-height:330px;border-radius:8px;background:#070c10}
-#ad4-manager details summary{cursor:pointer;font-weight:600;padding:5px}
-#ad4-diagnostic-result{font-size:11px;max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+/* Only MosaicSlicer UI is served, with these printer controls layered on top. */
+#ad4-open-manager {margin: 0 12px 0 0; align-self:center; border-radius:8px; padding:9px 13px;
+  color:#d6f7e6;background:#18523d;border:1px solid #286d51;cursor:pointer;font-size:13px}
+#ad4-manager {width:min(850px,94vw);max-height:92dvh;border-radius:16px;background:#17251f;
+  border:1px solid #47705b;color:#e1f3e7;padding:16px;box-shadow:0 12px 70px #0009}
+#ad4-manager::backdrop {background:#0009}
+#ad4-manager h2 {margin:0 0 12px;font-size:19px}
+#ad4-manager .ad4-head {display:flex;align-items:center;justify-content:space-between;gap:10px}
+#ad4-manager .ad4-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+#ad4-manager .ad4-stat {background:#24392e;border:1px solid #3b5947;border-radius:9px;padding:10px;min-width:0}
+#ad4-manager .ad4-stat span {display:block;color:#b0c9b9;font-size:11px}
+#ad4-manager .ad4-stat strong {font-size:13px;overflow-wrap:anywhere}
+#ad4-manager .ad4-tools {display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}
+#ad4-manager button {border:1px solid #4c7460;border-radius:8px;padding:9px 11px;color:#e8f8ed;background:#29513c;cursor:pointer}
+#ad4-manager button:focus-visible {outline:2px solid #b8edcd}
+#ad4-manager button:hover {background:#36714f}
+#ad4-manager select{max-width:100%;background:#2a3d32;color:#fff;padding:8px;border-radius:8px}
+#ad4-camera{display:block;max-width:100%;max-height:220px;margin:auto}
+#ad4-manager-status{font-size:12px;color:#b7ddc4;overflow-wrap:anywhere}
 .add-printer-button,#manage-printers-button,#prefs-printer-section,#settings-tab-button,
-#material-brand-select,#material-select,#printers-dropdown,#extruders-dropdown{display:none!important}
-@media(max-width:720px){#ad4-open-manager{padding:7px 9px;font-size:11px}
-#ad4-manager{height:min(96dvh,950px);max-height:96dvh;width:100vw;max-width:100vw;padding:10px;border-radius:15px 15px 0 0;margin:auto 0 0 0}
-#ad4-manager .ad4-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-#ad4-manager .ad4-file-row{gap:5px;align-items:flex-start}
-#ad4-manager .ad4-item-buttons button,#ad4-manager .ad4-item-buttons a{padding:6px;font-size:11px}
-#tab-strip h1{font-size:14px}}
+#material-brand-select,#material-select,#printers-dropdown,#extruders-dropdown {display:none!important}
+@media(max-width:720px){#ad4-open-manager{padding:8px;font-size:11px}
+ #ad4-manager .ad4-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #tab-strip h1{font-size:14px}}

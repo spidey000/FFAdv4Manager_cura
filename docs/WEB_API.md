@@ -30,12 +30,3 @@ commands, shell execution or free-form G-code endpoints. It rejects invalid
 Host/Origin headers and validates JWT signing key, issuer, AUD, expiry and email
 when in Access mode. The bridge does not verify uploaded file byte integrity
 on the printer; CLI listing confirmation is not that verification.
-
-### MosaicSlicer manager capabilities
-
-- `GET /api/printer/files?details=1`: server-side upload record metadata where known; not firmware-derived statistics.
-- `GET /api/printer/camera/live`: authenticated MJPEG proxy (explicit opt-in, closed when manager closes).
-- `GET /api/printer/timelapses`, `/timelapses/video?id=...`, `/timelapses/download?id=...`: saved MP4 gallery, with byte-range seeking for HTML5 video.
-- `POST /api/printer/timelapses/delete`: delete saved inactive capture by ID.
-- `POST /api/printer/timelapse {action:start,mode:interval|layer}`: optional M114 estimated-layer sampling. Default is interval; M114 accuracy may be affected by Z-hop.
-- `POST /api/printer/jobs?timelapse=true&timelapse_mode=...` and stored `POST /api/printer/actions {action:print,file,timelapse,timelapse_mode}`: start printer-side capture automatically when explicitly requested. Errors after physical print start are reported separately.
