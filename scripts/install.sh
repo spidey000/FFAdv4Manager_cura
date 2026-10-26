@@ -15,12 +15,13 @@ python3 -m venv .venv
 npm install --prefix frontend --no-audit --no-fund
 (cd frontend && bash scripts/bundle_resources.sh)
 npm run build:prod --prefix frontend
-if [[ "$(printenv AD4_BUILD_CURAENGINE || true)" == "1" ]]; then
-  bash scripts/build_engine.sh
-elif [[ ! -x ".local/curaengine/bin/CuraEngine" && -z "$(printenv AD4_CURAENGINE_BIN || true)" ]]; then
-  echo "WARN: Mosaic UI installed, but server-side native CuraEngine not installed."
-  echo "Build native engine with: AD4_BUILD_CURAENGINE=1 bash scripts/install.sh"
-  echo "or set AD4_CURAENGINE_BIN to a MosaicSlicer/CuraEngine binary supporting -r."
+if [[ ! -x ".local/curaengine/bin/CuraEngine" && -z "$(printenv AD4_CURAENGINE_BIN || true)" ]]; then
+  if [[ "$(printenv AD4_SKIP_ENGINE_BUILD || true)" == "1" ]]; then
+    echo "Engine build explicitly skipped (CI/test-only). Slicing unavailable."
+  else
+    echo "== Building local server-side CuraEngine (-r support required)"
+    bash scripts/build_engine.sh
+  fi
 fi
 echo "Run local: .venv/bin/ffadv4manager-cura"
 echo "Run private: .venv/bin/ffadv4manager-cura --require-access"

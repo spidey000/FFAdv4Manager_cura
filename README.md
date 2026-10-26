@@ -13,8 +13,7 @@ The old React/Symple interface has been **completely replaced by [MosaicSlicer](
 ```bash
 git clone https://github.com/spidey000/FFAdv4Manager_cura.git
 cd FFAdv4Manager_cura
-bash scripts/install.sh
-bash scripts/build_engine.sh
+bash scripts/install.sh  # also attempts the native CuraEngine build
 .venv/bin/ffadv4manager config set --host YOUR_ADVENTURER4_LAN_IP
 .venv/bin/ffadv4manager status --json
 .venv/bin/ffadv4manager-cura

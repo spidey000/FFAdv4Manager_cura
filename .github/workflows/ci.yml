@@ -16,6 +16,8 @@ jobs:
         with:
           node-version: '22'
       - name: Install local Python venv and Mosaic frontend
+        env:
+          AD4_SKIP_ENGINE_BUILD: '1'
         run: bash scripts/install.sh
       - name: Test CLI, API, GX and server slicer
         run: |
