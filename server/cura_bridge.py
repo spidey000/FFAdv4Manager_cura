@@ -45,7 +45,7 @@ class CuraHandler(bridge.Handler):
                 return None
             page = page.replace(
                 "</body>",
-                '<script src="/cura-integration.js"></script></body>',
+                '<script src="../cura-integration.js"></script></body>',
             )
             payload = page.encode("utf-8")
             self.send_response(200)
