@@ -1,0 +1,77 @@
+name: Deploy Cura preview to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'cura-profiles/**'
+      - 'vendor/symple-slicer'
+      - 'scripts/build_pages.py'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build static Cura preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install isolated Node dependencies
+        run: npm ci --prefix frontend
+      - name: Test frontend
+        run: npm test --prefix frontend
+      - name: Build for the GitHub Pages repository subpath
+        env:
+          VITE_STATIC_DEMO: 'true'
+        run: npm run build --prefix frontend -- --base=/${{ github.event.repository.name }}/
+      - name: Package CuraEngine WASM and single-printer profiles
+        run: python3 scripts/build_pages.py
+      - name: Validate static assets and repository-relative paths
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('frontend/dist')
+          assert (root/'index.html').is_file()
+          assert (root/'cura/index.html').is_file()
+          assert (root/'cura/lib/slicing-engines/CuraEngine/CuraEngine.wasm').is_file()
+          assert (root/'cura-profiles/profile_list.toml').is_file()
+          assert (root/'.nojekyll').is_file()
+          assert b'/FFAdv4Manager_cura/assets/' in (root/'index.html').read_bytes()
+          assert b'../cura-integration.js' in (root/'cura/index.html').read_bytes()
+          assert b'adventurer4' in (root/'cura-profiles/profile_list.toml').read_bytes()
+          assert not (root/'server').exists()
+          print('CuraEngine static preview assets verified')
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: frontend/dist
+
+  deploy:
+    name: Publish Pages site
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
