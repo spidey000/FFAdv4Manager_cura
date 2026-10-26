@@ -29,6 +29,8 @@ def build():
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     shutil.copy2(OV/"public/ad4.css",DEST/"public/ad4.css")
+    shutil.copy2(OV/"public/ad4-studio.css",DEST/"public/ad4-studio.css")
+    shutil.copy2(OV/"public/ad4-studio.js",DEST/"public/ad4-studio.js")
     webpack=DEST/"webpack.config.js"
     cfg=webpack.read_text()
     marker=',\n  {\n    name: "curaengine_worker"'
@@ -96,11 +98,12 @@ def build():
     source=html.read_text()
     if "</body>" not in source or "<h1>MosaicSlicer</h1>" not in source:
         raise RuntimeError("Unexpected Mosaic HTML")
-    source=source.replace("<h1>MosaicSlicer</h1>","<h1>MosaicSlicer · Adventurer 4</h1>")
+    source=source.replace("<h1>MosaicSlicer</h1>","<h1>AD4 Studio</h1>")
     source=source.replace('<link rel="stylesheet" href="main.css">',
-          '<link rel="stylesheet" href="main.css"><link rel="stylesheet" href="ad4.css">')
+          '<link rel="stylesheet" href="main.css"><link rel="stylesheet" href="ad4.css">'
+          '<link rel="stylesheet" href="ad4-studio.css">')
     source=source.replace('<div class="flex-spacer"></div>\n      <a class="info-link"',
-          '<div class="flex-spacer"></div>\n      <button id="ad4-open-manager">Printer manager</button>\n      <a class="info-link"',1)
+          '<div class="flex-spacer"></div>\n      <button id="ad4-open-manager" type="button" aria-label="Open Adventurer 4 printer manager">AD4 · Printer</button>\n      <a class="info-link"',1)
     dialog="""<dialog id="ad4-manager" aria-label="Adventurer 4 printer manager">
   <div class="ad4-head"><h2>FlashForge Adventurer 4</h2><button id="ad4-close-manager">Close</button></div>
   <div class="ad4-grid">
@@ -127,8 +130,12 @@ def build():
   <img id="ad4-camera" alt="Latest printer snapshot">
   <p id="ad4-manager-status" role="status">Checking printer...</p>
 </dialog>
-<script type="module" src="ad4-manager.js"></script>
+<script type="module" src="ad4-manager.js"></script>\n<script type="module" src="ad4-studio.js"></script>
 """
     html.write_text(source.replace("</body>",dialog+"</body>"))
-    print("MosaicSlicer frontend generated; no browser CuraEngine worker")
+    built=html.read_text()
+    for required in ("ad4-studio.css", "ad4-studio.js", "ad4-manager.js"):
+        if required not in built:
+            raise RuntimeError("AD4 Studio asset is not linked: "+required)
+    print("AD4 Studio MosaicSlicer frontend generated; slicing remains server-only")
 if __name__=="__main__":build()
