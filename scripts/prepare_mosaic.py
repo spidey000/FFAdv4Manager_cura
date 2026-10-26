@@ -29,8 +29,11 @@ def build():
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     shutil.copy2(OV/"public/ad4.css",DEST/"public/ad4.css")
+    shutil.copy2(OV/"public/ad4-settings.css",DEST/"public/ad4-settings.css")
     shutil.copy2(OV/"public/ad4-studio.css",DEST/"public/ad4-studio.css")
     shutil.copy2(OV/"public/ad4-studio.js",DEST/"public/ad4-studio.js")
+    shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
+    shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
     webpack=DEST/"webpack.config.js"
     cfg=webpack.read_text()
     marker=',\n  {\n    name: "curaengine_worker"'
@@ -44,6 +47,13 @@ def build():
     pkg.write_text(json.dumps(data,indent=2)+"\n")
     with (DEST/"src/gui/index.mjs").open("a",encoding="utf-8") as stream:
         stream.write('\nexport * as slicer from "./slicer.mjs";\n')
+    app_entry=DEST/"src/index.mjs"
+    app_code=app_entry.read_text()
+    app_code=app_code.replace('import * as resources from "./resources.mjs";',
+      'import * as resources from "./resources.mjs";\\nimport {install_ad4_features} from "./gui/ad4-settings.mjs";'.replace('\\n','\n'))
+    app_code=app_code.replace('  console.log("Loaded GUI");',
+      '  console.log("Loaded GUI");\\n  install_ad4_features();'.replace('\\n','\n'))
+    app_entry.write_text(app_code)
     settings=DEST/"src/settings/index.mjs"
     source=settings.read_text()
     start=source.index("export function apply_prefs() {")
@@ -99,64 +109,78 @@ def build():
     if "</body>" not in source or "<h1>MosaicSlicer</h1>" not in source:
         raise RuntimeError("Unexpected Mosaic HTML")
     source=source.replace("<h1>MosaicSlicer</h1>","<h1>AD4 Studio</h1>")
-    # Mosaic already parses 3MF; expose the format through the native picker.
-    source=source.replace('id="stl-file" accept=".stl"',
-                          'id="stl-file" accept=".stl,.3mf"')
+    source=source.replace('id="stl-file" accept=".stl"', 'id="stl-file" accept=".stl,.3mf"')
     source=source.replace('<link rel="stylesheet" href="main.css">',
-          '<link rel="stylesheet" href="main.css"><link rel="stylesheet" href="ad4.css">'
-          '<link rel="stylesheet" href="ad4-studio.css">')
+          '<link rel="stylesheet" href="main.css"><link rel="stylesheet" href="ad4.css"><link rel="stylesheet" href="ad4-settings.css"><link rel="stylesheet" href="ad4-studio.css">')
     source=source.replace('<div class="flex-spacer"></div>\n      <a class="info-link"',
           '<div class="flex-spacer"></div>\n      <button id="ad4-open-manager" type="button" aria-label="Open Adventurer 4 printer manager">AD4 · Printer</button>\n      <a class="info-link"',1)
     dialog="""<dialog id="ad4-manager" aria-label="Adventurer 4 printer manager">
-  <div class="ad4-head">
-    <div class="ad4-headline"><small>CONNECTED HARDWARE</small><h2>Adventurer 4</h2><span>Print status &amp; control</span></div>
-    <button id="ad4-close-manager" type="button" aria-label="Close printer manager">×</button>
-  </div>
-  <p id="ad4-manager-status" role="status">Checking printer...</p>
-  <div class="ad4-grid" aria-label="Live printer metrics">
-    <div class="ad4-stat"><span>Printer</span><strong id="ad4-machine">—</strong></div>
+  <header class="ad4-head">
+    <div><h2>Adventurer 4</h2><small>Authenticated LAN printer controls</small></div>
+    <button type="button" id="ad4-close-manager" aria-label="Close printer manager">×</button>
+  </header>
+  <p id="ad4-manager-status" role="status" aria-live="polite">Connecting to printer…</p>
+  <div class="ad4-grid">
+    <div class="ad4-stat"><span>Machine</span><strong id="ad4-machine">—</strong></div>
     <div class="ad4-stat"><span>Nozzle</span><strong id="ad4-nozzle">—</strong></div>
     <div class="ad4-stat"><span>Bed</span><strong id="ad4-bed">—</strong></div>
     <div class="ad4-stat"><span>Progress</span><strong id="ad4-progress">—</strong></div>
-    <div class="ad4-stat"><span>Layer</span><strong id="ad4-layer">—</strong></div>
+    <div class="ad4-stat"><span>Layer (if reported)</span><strong id="ad4-layer">—</strong></div>
     <div class="ad4-stat"><span>Current file</span><strong id="ad4-file">—</strong></div>
   </div>
-  <section class="ad4-manager-section">
+  <section class="ad4-section">
     <h3>Print controls</h3>
     <div class="ad4-tools">
+      <button id="ad4-refresh">Refresh</button><button id="ad4-discover">Discover</button>
       <button id="ad4-pause">Pause</button><button id="ad4-resume">Resume</button>
-      <button id="ad4-cancel" class="ad4-danger">Cancel print</button>
+      <button id="ad4-cancel" class="ad4-destructive">Cancel print</button>
       <button id="ad4-fan_on">Fan on</button><button id="ad4-fan_off">Fan off</button>
     </div>
   </section>
-  <section class="ad4-manager-section">
-    <h3>Stored files</h3>
-    <div class="ad4-tools"><select aria-label="Printer files" id="ad4-files"></select>
-      <button id="ad4-print-file">Print stored file</button></div>
-  </section>
-  <section class="ad4-manager-section">
-    <h3>Current sliced model</h3>
-    <p class="ad4-hint">Upload to the printer without starting, or request a print start. Requires real G-code from server CuraEngine.</p>
-    <div class="ad4-tools"><button id="ad4-upload">Upload only</button>
-      <button id="ad4-send-print" class="ad4-cta">Upload &amp; print</button></div>
-  </section>
-  <section class="ad4-manager-section">
-    <h3>Camera &amp; diagnostics</h3>
-    <div class="ad4-tools">
-      <button id="ad4-snapshot">Update camera</button><button id="ad4-refresh">Refresh</button>
-      <button id="ad4-discover">Discover printer</button>
-      <button id="ad4-timelapse-start">Start timelapse</button><button id="ad4-timelapse-stop">Stop timelapse</button>
+  <section class="ad4-section">
+    <div class="ad4-section-title"><h3>Printer files</h3><button id="ad4-refresh-files">Refresh files</button></div>
+    <div class="ad4-file-filters">
+      <label>Sort <select id="ad4-file-sort"><option value="name">Name</option><option value="duration">Duration</option><option value="date">Upload date</option></select></label>
+      <label>Per page <select id="ad4-page-size"><option>5</option><option selected>10</option><option>20</option></select></label>
     </div>
-    <img id="ad4-camera" alt="Latest printer snapshot" loading="lazy">
+    <div id="ad4-file-list" class="ad4-file-list" aria-label="Stored printer files"></div>
+    <div class="ad4-pagination"><button type="button" id="ad4-files-prev" aria-label="Previous page">Previous</button><span id="ad4-files-page">0 / 0</span><button type="button" id="ad4-files-next" aria-label="Next page">Next</button></div>
+    <div class="ad4-tools">
+      <button id="ad4-upload">Upload sliced GX only</button>
+      <button id="ad4-send-print" class="ad4-primary">Upload &amp; print</button>
+    </div>
+    <label class="ad4-option"><input id="ad4-auto-timelapse" type="checkbox">Record timelapse when printing</label>
+    <label class="ad4-option">Capture mode <select id="ad4-capture-mode"><option value="interval">Every 10 seconds</option><option value="layer">Estimated layer (M114, experimental)</option></select></label>
   </section>
+  <section class="ad4-section">
+    <h3>Camera</h3>
+    <div class="ad4-tools"><button id="ad4-snapshot">Take snapshot</button><button id="ad4-live-toggle" aria-pressed="false">Start live video</button></div>
+    <img id="ad4-camera" alt="Adventurer 4 camera image" hidden>
+    <p class="ad4-help">Video is fetched only when enabled and proxied through the authenticated bridge.</p>
+  </section>
+  <section class="ad4-section">
+    <div class="ad4-section-title"><h3>Timelapses</h3><button id="ad4-gallery-refresh">Refresh gallery</button></div>
+    <p id="ad4-timelapse-status">No recording</p>
+    <div class="ad4-tools"><button id="ad4-timelapse-start">Start manual recording</button><button id="ad4-timelapse-stop">Stop &amp; encode MP4</button></div>
+    <div id="ad4-gallery" class="ad4-file-list" aria-label="Saved timelapses"></div>
+    <video id="ad4-timelapse-preview" controls playsinline preload="metadata" hidden></video>
+  </section>
+  <details class="ad4-section">
+    <summary>Printer connections and diagnostics</summary>
+    <p class="ad4-help">Connection profiles select a network address, not a different printer model.</p>
+    <label class="ad4-option">Saved connection <select id="ad4-connection-profiles"></select></label>
+    <div class="ad4-tools"><button id="ad4-profile-use">Use profile</button><button id="ad4-profile-delete" class="ad4-destructive">Delete profile</button></div>
+    <div class="ad4-tools"><input id="ad4-profile-name" placeholder="Profile name" maxlength="64" aria-label="Connection profile name"><input id="ad4-profile-host" placeholder="192.168.x.x" aria-label="Printer LAN IPv4"><button id="ad4-profile-add">Save connection</button></div>
+    <div class="ad4-tools"><button id="ad4-diagnostic-doctor">Doctor</button><button id="ad4-diagnostic-info">Printer info</button><button id="ad4-diagnostic-position">M114 position</button></div>
+    <pre id="ad4-diagnostic-result"></pre>
+  </details>
 </dialog>
-<script type="module" src="ad4-manager.js"></script>
-<script type="module" src="ad4-studio.js"></script>
+<script type="module" src="ad4-manager.js"></script>\n<script type="module" src="ad4-studio.js"></script>
 """
     html.write_text(source.replace("</body>",dialog+"</body>"))
     built=html.read_text()
-    for required in ("ad4-studio.css", "ad4-studio.js", "ad4-manager.js"):
+    for required in ("ad4-settings.css", "ad4-studio.css", "ad4-studio.js", "ad4-manager.js"):
         if required not in built:
-            raise RuntimeError("AD4 Studio asset is not linked: "+required)
-    print("AD4 Studio MosaicSlicer frontend generated; slicing remains server-only")
+            raise RuntimeError("Required AD4 overlay missing: "+required)
+    print("AD4 Studio generated with native preset controls; slicing remains server-only")
 if __name__=="__main__":build()
