@@ -10,7 +10,8 @@
     localStorage.removeItem('startup_config')
     localStorage.setItem('ffadv4-cura-profile-version', 'ad4-artillery-v1')
   }
-  localStorage.setItem('profile_urls', '/cura-profiles/profile_list.toml')
+  const profilesUrl = new URL('../cura-profiles/profile_list.toml', location.href).pathname
+  localStorage.setItem('profile_urls', profilesUrl)
 
   let hookedSlicer = false
   let hookedStage = false
