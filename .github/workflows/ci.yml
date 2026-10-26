@@ -23,5 +23,29 @@ jobs:
           .venv/bin/python -m pytest -q tests/cura tests/cli tests/integration tests/server
       - name: Run frontend profile tests
         run: npm test --prefix frontend
+      - name: Smoke-test local Cura routing without contacting the printer
+        run: |
+          .venv/bin/ffadv4manager-cura >/tmp/ffadv4-cura.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          python - <<'PY'
+          import time, urllib.request
+          base = "http://127.0.0.1:8765"
+          for _ in range(30):
+              try:
+                  urllib.request.urlopen(base + "/", timeout=2).read()
+                  break
+              except Exception:
+                  time.sleep(1)
+          else:
+              raise RuntimeError("Cura server did not start")
+          for path, expected in [
+              ("/", b"Cura"),
+              ("/cura/index.html?profiles=/cura-profiles/profile_list.toml", b"cura-integration.js"),
+              ("/cura-profiles/profile_list.toml", b"adventurer4"),
+          ]:
+              data = urllib.request.urlopen(base + path, timeout=10).read()
+              assert expected in data, (path, data[:100])
+          PY
       - name: Ensure compiled UI exists
         run: test -f frontend/dist/index.html && test -f frontend/dist/cura-integration.js

@@ -91,7 +91,7 @@ def extract_metadata(lines: list[str], profile: PrinterProfile | None = None) ->
             # importer understood only explicit [mm] / [m] comment keys.
             vals = []
             for part in value.split(","):
-                match = re.fullmatch(r"([0-9]+(?:[.][0-9]+)?)\\s*(mm|m)?", part.strip().lower())
+                match = re.fullmatch(r"([0-9]+(?:[.][0-9]+)?)\s*(mm|m)?", part.strip().lower())
                 if not match:
                     continue
                 number, suffix = float(match.group(1)), match.group(2)
