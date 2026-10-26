@@ -119,9 +119,23 @@ def selected_status_reader(argv):
     return get_status
 
 
-def start_print_timelapse():
+def start_print_timelapse(mode='interval', layer_height=0.2):
     argv = cli_argv()
-    return TIMELAPSES.start(argv, selected_status_reader(argv), auto=True)
+    return TIMELAPSES.start(argv, selected_status_reader(argv), auto=True,
+                            mode=mode, layer_height=layer_height)
+
+
+def estimated_layer_height(payload):
+    """Read explicit layer-height metadata; use a documented default otherwise."""
+    if not isinstance(payload, (bytes, bytearray)):
+        return 0.2
+    match = re.search(rb'(?im)^;\s*layer_height\s*[:=]\s*(0\.\d{1,3})\s*$',
+                      payload[:1024 * 1024])
+    if match:
+        value = float(match.group(1))
+        if 0.06 <= value <= 0.4:
+            return value
+    return 0.2
 
 
 def _metadata_scope():
@@ -491,6 +505,9 @@ class Handler(SimpleHTTPRequestHandler):
                 query = parse_qs(url.query)
                 start = query.get('start', ['false'])[0] == 'true'
                 auto_timelapse = start and query.get('timelapse', ['false'])[0] == 'true'
+                capture_mode = query.get('timelapse_mode', ['interval'])[0]
+                if capture_mode not in ('interval', 'layer'):
+                    raise ValueError('Invalid capture mode')
                 if auto_timelapse:
                     TIMELAPSES.require_encoder()
                     if TIMELAPSES.state()['id'] or TIMELAPSES.state()['encoding']:
@@ -512,7 +529,8 @@ class Handler(SimpleHTTPRequestHandler):
                 timelapse_error = None
                 if auto_timelapse:
                     try:
-                        timelapse_capture = start_print_timelapse()
+                        timelapse_capture = start_print_timelapse(mode=capture_mode,
+                            layer_height=estimated_layer_height(data))
                     except (OSError, ValueError, RuntimeError) as exc:
                         # The physical print already started; report capture failure honestly.
                         timelapse_error = str(exc)
@@ -530,6 +548,9 @@ class Handler(SimpleHTTPRequestHandler):
                           'fan_on': ('fan', 'on'), 'fan_off': ('fan', 'off')}
                 if action == 'print':
                     auto_timelapse = body.get('timelapse') is True
+                    capture_mode = body.get('timelapse_mode', 'interval')
+                    if capture_mode not in ('interval', 'layer'):
+                        raise ValueError('Invalid capture mode')
                     if auto_timelapse:
                         TIMELAPSES.require_encoder()
                         if TIMELAPSES.state()['id'] or TIMELAPSES.state()['encoding']:
@@ -541,7 +562,7 @@ class Handler(SimpleHTTPRequestHandler):
                     output = command('print', filename, timeout=50)
                     if auto_timelapse:
                         try:
-                            start_print_timelapse()
+                            start_print_timelapse(mode=capture_mode)
                         except (OSError, ValueError, RuntimeError) as exc:
                             return self.json(200, {'detail': output[-1000:], 'timelapse_error': str(exc)})
                 elif action in simple:
@@ -596,8 +617,9 @@ class Handler(SimpleHTTPRequestHandler):
                 if action == 'start':
                     # Manual recordings made during a print also stop at print completion.
                     argv = cli_argv()
+                    capture_mode = body.get('mode', 'interval')
                     return self.json(200, TIMELAPSES.start(
-                        argv, selected_status_reader(argv), auto=False))
+                        argv, selected_status_reader(argv), auto=False, mode=capture_mode))
                 raise ValueError('Acción de timelapse inválida')
             if path == '/api/printer/notifications':
                 action = body.get('action')

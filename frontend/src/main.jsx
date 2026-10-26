@@ -53,6 +53,7 @@ function App() {
   const [tuneOpen, setTuneOpen] = useState(false)
   const [autoSlice, setAutoSlice] = useState(false)
   const [timelapseEnabled, setTimelapseEnabled] = useState(false)
+  const [timelapseMode, setTimelapseMode] = useState('interval')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [curaReady, setCuraReady] = useState(false)
   const [hasModel, setHasModel] = useState(false)
@@ -155,7 +156,7 @@ function App() {
       : 'Upload this file to the Adventurer 4? Firmware behavior is not guaranteed to be upload-only; inspect the printer.')) return
     setSending(true)
     try {
-      const res = await fetch('/api/printer/jobs?name=' + encodeURIComponent(name) + '&start=' + start + '&timelapse=' + (start && timelapseEnabled), {
+      const res = await fetch('/api/printer/jobs?name=' + encodeURIComponent(name) + '&start=' + start + '&timelapse=' + (start && timelapseEnabled) + '&timelapse_mode=' + encodeURIComponent(timelapseMode), {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
         body: bytes,
@@ -234,6 +235,8 @@ function App() {
       <div className="job-actions">
         <label className="cura-pill-switch"><input type="checkbox" checked={autoSlice} onChange={e => setAutoSlice(e.target.checked)}/><span>Auto slice</span></label>
         {!IS_PAGES_DEMO && <label className="cura-pill-switch"><input type="checkbox" checked={timelapseEnabled} onChange={e => setTimelapseEnabled(e.target.checked)}/><span>Timelapse</span></label>}
+        {!IS_PAGES_DEMO && timelapseEnabled && <select className="cura-capture-mode" aria-label="Timelapse capture mode" value={timelapseMode}
+          onChange={e=>setTimelapseMode(e.target.value)}><option value="interval">By time</option><option value="layer">By Z layer · experimental</option></select>}
         <button type="button" className={'quick-action settings-action' + (settingsOpen ? ' is-on' : '')}
           onClick={() => sendToCura(settingsOpen ? 'close-settings' : 'open-settings')}
           aria-label={settingsOpen ? 'Close slicing settings' : 'Open slicing settings'}
