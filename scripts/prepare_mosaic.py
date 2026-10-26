@@ -102,30 +102,65 @@ def build():
     source=source.replace('<div class="flex-spacer"></div>\n      <a class="info-link"',
           '<div class="flex-spacer"></div>\n      <button id="ad4-open-manager">Printer manager</button>\n      <a class="info-link"',1)
     dialog="""<dialog id="ad4-manager" aria-label="Adventurer 4 printer manager">
-  <div class="ad4-head"><h2>FlashForge Adventurer 4</h2><button id="ad4-close-manager">Close</button></div>
+  <header class="ad4-head">
+    <div><h2>Adventurer 4</h2><small>Authenticated LAN printer controls</small></div>
+    <button type="button" id="ad4-close-manager" aria-label="Close printer manager">×</button>
+  </header>
+  <p id="ad4-manager-status" role="status" aria-live="polite">Connecting to printer…</p>
   <div class="ad4-grid">
-    <div class="ad4-stat"><span>Printer</span><strong id="ad4-machine">—</strong></div>
+    <div class="ad4-stat"><span>Machine</span><strong id="ad4-machine">—</strong></div>
     <div class="ad4-stat"><span>Nozzle</span><strong id="ad4-nozzle">—</strong></div>
     <div class="ad4-stat"><span>Bed</span><strong id="ad4-bed">—</strong></div>
     <div class="ad4-stat"><span>Progress</span><strong id="ad4-progress">—</strong></div>
-    <div class="ad4-stat"><span>Layer</span><strong id="ad4-layer">—</strong></div>
+    <div class="ad4-stat"><span>Layer (if reported)</span><strong id="ad4-layer">—</strong></div>
     <div class="ad4-stat"><span>Current file</span><strong id="ad4-file">—</strong></div>
   </div>
-  <div class="ad4-tools">
-    <button id="ad4-refresh">Refresh</button><button id="ad4-discover">Discover</button>
-    <button id="ad4-pause">Pause</button><button id="ad4-resume">Resume</button>
-    <button id="ad4-cancel">Cancel print</button><button id="ad4-fan_on">Fan on</button>
-    <button id="ad4-fan_off">Fan off</button>
-  </div>
-  <div class="ad4-tools"><select aria-label="Printer files" id="ad4-files"></select>
-    <button id="ad4-print-file">Print stored file</button></div>
-  <div class="ad4-tools">
-    <button id="ad4-upload">Upload GX only</button><button id="ad4-send-print">Upload & print</button>
-    <button id="ad4-snapshot">Camera</button><button id="ad4-timelapse-start">Start timelapse</button>
-    <button id="ad4-timelapse-stop">Stop timelapse</button>
-  </div>
-  <img id="ad4-camera" alt="Latest printer snapshot">
-  <p id="ad4-manager-status" role="status">Checking printer...</p>
+  <section class="ad4-section">
+    <h3>Print controls</h3>
+    <div class="ad4-tools">
+      <button id="ad4-refresh">Refresh</button><button id="ad4-discover">Discover</button>
+      <button id="ad4-pause">Pause</button><button id="ad4-resume">Resume</button>
+      <button id="ad4-cancel" class="ad4-destructive">Cancel print</button>
+      <button id="ad4-fan_on">Fan on</button><button id="ad4-fan_off">Fan off</button>
+    </div>
+  </section>
+  <section class="ad4-section">
+    <div class="ad4-section-title"><h3>Printer files</h3><button id="ad4-refresh-files">Refresh files</button></div>
+    <div class="ad4-file-filters">
+      <label>Sort <select id="ad4-file-sort"><option value="name">Name</option><option value="duration">Duration</option><option value="date">Upload date</option></select></label>
+      <label>Per page <select id="ad4-page-size"><option>5</option><option selected>10</option><option>20</option></select></label>
+    </div>
+    <div id="ad4-file-list" class="ad4-file-list" aria-label="Stored printer files"></div>
+    <div class="ad4-pagination"><button type="button" id="ad4-files-prev" aria-label="Previous page">Previous</button><span id="ad4-files-page">0 / 0</span><button type="button" id="ad4-files-next" aria-label="Next page">Next</button></div>
+    <div class="ad4-tools">
+      <button id="ad4-upload">Upload sliced GX only</button>
+      <button id="ad4-send-print" class="ad4-primary">Upload &amp; print</button>
+    </div>
+    <label class="ad4-option"><input id="ad4-auto-timelapse" type="checkbox">Record timelapse when printing</label>
+    <label class="ad4-option">Capture mode <select id="ad4-capture-mode"><option value="interval">Every 10 seconds</option><option value="layer">Estimated layer (M114, experimental)</option></select></label>
+  </section>
+  <section class="ad4-section">
+    <h3>Camera</h3>
+    <div class="ad4-tools"><button id="ad4-snapshot">Take snapshot</button><button id="ad4-live-toggle" aria-pressed="false">Start live video</button></div>
+    <img id="ad4-camera" alt="Adventurer 4 camera image" hidden>
+    <p class="ad4-help">Video is fetched only when enabled and proxied through the authenticated bridge.</p>
+  </section>
+  <section class="ad4-section">
+    <div class="ad4-section-title"><h3>Timelapses</h3><button id="ad4-gallery-refresh">Refresh gallery</button></div>
+    <p id="ad4-timelapse-status">No recording</p>
+    <div class="ad4-tools"><button id="ad4-timelapse-start">Start manual recording</button><button id="ad4-timelapse-stop">Stop &amp; encode MP4</button></div>
+    <div id="ad4-gallery" class="ad4-file-list" aria-label="Saved timelapses"></div>
+    <video id="ad4-timelapse-preview" controls playsinline preload="metadata" hidden></video>
+  </section>
+  <details class="ad4-section">
+    <summary>Printer connections and diagnostics</summary>
+    <p class="ad4-help">Connection profiles select a network address, not a different printer model.</p>
+    <label class="ad4-option">Saved connection <select id="ad4-connection-profiles"></select></label>
+    <div class="ad4-tools"><button id="ad4-profile-use">Use profile</button><button id="ad4-profile-delete" class="ad4-destructive">Delete profile</button></div>
+    <div class="ad4-tools"><input id="ad4-profile-name" placeholder="Profile name" maxlength="64" aria-label="Connection profile name"><input id="ad4-profile-host" placeholder="192.168.x.x" aria-label="Printer LAN IPv4"><button id="ad4-profile-add">Save connection</button></div>
+    <div class="ad4-tools"><button id="ad4-diagnostic-doctor">Doctor</button><button id="ad4-diagnostic-info">Printer info</button><button id="ad4-diagnostic-position">M114 position</button></div>
+    <pre id="ad4-diagnostic-result"></pre>
+  </details>
 </dialog>
 <script type="module" src="ad4-manager.js"></script>
 """
