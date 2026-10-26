@@ -1,4 +1,4 @@
-name: Replace legacy browser slicer on GitHub Pages
+name: Deploy AD4 Studio preview to GitHub Pages
 on:
   push:
     branches: [main]
@@ -9,31 +9,60 @@ concurrency:
   group: github-pages
   cancel-in-progress: true
 jobs:
-  publish:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build MosaicSlicer viewer with isolated dependencies (no native engine)
+        env:
+          AD4_SKIP_ENGINE_BUILD: '1'
+        run: bash scripts/install.sh
+      - name: Prepare static-only public preview
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("frontend/dist")
+          index=root/"index.html"
+          assert index.is_file()
+          html=index.read_text()
+          assert "ad4-studio.js" in html and "ad4-studio.css" in html
+          assert (root/"js/app.mjs").is_file()
+          assert (root/"ad4-manager.js").is_file()
+          assert (root/"ad4-studio.js").is_file()
+          assert (root/"ad4-studio.css").is_file()
+          assert (root/"resources/cura_data.tar.gz").is_file()
+          assert not (root/"js/worker.js").exists(), "CuraEngine must not run in the browser"
+          # The editor (model loading, orbiting and settings) remains interactive.
+          # Backend-only Slice/Print/Upload are disabled by this explicit flag.
+          html=html.replace('<script type="module" src="js/app.mjs" defer></script>',
+            '<script>window.__AD4_STATIC_PREVIEW__=true;</script>\n'
+            '<script type="module" src="js/app.mjs" defer></script>')
+          assert "__AD4_STATIC_PREVIEW__=true" in html
+          index.write_text(html)
+          (root/".nojekyll").touch()
+          print("Public AD4 Studio preview ready; printer controls disabled; server CuraEngine not shipped")
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: frontend/dist
+  deploy:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       pages: write
       id-token: write
     environment:
       name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-      - name: Show server-only notice
-        run: |
-          mkdir -p static
-          cat > static/index.html <<'HTML'
-          <!doctype html><html lang="en"><meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>FFAdv4Manager Cura — Server only</title>
-          <style>body{background:#131b17;color:#eaf2ed;font:16px system-ui;padding:8vw;max-width:650px;margin:auto}a{color:#97deb4}</style>
-          <h1>FFAdv4Manager Cura</h1>
-          <p>This project now runs MosaicSlicer with server-side CuraEngine.</p>
-          <p>GitHub Pages cannot execute a slicer engine or connect to your printer.</p>
-          <p><a href="https://github.com/spidey000/FFAdv4Manager_cura">Installation and code</a></p>
-          </html>
-          HTML
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: static
-      - uses: actions/deploy-pages@v4
+      - id: deployment
+        uses: actions/deploy-pages@v4
