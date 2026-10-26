@@ -19,8 +19,10 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 if __package__:
+    from .gcode_safety import require_safe_artillery_heating
     from .cloudflare_access import load_access_config, verify_access_jwt, _jwks_client
 else:
+    from gcode_safety import require_safe_artillery_heating
     from cloudflare_access import load_access_config, verify_access_jwt, _jwks_client
 
 ACCESS_CONFIG = load_access_config(os.environ)
@@ -252,6 +254,12 @@ class Handler(SimpleHTTPRequestHandler):
                     name = safe_filename(parse_qs(url.query).get('name', [''])[0])
                 except ValueError as exc:
                     return self.json(400, {'error': str(exc)})
+                # The server independently verifies the single supported Artillery PLA
+                # temperature envelope; POSTs cannot bypass the browser preflight.
+                try:
+                    require_safe_artillery_heating(data, name)
+                except ValueError as exc:
+                    return self.json(422, {'error': str(exc)})
                 start = parse_qs(url.query).get('start', ['false'])[0] == 'true'
                 with tempfile.TemporaryDirectory() as directory:
                     filename = Path(directory) / name

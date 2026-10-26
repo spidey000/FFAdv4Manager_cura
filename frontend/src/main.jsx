@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import PrinterManager from './PrinterManager.jsx'
+import { ARTILLERY_PLA_BASIC } from './profileLibrary.js'
+import { checkArtilleryHeating } from './temperatureSafety.js'
 import './app.css'
 
 const BASE_URL = import.meta.env.BASE_URL
@@ -88,6 +90,11 @@ function App() {
     }
     if (!/\.(?:gco|gcode|g)$/i.test(name)) name = name.replace(/\.[^.]+$/, '') + '.gcode'
     const decorated = makeGxThumbnail(win) + metadataComments(win) + gcode
+    const warnings = checkArtilleryHeating(decorated, ARTILLERY_PLA_BASIC)
+    if (warnings.length) {
+      setError('Upload blocked by Artillery PLA temperature guard: ' + warnings.join('; '))
+      return
+    }
     const bytes = new TextEncoder().encode(decorated)
     if (bytes.byteLength > MAX_BYTES) { setError('G-code exceeds the 100 MB upload limit.'); return }
     if (!window.confirm(start
