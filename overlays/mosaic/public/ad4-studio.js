@@ -173,6 +173,28 @@
     byId("preview-tab-button")?.setAttribute("title", "G-code preview requires server slicing");
     byId("slice-button")?.setAttribute("disabled", "");
   }
+  async function checkPrinter() {
+    if (staticPreview) return;
+    const trigger = byId("ad4-open-manager");
+    try {
+      const response = await fetch("./api/printer/status", {cache:"no-store"});
+      if (!response.ok) throw Error("Printer offline");
+      const status = await response.json();
+      const label = String(status.machine_status || status.status || "Unknown");
+      const online = !/^(?:offline|disconnected|unknown|error)/i.test(label);
+      document.body.classList.toggle("ad4-printer-online", online);
+      if (trigger) {
+        trigger.textContent = "AD4 · " + label.slice(0, 24);
+        trigger.title = "Open printer manager · " + label;
+      }
+    } catch {
+      document.body.classList.remove("ad4-printer-online");
+      if (trigger) {
+        trigger.textContent = "AD4 · Offline";
+        trigger.title = "Open printer manager to diagnose connection";
+      }
+    }
+  }
   async function checkEngine() {
     if (staticPreview) return;
     try {
@@ -228,12 +250,14 @@
     detailNode.textContent = engineNotice;
   }
   checkEngine();
+  checkPrinter();
   refreshDock();
   setInterval(refreshDock, 800);
   if (!staticPreview) {
     setInterval(checkEngine, 30000);
+    setInterval(checkPrinter, 12000);
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) checkEngine();
+      if (!document.hidden) { checkEngine(); checkPrinter(); }
     });
   }
 })();
