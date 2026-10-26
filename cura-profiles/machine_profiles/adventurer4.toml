@@ -1,0 +1,37 @@
+# FFAdv4Manager Cura: exclusively Adventurer 4, derived from Cura official AD4 definition.
+# Standard 0.4 mm toolhead; conservative quality settings from FFAdv4Manager.
+[metadata]
+name = "FlashForge Adventurer 4"
+[settings]
+machine_name = "FlashForge Adventurer 4"
+machine_width = 220
+machine_depth = 200
+machine_height = 250
+machine_center_is_zero = true
+machine_heated_bed = true
+machine_extruder_count = 1
+machine_nozzle_size = 0.4
+material_diameter = 1.75
+machine_gcode_flavor = "RepRap (Marlin/Sprinter)"
+machine_start_gcode = '''
+;Start Gcode - Cura official Flashforge Adventurer 4
+G28
+M132 X Y Z A B
+G1 Z50.000 F420
+G161 X Y F3300
+M7 T0
+M6 T0
+M651 S255
+;End Start
+'''
+machine_end_gcode = '''
+;End Gcode - Cura official Flashforge Adventurer 4
+M104 S0 T0
+M140 S0 T0
+G162 Z F1800
+G28 X Y
+M132 X Y A B
+M652
+G91
+M18
+'''

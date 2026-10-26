@@ -1,0 +1,7 @@
+# Only supported machine: FlashForge Adventurer 4.
+[machine_profiles]
+manufacturer = "FlashForge"
+adventurer4 = "FlashForge Adventurer 4 (0.4 mm)"
+[print_profiles]
+brand = "Artillery"
+artillery_pla_basic = "PLA Basic · 0.20 mm"

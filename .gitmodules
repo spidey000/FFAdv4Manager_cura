@@ -1,0 +1,3 @@
+[submodule "vendor/symple-slicer"]
+	path = vendor/symple-slicer
+	url = https://github.com/SynDaverCO/symple-slicer.git
