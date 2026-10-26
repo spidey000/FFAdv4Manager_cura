@@ -51,3 +51,7 @@ GitHub Pages cannot execute server-side CuraEngine. The former Pages slicer is r
 The repository ships GitHub Actions checks for the isolated frontend compilation, server-side request validation, CLI/GX regressions and printer bridge smoke tests. CI does **not** compile native CuraEngine or physically operate your printer; fully successful end-to-end slicing and printing require supervised verification on your hardware.
 
 MosaicSlicer upstream is AGPL-3.0-only; CuraEngine is AGPL-3.0; the imported FFAdv4Manager CLI retains GPL-3.0-or-later notices. Preserve all upstream attribution and comply with AGPL network-use source obligations.
+
+## Restored printer dashboard (Mosaic overlay)
+
+The MosaicSlicer **Printer manager** includes authenticated on-demand MJPEG video, one-shot JPEG capture, permanent MP4 timelapse gallery with playback/download/delete, manual time/Z-layer (experimental) capture, opt-in automatic timelapse during uploaded and stored prints, paginated and sortable stored file details, discovery, connection profiles, and read-only diagnostics. Browser connections use only the same-origin API (never direct LAN addresses). Timelapses continue running if the browser closes. The printer and single extruder remain fixed to Adventurer 4. Full-screen mobile layout retains Mosaic's own UI.
