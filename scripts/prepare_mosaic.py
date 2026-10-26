@@ -105,8 +105,12 @@ def build():
     source=source.replace('<div class="flex-spacer"></div>\n      <a class="info-link"',
           '<div class="flex-spacer"></div>\n      <button id="ad4-open-manager" type="button" aria-label="Open Adventurer 4 printer manager">AD4 · Printer</button>\n      <a class="info-link"',1)
     dialog="""<dialog id="ad4-manager" aria-label="Adventurer 4 printer manager">
-  <div class="ad4-head"><h2>FlashForge Adventurer 4</h2><button id="ad4-close-manager">Close</button></div>
-  <div class="ad4-grid">
+  <div class="ad4-head">
+    <div class="ad4-headline"><small>CONNECTED HARDWARE</small><h2>Adventurer 4</h2><span>Print status &amp; control</span></div>
+    <button id="ad4-close-manager" type="button" aria-label="Close printer manager">×</button>
+  </div>
+  <p id="ad4-manager-status" role="status">Checking printer...</p>
+  <div class="ad4-grid" aria-label="Live printer metrics">
     <div class="ad4-stat"><span>Printer</span><strong id="ad4-machine">—</strong></div>
     <div class="ad4-stat"><span>Nozzle</span><strong id="ad4-nozzle">—</strong></div>
     <div class="ad4-stat"><span>Bed</span><strong id="ad4-bed">—</strong></div>
@@ -114,23 +118,37 @@ def build():
     <div class="ad4-stat"><span>Layer</span><strong id="ad4-layer">—</strong></div>
     <div class="ad4-stat"><span>Current file</span><strong id="ad4-file">—</strong></div>
   </div>
-  <div class="ad4-tools">
-    <button id="ad4-refresh">Refresh</button><button id="ad4-discover">Discover</button>
-    <button id="ad4-pause">Pause</button><button id="ad4-resume">Resume</button>
-    <button id="ad4-cancel">Cancel print</button><button id="ad4-fan_on">Fan on</button>
-    <button id="ad4-fan_off">Fan off</button>
-  </div>
-  <div class="ad4-tools"><select aria-label="Printer files" id="ad4-files"></select>
-    <button id="ad4-print-file">Print stored file</button></div>
-  <div class="ad4-tools">
-    <button id="ad4-upload">Upload GX only</button><button id="ad4-send-print">Upload & print</button>
-    <button id="ad4-snapshot">Camera</button><button id="ad4-timelapse-start">Start timelapse</button>
-    <button id="ad4-timelapse-stop">Stop timelapse</button>
-  </div>
-  <img id="ad4-camera" alt="Latest printer snapshot">
-  <p id="ad4-manager-status" role="status">Checking printer...</p>
+  <section class="ad4-manager-section">
+    <h3>Print controls</h3>
+    <div class="ad4-tools">
+      <button id="ad4-pause">Pause</button><button id="ad4-resume">Resume</button>
+      <button id="ad4-cancel" class="ad4-danger">Cancel print</button>
+      <button id="ad4-fan_on">Fan on</button><button id="ad4-fan_off">Fan off</button>
+    </div>
+  </section>
+  <section class="ad4-manager-section">
+    <h3>Stored files</h3>
+    <div class="ad4-tools"><select aria-label="Printer files" id="ad4-files"></select>
+      <button id="ad4-print-file">Print stored file</button></div>
+  </section>
+  <section class="ad4-manager-section">
+    <h3>Current sliced model</h3>
+    <p class="ad4-hint">Upload to the printer without starting, or request a print start. Requires real G-code from server CuraEngine.</p>
+    <div class="ad4-tools"><button id="ad4-upload">Upload only</button>
+      <button id="ad4-send-print" class="ad4-cta">Upload &amp; print</button></div>
+  </section>
+  <section class="ad4-manager-section">
+    <h3>Camera &amp; diagnostics</h3>
+    <div class="ad4-tools">
+      <button id="ad4-snapshot">Update camera</button><button id="ad4-refresh">Refresh</button>
+      <button id="ad4-discover">Discover printer</button>
+      <button id="ad4-timelapse-start">Start timelapse</button><button id="ad4-timelapse-stop">Stop timelapse</button>
+    </div>
+    <img id="ad4-camera" alt="Latest printer snapshot" loading="lazy">
+  </section>
 </dialog>
-<script type="module" src="ad4-manager.js"></script>\n<script type="module" src="ad4-studio.js"></script>
+<script type="module" src="ad4-manager.js"></script>
+<script type="module" src="ad4-studio.js"></script>
 """
     html.write_text(source.replace("</body>",dialog+"</body>"))
     built=html.read_text()
