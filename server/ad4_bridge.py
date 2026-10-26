@@ -126,10 +126,16 @@ def start_print_timelapse(mode='interval', layer_height=0.2):
 
 
 def estimated_layer_height(payload):
-    # Added by the web Cura metadata adapter; never invent a value from % done.
+    """Read explicit layer-height metadata; use a documented default otherwise."""
     if not isinstance(payload, (bytes, bytearray)):
         return 0.2
-    match = re.search(rb'(?im)^;s*layer_heights*[:=]s*(0.d{1,3})s*
+    match = re.search(rb'(?im)^;\s*layer_height\s*[:=]\s*(0\.\d{1,3})\s*$',
+                      payload[:1024 * 1024])
+    if match:
+        value = float(match.group(1))
+        if 0.06 <= value <= 0.4:
+            return value
+    return 0.2
 
 
 def _metadata_scope():
