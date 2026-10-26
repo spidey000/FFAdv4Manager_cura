@@ -99,6 +99,9 @@ def build():
     if "</body>" not in source or "<h1>MosaicSlicer</h1>" not in source:
         raise RuntimeError("Unexpected Mosaic HTML")
     source=source.replace("<h1>MosaicSlicer</h1>","<h1>AD4 Studio</h1>")
+    # Mosaic already parses 3MF; expose the format through the native picker.
+    source=source.replace('id="stl-file" accept=".stl"',
+                          'id="stl-file" accept=".stl,.3mf"')
     source=source.replace('<link rel="stylesheet" href="main.css">',
           '<link rel="stylesheet" href="main.css"><link rel="stylesheet" href="ad4.css">'
           '<link rel="stylesheet" href="ad4-studio.css">')
