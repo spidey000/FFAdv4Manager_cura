@@ -56,12 +56,20 @@ Open `http://127.0.0.1:8765/` **on the server machine**. For remote use, configu
 * The source checkout includes only the AD4 application profiles; the pinned vendor submodule contains its upstream code/resources, but additional printers are not registered in the UI. External profile lists are overridden with the local single-printer list.
 * The installer downloads packages and the submodule on first installation. A `venv` is isolated, **not automatically an offline bundle**; a fully air-gapped installer would additionally require vendored wheels and npm packages.
 
-## User workflow
+## Mobile-first workflow
 
-1. Open the Cura tab, load an STL/3MF and select the **FlashForge Adventurer 4** and **Artillery PLA Basic** presets.
-2. Click **Slice** inside Cura; CuraEngine slices inside the browser and previews G-code.
-3. Use **Upload only** or **Send & print** in the bottom action bar. The server sends the G-code to the unchanged local CLI, which converts it to GX and uploads to the printer.
-4. Open **Printer manager** for temperatures/status, camera snapshot, stored files, discovery, profiles, diagnostics, fan, pause/resume/cancel, timelapse and notifications.
+The mobile interface follows the **Three_slicer_responsive** layout: a full-height 3D viewport, compact quick-action bar at the bottom, and a collapsible Cura settings sheet that rises above the viewport. The native Cura controls are preserved inside the sheet; the slicing engine and single-printer profiles are unchanged.
+
+1. Tap **Model (+)** in the bottom bar to load an STL, OBJ or 3MF file (up to 100 MB). The model is passed into Cura's own loader; the desktop editor's native file picker remains usable.
+2. Tap **Settings (⚙)** to open the bottom sheet. Configure the default **FlashForge Adventurer 4** printer, **Artillery PLA Basic** material and process parameters with native Cura controls. Close with **×**, the backdrop, or Escape. On desktop the normal Cura panel remains visible.
+3. Tap **Slice model** to invoke CuraEngine directly from the bottom bar. The view stays unobstructed while the model is prepared. Once real G-code is available, **Re-slice** becomes available.
+4. When G-code is ready, the bottom bar splits into **Print** (upload GX and request a print start) and **Upload only** (store without requesting a start). Both actions use the original authenticated FFAdv4Manager bridge and show confirmation before contacting the printer. Upload-only is subject to firmware behavior.
+5. Tap the **AD4 status button** in the top bar to open the full printer manager: live status, temperature, camera, stored files, controls and diagnostics. This is available only on your self-hosted server.
+6. On **GitHub Pages**, there is no printer connection: the action is **Download G-code**, and the printer manager does not appear.
+
+To use layer preview after slicing, open **Settings** and select **Print and Preview** from Cura's built-in page selector. Changes to a Cura model or print parameter invalidate older G-code, so re-slice before sending.
+
+**Remote use:** serve the application privately through Cloudflare Tunnel + Access. GitHub Pages is only a slicing demonstration, never a printer controller.
 
 The source filename is retained (ASCII-normalized by the CLI), and GX upload names are prefixed with available time/filament metadata, for example `01_02_1.23m_Benchy.gx`. Unknown estimates are **not fabricated**. The GX converter includes a header and BMP thumbnail support. The shell attempts to capture an 80×60 thumbnail from the Cura WebGL canvas and embeds it as G-code comments for GX conversion; if WebGL capture fails the converter uses a blank image. The firmware display preview has not been confirmed for this flow.
 
@@ -73,7 +81,7 @@ The source filename is retained (ASCII-normalized by the CLI), and GX upload nam
 |---|---|
 | `vendor/symple-slicer/` | Pinned AGPL CuraEngine WebAssembly / Three.js web slicer |
 | `cura-profiles/` | Single-machine Cura definitions and default Artillery PLA preset |
-| `frontend/` | Responsive shell, embedded Cura slicer and existing printer manager |
+| `frontend/` | Mobile-first 3D viewer, bottom Cura settings sheet, safe same-origin slicer bridge and existing printer manager |
 | `server/cura_bridge.py` | Serves Cura from the pinned submodule and profile files through the same-origin bridge |
 | `server/ad4_bridge.py` | Original printer API, JWT Access checks, upload/jobs and timelapse |
 | `ffadv4manager/` | The unchanged LAN printer CLI, GX converter, and thumbnail/metadata utilities |
