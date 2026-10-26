@@ -135,8 +135,18 @@ def check_settings(settings: object) -> dict:
 
     # The server is the sole authority for the printer and firmware commands.
     checked["global"].update(MACHINE)
-    checked["global"].update(PLA)
+    # Artillery PLA Basic defaults are applied unless the user selects a
+    # value within the safety envelope, and never through another material.
+    for key, value in PLA.items():
+        checked["global"].setdefault(key, value)
     checked["extruder.0"]["material_diameter"] = 1.75
+    for key in ("material_print_temperature", "material_print_temperature_layer_0",
+                "material_bed_temperature", "material_bed_temperature_layer_0"):
+        v = checked["extruder.0"].get(key, PLA[key])
+        low, high = LIMITS[key]
+        if not isinstance(v, (int, float)) or not low <= v <= high:
+            raise SlicingError("Unsafe material value: " + key)
+        checked["extruder.0"][key] = v
     checked["/tmp/input/model.stl"] = {"extruder_nr": "0"}
     return checked
 
