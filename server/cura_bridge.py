@@ -7,6 +7,8 @@ upstream ffadv4manager CLI; no duplicate protocol client exists here.
 from __future__ import annotations
 
 import argparse
+import os
+import sys
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -66,6 +68,10 @@ def serve(*, require_access=False):
         raise RuntimeError("CuraEngine WASM missing from the pinned Symple Slicer")
     if not (PROFILES / "profile_list.toml").is_file():
         raise RuntimeError("Missing Adventurer 4 profile list")
+    # A venv console script may be invoked directly without activating PATH.
+    # Resolve the printer CLI using this same interpreter, not system Python.
+    if not os.environ.get("AD4_CLI"):
+        bridge.CLI = str(Path(sys.executable).with_name("ffadv4manager"))
     bridge.Handler = CuraHandler
     bridge.serve(require_access=require_access)
 

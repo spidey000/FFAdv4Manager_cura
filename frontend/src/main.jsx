@@ -6,6 +6,41 @@ import './app.css'
 const CURA_URL = '/cura/index.html?profiles=/cura-profiles/profile_list.toml'
 const MAX_BYTES = 100 * 1024 * 1024
 
+function makeGxThumbnail(win) {
+  // The original GX converter recognizes Prusa/Cura thumbnail comment blocks.
+  // Capture after a render; a blank/unsupported WebGL canvas falls back safely.
+  try {
+    const source = win.document.getElementById('webgl')
+    if (!source) return ''
+    win.renderLoop?.render?.()
+    const out = document.createElement('canvas')
+    out.width = 80; out.height = 60
+    const context = out.getContext('2d')
+    if (!context) return ''
+    context.drawImage(source, 0, 0, out.width, out.height)
+    const png = out.toDataURL('image/png').split(',')[1]
+    if (!png || png.length > 200000) return ''
+    const lines = png.match(/.{1,76}/g).map(x => '; ' + x).join('\n')
+    return '; thumbnail begin 80x60 ' + png.length + '\n' + lines + '\n; thumbnail end\n'
+  } catch { return '' }
+}
+
+function metadataComments(win) {
+  // Read the effective Cura options (which users may edit), not guessed values.
+  const names = [['material_bed_temperature', 'bed_temperature'],
+    ['material_print_temperature', 'nozzle_temperature'],
+    ['layer_height', 'layer_height'], ['wall_line_count', 'wall_line_count'],
+    ['speed_print', 'print_speed']]
+  const lines = []
+  for (const [option, key] of names) {
+    try {
+      const value = Number(win.slicer?.getOption?.(option))
+      if (Number.isFinite(value) && value > 0 && value < 10000) lines.push('; ' + key + ': ' + value)
+    } catch { /* Some WASM builds may not expose the option */ }
+  }
+  return lines.length ? lines.join('\n') + '\n' : ''
+}
+
 function App() {
   const frame = useRef(null)
   const [manager, setManager] = useState(false)
@@ -49,7 +84,8 @@ function App() {
       return
     }
     if (!/\.(?:gco|gcode|g)$/i.test(name)) name = name.replace(/\.[^.]+$/, '') + '.gcode'
-    const bytes = new TextEncoder().encode(gcode)
+    const decorated = makeGxThumbnail(win) + metadataComments(win) + gcode
+    const bytes = new TextEncoder().encode(decorated)
     if (bytes.byteLength > MAX_BYTES) { setError('G-code exceeds the 100 MB upload limit.'); return }
     if (!window.confirm(start
       ? 'Start a REAL print on the Adventurer 4? Inspect the printer, model and temperatures first.'

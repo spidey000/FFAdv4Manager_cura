@@ -86,18 +86,19 @@ def extract_metadata(lines: list[str], profile: PrinterProfile | None = None) ->
             parsed = _parse_print_time(value)
             if parsed > 0:
                 meta.print_time = min(parsed, 2147483647)
-        elif key in ("filament used [mm]", "filament_mm", "filament used [m]"):
-            if key == "filament used [m]":
-                vals = []
-                for part in value.split(","):
-                    try:
-                        metres = float(part.strip())
-                        if 0 <= metres <= 2147483:
-                            vals.append(round(metres * 1000))
-                    except ValueError:
-                        continue
-            else:
-                vals = _parse_int_list(value)
+        elif key in ("filament used [mm]", "filament_mm", "filament used [m]", "filament used"):
+            # Cura typically writes ";Filament used: 1.23m". The original
+            # importer understood only explicit [mm] / [m] comment keys.
+            vals = []
+            for part in value.split(","):
+                match = re.fullmatch(r"([0-9]+(?:[.][0-9]+)?)\\s*(mm|m)?", part.strip().lower())
+                if not match:
+                    continue
+                number, suffix = float(match.group(1)), match.group(2)
+                in_metres = suffix == "m" or (suffix is None and key == "filament used [m]")
+                millimetres = round(number * 1000) if in_metres else round(number)
+                if 0 <= millimetres <= 2147483647:
+                    vals.append(millimetres)
             if vals:
                 meta.filament_right_mm = vals[0]
             if len(vals) > 1:
