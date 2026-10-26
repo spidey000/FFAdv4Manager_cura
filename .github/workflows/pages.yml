@@ -45,9 +45,9 @@ jobs:
           assert not (root/"js/worker.js").exists(), "CuraEngine must not run in the browser"
           # The editor (model loading, orbiting and settings) remains interactive.
           # Backend-only Slice/Print/Upload are disabled by this explicit flag.
-          html=html.replace('<script type="module" src="js/app.mjs" defer></script>',
-            '<script>window.__AD4_STATIC_PREVIEW__=true;</script>\n'
-            '<script type="module" src="js/app.mjs" defer></script>')
+          assert "</head>" in html
+          html=html.replace("</head>",
+            '<script>window.__AD4_STATIC_PREVIEW__=true;</script></head>',1)
           assert "__AD4_STATIC_PREVIEW__=true" in html
           index.write_text(html)
           (root/".nojekyll").touch()
