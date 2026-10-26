@@ -57,7 +57,7 @@ function makeHarness() {
   }
   const parent = {postMessage(data, origin) {received.push({data, origin})}}
   const window = {
-    parent, settings: {gotoPage() {}}, stage: {slice: () => 'handle'},
+    parent, settings: {gotoPage() {}}, matchMedia: () => ({matches: true}), stage: {slice: () => 'handle'},
     slicer: {readFile: async () => 'G1 X5 Y4\nM104 S205\n'},
     addEventListener(name, callback) {windowListeners[name] = callback},
     dispatchEvent() {},
