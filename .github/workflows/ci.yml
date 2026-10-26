@@ -1,0 +1,27 @@
+name: Verify Cura + Adventurer 4
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install in isolated venv
+        run: bash scripts/install.sh
+      - name: Run Python regression tests
+        run: |
+          .venv/bin/python -m pip install pytest
+          .venv/bin/python -m pytest -q tests/cura tests/cli tests/integration tests/server
+      - name: Run frontend profile tests
+        run: npm test --prefix frontend
+      - name: Ensure compiled UI exists
+        run: test -f frontend/dist/index.html && test -f frontend/dist/cura-integration.js
