@@ -81,6 +81,7 @@ export default function PrinterManager({ onClose, timelapseEnabled = false }) {
   const [selectedTimelapse, setSelectedTimelapse] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [timelapse, setTimelapse] = useState(null)
+  const [captureMode, setCaptureMode] = useState('interval')
   const cameraUrl = useRef('')
   const fileInput = useRef(null)
 
@@ -166,7 +167,7 @@ export default function PrinterManager({ onClose, timelapseEnabled = false }) {
   }
   async function changeTimelapse(action) {
     await run(action === 'start' ? 'Start timelapse' : 'Stop timelapse',
-      () => post('/timelapse', { action }), async data => {
+      () => post('/timelapse', { action, mode: captureMode }), async data => {
         setTimelapse(data); setTimelapses(await api('/timelapses'))
       })
   }
@@ -262,6 +263,11 @@ export default function PrinterManager({ onClose, timelapseEnabled = false }) {
               {timelapse?.running ? ' · ' + (timelapse.frames ?? 0) + ' fotogramas capturados' : ''}
               {timelapse?.error ? ' · Error: ' + timelapse.error : ''}</p>
             <div className="pm-actions">
+              <label className="pm-capture-mode">Capture <select aria-label="Manual timelapse capture mode" value={captureMode}
+                onChange={e => setCaptureMode(e.target.value)}>
+                <option value="interval">Every 10 seconds</option>
+                <option value="layer">Z change · experimental</option>
+              </select></label>
               <button disabled={!bridge || !!busy || timelapse?.running || timelapse?.encoding} onClick={() => changeTimelapse('start')}>Record manually</button>
               <button disabled={!bridge || !!busy || !timelapse?.running} onClick={() => changeTimelapse('stop')}>Stop and save MP4</button>
             </div>

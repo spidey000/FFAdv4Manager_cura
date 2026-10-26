@@ -14,6 +14,8 @@ import subprocess
 import threading
 import time
 
+from .layer_capture import LayerCapture
+
 
 ID_PATTERN = re.compile(r'\d{8}T\d{6}-[0-9a-f]{8}\Z')
 PRINTING = {'BUILDING', 'BUILDING_FROM_SD', 'PRINTING', 'PAUSED'}
@@ -40,6 +42,7 @@ class TimelapseService:
         self.encoding = None
         self.watching = False
         self.last_error = None
+        self.mode = 'interval'
         self._event = None
 
     def folder_for(self, identifier):
@@ -86,6 +89,7 @@ class TimelapseService:
             return {'running': running, 'encoding': bool(encoding), 'auto': watching,
                     'id': folder.name if folder else None,
                     'frames': len(frames_in(folder)) if folder and folder.exists() else 0,
+                    'mode': self.mode,
                     'error': error}
 
     def list(self):
@@ -111,10 +115,15 @@ class TimelapseService:
                 'error': meta.get('error'),
                 'reason': meta.get('reason'),
                 'auto': meta.get('auto', False),
+                'mode': meta.get('mode', 'interval'),
             })
         return sorted(records, key=lambda item: item['id'], reverse=True)
 
-    def start(self, capture_argv, status_reader=None, auto=False):
+    def start(self, capture_argv, status_reader=None, auto=False, mode='interval', layer_height=0.2):
+        if mode not in ('interval', 'layer'):
+            raise ValueError('Unknown timelapse capture mode')
+        if not 0.06 <= layer_height <= 0.4:
+            raise ValueError('Unsupported G-code layer height')
         self.require_encoder()
         with self.lock:
             if self.folder or self.encoding:
@@ -122,16 +131,18 @@ class TimelapseService:
             self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
             folder = self.root / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S') + '-' + secrets.token_hex(4))
             folder.mkdir(mode=0o700)
-            self._write_metadata(folder, created_at=datetime.now(timezone.utc).isoformat(), auto=bool(auto), error=None, status='recording')
+            self._write_metadata(folder, created_at=datetime.now(timezone.utc).isoformat(), auto=bool(auto), mode=mode, layer_height=layer_height, error=None, status='recording')
             try:
-                worker = subprocess.Popen(
+                worker = (LayerCapture(capture_argv, folder, status_reader, height=layer_height)
+                          if mode == 'layer' else subprocess.Popen(
                     [*capture_argv, 'camera', 'timelapse', str(folder), '--interval', str(self.interval)],
-                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
             except Exception:
                 shutil.rmtree(folder)
                 raise
             self.folder = folder
             self.worker = worker
+            self.mode = mode
             self.watching = bool(status_reader)
             self.last_error = None
             event = threading.Event()
