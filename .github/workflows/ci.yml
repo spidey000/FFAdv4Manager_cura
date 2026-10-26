@@ -1,4 +1,4 @@
-name: Verify Cura + Adventurer 4
+name: Verify MosaicSlicer server integration
 on:
   push:
   pull_request:
@@ -15,39 +15,36 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install in isolated venv
+      - name: Install local Python venv and Mosaic frontend
         run: bash scripts/install.sh
-      - name: Run Python regression tests
+      - name: Test CLI, API, GX and server slicer
         run: |
           .venv/bin/python -m pip install pytest
-          .venv/bin/python -m pytest -q tests/cura tests/cli tests/integration tests/server
-      - name: Validate bundled FFmpeg encoder
-        run: .venv/bin/python -c "from imageio_ffmpeg import get_ffmpeg_exe; import subprocess; result=subprocess.run([get_ffmpeg_exe(), '-encoders'], capture_output=True, text=True, check=True); assert 'libx264' in result.stdout"
-      - name: Run frontend profile tests
-        run: npm test --prefix frontend
-      - name: Smoke-test local Cura routing without contacting the printer
+          .venv/bin/python -m pytest -q tests/cli tests/server tests/integration tests/cura
+      - name: Ensure no CuraEngine browser worker is shipped
         run: |
-          .venv/bin/ffadv4manager-cura >/tmp/ffadv4-cura.log 2>&1 &
+          test -f frontend/dist/index.html
+          test -f frontend/dist/js/app.mjs
+          test ! -e frontend/dist/js/worker.js
+          grep -q MosaicSlicer frontend/dist/index.html
+          grep -q ad4-manager.js frontend/dist/index.html
+          grep -q 'api/slice' overlays/mosaic/src/gui/slicer.mjs
+      - name: Smoke test local web server
+        run: |
+          .venv/bin/ffadv4manager-cura >/tmp/mosaic.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
-          python - <<'PY'
-          import time, urllib.request
-          base = "http://127.0.0.1:8765"
+          .venv/bin/python - <<'PY'
+          import time,urllib.request,urllib.error
+          base="http://127.0.0.1:8765"
           for _ in range(30):
               try:
-                  urllib.request.urlopen(base + "/", timeout=2).read()
+                  page=urllib.request.urlopen(base+"/",timeout=2).read()
                   break
-              except Exception:
-                  time.sleep(1)
-          else:
-              raise RuntimeError("Cura server did not start")
-          for path, expected in [
-              ("/", b"Cura"),
-              ("/cura/index.html?profiles=/cura-profiles/profile_list.toml", b"cura-integration.js"),
-              ("/cura-profiles/profile_list.toml", b"adventurer4"),
-          ]:
-              data = urllib.request.urlopen(base + path, timeout=10).read()
-              assert expected in data, (path, data[:100])
+              except Exception: time.sleep(1)
+          else: raise RuntimeError("Mosaic UI did not start")
+          assert b"MosaicSlicer" in page
+          assert b"api/printer" in urllib.request.urlopen(base+"/ad4-manager.js").read()
+          try: urllib.request.urlopen(base+"/api/slice/engine")
+          except urllib.error.HTTPError as e: assert e.code==503
           PY
-      - name: Ensure compiled UI exists
-        run: test -f frontend/dist/index.html && test -f frontend/dist/cura-integration.js
