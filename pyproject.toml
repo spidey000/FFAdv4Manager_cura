@@ -22,11 +22,11 @@ classifiers = [
 
 [project.scripts]
 ffadv4manager = "ffadv4manager.cli:main"
-ad4ctl = "ffadv4manager.cli:main"
+ad4ctl = "ffadv4manager.cli:main"\nffadv4manager-cura = "server.cura_bridge:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ffadv4manager*"]
+include = ["ffadv4manager*", "server*"]
 
 [tool.ruff]
 line-length = 100
