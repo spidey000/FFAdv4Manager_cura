@@ -49,7 +49,7 @@
   function openDrawer(open) {
     document.body.classList.toggle('ffadv4-sheet-open', Boolean(open))
     const sheet = document.querySelector('.dock')
-    if (sheet) sheet.setAttribute('aria-hidden', String(!open))
+    if (sheet) sheet.setAttribute('aria-hidden', String(window.matchMedia('(max-width: 767px)').matches && !open))
     publishState(true)
     if (open) {
       // Preserve Symple's currently active page; it contains profile setup
@@ -75,7 +75,7 @@
       '<button type="button" id="ffadv4-sheet-close" aria-label="Close settings">×</button>'
     dock.insertBefore(head, dock.firstChild)
     head.querySelector('button').addEventListener('click', () => openDrawer(false))
-    dock.setAttribute('aria-hidden', 'true')
+    dock.setAttribute('aria-hidden', String(window.matchMedia('(max-width: 767px)').matches && !document.body.classList.contains('ffadv4-sheet-open')))
   }
   function invalidateGcode() {
     if (window.ffadv4LastGcode) {
@@ -88,6 +88,7 @@
     if (command === 'get-state') { publishState(true); return }
     if (command === 'open-settings') {
       addDrawerChrome()
+      if (window.settings?.currentPage === 'page_print') window.settings.gotoPage('page_slice')
       openDrawer(true)
       return
     }
@@ -148,6 +149,12 @@
     if (event.source !== window.parent || event.origin !== parentOrigin ||
         !event.data || event.data.source !== MESSAGE_FROM_SHELL) return
     applyCommand(event.data.command, event.data)
+  })
+  window.addEventListener('resize', () => {
+    const dock = document.querySelector('.dock')
+    if (dock) dock.setAttribute('aria-hidden',
+      String(window.matchMedia('(max-width: 767px)').matches &&
+        !document.body.classList.contains('ffadv4-sheet-open')))
   })
   window.addEventListener('keydown', event => {
     if (event.key === 'Escape' && document.body.classList.contains('ffadv4-sheet-open')) {
