@@ -58,10 +58,18 @@ Changes live in `overlays/mosaic/public/ad4-studio.css` and `ad4-studio.js`, pac
 
 For remote access, publish the loopback-only service through **Cloudflare Tunnel + Cloudflare Access** and launch `.venv/bin/ffadv4manager-cura --require-access`, with server-side `CF_ACCESS_*` variables set according to [deployment documentation](docs/DEPLOY_CLOUDFLARE.md). Never expose printer TCP port 8899 or camera port 8080 to the public internet.
 
-The public [GitHub Pages preview](https://spidey000.github.io/FFAdv4Manager_cura/) now publishes the **real MosaicSlicer-based AD4 Studio frontend**. Visitors can open the model viewer, load an STL/3MF, inspect the 3D build plate, use model transforms and explore Cura settings. A visible `DEMO` indicator makes the limitation explicit: **GitHub Pages cannot run CuraEngine, produce G-code or communicate with the printer**. The Slice/Print/Upload actions are disabled rather than simulated. To slice or print, open your authenticated private Linux installation instead.
+The [GitHub Pages preview](https://spidey000.github.io/FFAdv4Manager_cura/) publishes the actual MosaicSlicer-based AD4 Studio viewer and advanced settings. You can load and manipulate STL/3MF models, test the mobile drawer and saved preset interface, but server Slice, Upload and Print actions are explicitly disabled. Only the local Linux server can execute CuraEngine and reach the Adventurer 4.
 
 ## Tests and provenance
 
 The repository ships GitHub Actions checks for the isolated frontend compilation, server-side request validation, CLI/GX regressions and printer bridge smoke tests. CI does **not** compile native CuraEngine or physically operate your printer; fully successful end-to-end slicing and printing require supervised verification on your hardware.
 
 MosaicSlicer upstream is AGPL-3.0-only; CuraEngine is AGPL-3.0; the imported FFAdv4Manager CLI retains GPL-3.0-or-later notices. Preserve all upstream attribution and comply with AGPL network-use source obligations.
+
+## Restored printer dashboard (Mosaic overlay)
+
+The MosaicSlicer **Printer manager** includes authenticated on-demand MJPEG video, one-shot JPEG capture, permanent MP4 timelapse gallery with playback/download/delete, manual time/Z-layer (experimental) capture, opt-in automatic timelapse during uploaded and stored prints, paginated and sortable stored file details, discovery, connection profiles, and read-only diagnostics. Browser connections use only the same-origin API (never direct LAN addresses). Timelapses continue running if the browser closes. The printer and single extruder remain fixed to Adventurer 4. Full-screen mobile layout retains Mosaic's own UI.
+
+## Mosaic-native settings parity
+
+The existing MosaicSlicer sidebar now includes category tabs (Quality, Strength, Speed, Support, Material), All/Basic/Advanced/Expert filters, tap-to-explain parameter names, changed-value reset actions, the expandable green **Profiles & filters** panel and saved browser-local process/material presets. Saved parameters are applied to Mosaic's actual active Cura settings containers and sent to the **server**, never a browser WASM engine. **Show all native Cura settings** retains access to the original settings list; **Auto slice** optionally issues a fresh server slicing request after model or parameter changes. Artillery PLA temperature limits now agree between slicing and upload (220°C nozzle, 65°C bed). Machine selection remains locked to Adventurer 4.
