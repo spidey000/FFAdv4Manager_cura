@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client'
 import PrinterManager from './PrinterManager.jsx'
 import './app.css'
 
-const CURA_URL = '/cura/index.html?profiles=/cura-profiles/profile_list.toml'
+const BASE_URL = import.meta.env.BASE_URL
+const IS_PAGES_DEMO = import.meta.env.VITE_STATIC_DEMO === 'true'
+const CURA_URL = BASE_URL + 'cura/index.html?profiles=' + encodeURIComponent(BASE_URL + 'cura-profiles/profile_list.toml')
 const MAX_BYTES = 100 * 1024 * 1024
 
 function makeGxThumbnail(win) {
@@ -48,7 +50,7 @@ function App() {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
-  const [printer, setPrinter] = useState('Checking connection')
+  const [printer, setPrinter] = useState(IS_PAGES_DEMO ? 'Static preview · no printer connection' : 'Checking connection')
 
   useEffect(() => {
     let active = true
@@ -57,6 +59,7 @@ function App() {
       catch { if (active) setReady(false) }
     }
     async function status() {
+      if (IS_PAGES_DEMO) return
       try {
         const response = await fetch('/api/printer/status', { cache: 'no-store' })
         if (!response.ok) throw new Error()
@@ -71,7 +74,7 @@ function App() {
   }, [])
 
   async function upload(start) {
-    if (sending) return
+    if (IS_PAGES_DEMO || sending) return
     setError(''); setNotice('')
     let win, gcode, name
     try {
@@ -104,14 +107,36 @@ function App() {
     finally { setSending(false) }
   }
 
+  function downloadGcode() {
+    try {
+      const win = frame.current?.contentWindow
+      const gcode = win?.ffadv4LastGcode
+      if (!gcode || typeof gcode !== 'string') throw new Error('Slice a model in Cura first.')
+      const name = win?.document?.getElementById('gcode_filename')?.value || 'adventurer4.gcode'
+      const filename = name.replace(/[^A-Za-z0-9_. -]/g, '_').slice(0, 100) || 'adventurer4.gcode'
+      const blob = new Blob([gcode], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = /\.(?:gcode|gco|g)$/i.test(filename) ? filename : filename + '.gcode'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+    } catch (e) { setError(e.message) }
+  }
+
   return <div className="app-shell">
     <header className="top-bar">
       <div className="brand"><span className="logo">F4</span><div><strong>Cura · Adventurer 4</strong><small>FFAdv4Manager — CuraEngine</small></div></div>
       <div className="top-actions">
         <span className="status"><i />{printer}</span>
-        <button className="btn secondary" type="button" onClick={() => setManager(true)}>Printer manager</button>
+        {IS_PAGES_DEMO
+          ? <button className="btn secondary" type="button" disabled title="Available only on a private server with FFAdv4Manager installed">Printer manager · local only</button>
+          : <button className="btn secondary" type="button" onClick={() => setManager(true)}>Printer manager</button>}
       </div>
     </header>
+    {IS_PAGES_DEMO && <div role="status" className="demo-banner">GitHub Pages preview: CuraEngine runs in your browser. Printer management, GX conversion and printing require the private local server.</div>}
     <main className="workspace">
       <div className="slicer-area" aria-label="Cura web slicer">
         <iframe ref={frame} title="CuraEngine web slicer for Adventurer 4" src={CURA_URL}
@@ -120,11 +145,15 @@ function App() {
     </main>
     <footer className="action-bar">
       <div className="job-state"><span className={ready ? 'signal active' : 'signal'} />
-        <div><strong>{ready ? 'G-code ready' : 'Slice a model in Cura'}</strong><small>Artillery PLA Basic · 0.4 mm nozzle · one printer</small></div>
+        <div><strong>{ready ? 'G-code ready' : 'Slice a model in Cura'}</strong><small>{IS_PAGES_DEMO ? 'Preview · Artillery PLA Basic · G-code download only' : 'Artillery PLA Basic · 0.4 mm nozzle · one printer'}</small></div>
       </div>
       <div className="job-actions">
-        <button className="btn secondary" disabled={!ready || sending} onClick={() => upload(false)}>{sending ? 'Sending…' : 'Upload only'}</button>
-        <button className="btn primary" disabled={!ready || sending} onClick={() => upload(true)}>Send & print</button>
+        {IS_PAGES_DEMO
+          ? <button className="btn primary" disabled={!ready} onClick={downloadGcode}>Download G-code</button>
+          : <>
+            <button className="btn secondary" disabled={!ready || sending} onClick={() => upload(false)}>{sending ? 'Sending…' : 'Upload only'}</button>
+            <button className="btn primary" disabled={!ready || sending} onClick={() => upload(true)}>Send & print</button>
+          </>}
       </div>
     </footer>
     {(error || notice) && <div role={error ? 'alert' : 'status'} className={'toast ' + (error ? 'bad' : 'good')}>
