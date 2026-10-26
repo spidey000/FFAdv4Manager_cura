@@ -55,3 +55,7 @@ MosaicSlicer upstream is AGPL-3.0-only; CuraEngine is AGPL-3.0; the imported FFA
 ## Restored printer dashboard (Mosaic overlay)
 
 The MosaicSlicer **Printer manager** includes authenticated on-demand MJPEG video, one-shot JPEG capture, permanent MP4 timelapse gallery with playback/download/delete, manual time/Z-layer (experimental) capture, opt-in automatic timelapse during uploaded and stored prints, paginated and sortable stored file details, discovery, connection profiles, and read-only diagnostics. Browser connections use only the same-origin API (never direct LAN addresses). Timelapses continue running if the browser closes. The printer and single extruder remain fixed to Adventurer 4. Full-screen mobile layout retains Mosaic's own UI.
+
+## Mosaic-native settings parity
+
+The existing MosaicSlicer sidebar now includes category tabs (Quality, Strength, Speed, Support, Material), All/Basic/Advanced/Expert filters, tap-to-explain parameter names, changed-value reset actions, the expandable green **Profiles & filters** panel and saved browser-local process/material presets. Saved parameters are applied to Mosaic's actual active Cura settings containers and sent to the **server**, never a browser WASM engine. **Show all native Cura settings** retains access to the original settings list; **Auto slice** optionally issues a fresh server slicing request after model or parameter changes. Artillery PLA temperature limits now agree between slicing and upload (220°C nozzle, 65°C bed). Machine selection remains locked to Adventurer 4.

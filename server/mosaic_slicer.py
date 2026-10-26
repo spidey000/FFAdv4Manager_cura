@@ -44,10 +44,10 @@ PLA = {
     "material_diameter": 1.75,
 }
 LIMITS = {
-    "material_print_temperature": (180, 225),
-    "material_print_temperature_layer_0": (180, 225),
-    "material_bed_temperature": (0, 70),
-    "material_bed_temperature_layer_0": (0, 70),
+    "material_print_temperature": (180, 220),
+    "material_print_temperature_layer_0": (180, 220),
+    "material_bed_temperature": (0, 65),
+    "material_bed_temperature_layer_0": (0, 65),
     "speed_print": (1, 65),
     "speed_travel": (1, 100),
     "acceleration_print": (1, 1200),

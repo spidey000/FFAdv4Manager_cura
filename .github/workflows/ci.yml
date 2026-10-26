@@ -31,6 +31,12 @@ jobs:
           grep -q MosaicSlicer frontend/dist/index.html
           grep -q ad4-manager.js frontend/dist/index.html
           grep -q 'api/slice' overlays/mosaic/src/gui/slicer.mjs
+      - name: Check generated Mosaic UX and syntax
+        run: |
+          node --check overlays/mosaic/public/ad4-manager.js
+          node --check overlays/mosaic/src/gui/ad4-settings.mjs
+          node --check overlays/mosaic/src/gui/ad4-presets.mjs
+          grep -q ad4-settings.css frontend/dist/index.html
       - name: Smoke test local web server
         run: |
           .venv/bin/ffadv4manager-cura >/tmp/mosaic.log 2>&1 &
