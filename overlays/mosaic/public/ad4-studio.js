@@ -35,52 +35,8 @@
   sheetHeader.append(closeSheet);
   sidebar.prepend(sheetHeader);
 
-  const categories = node("div", "ad4-categories");
-  categories.setAttribute("role", "group");
-  categories.setAttribute("aria-label", "Setting categories");
-  const filters = [
-    ["All", null],
-    ["Quality", /quality/i],
-    ["Strength", /shell|wall|infill|material/i],
-    ["Speed", /speed|travel/i],
-    ["Support", /support/i],
-  ];
-  let activeCategory = "All";
-  const renderFilter = () => {
-    const sections = Array.from(byId("sections")?.querySelectorAll(".section") || []);
-    const term = filters.find(f => f[0] === activeCategory)?.[1] || null;
-    for (const section of sections) {
-      const title = section.querySelector("[slot='section-title']")?.textContent || "";
-      const name = section.dataset.category_id || "";
-      section.classList.toggle("ad4-filter-hidden", Boolean(term && !term.test(name + " " + title)));
-    }
-    for (const btn of categories.querySelectorAll("button"))
-      btn.setAttribute("aria-pressed", String(btn.dataset.category === activeCategory));
-  };
-  for (const [title] of filters) {
-    const button = node("button", "", "", title);
-    button.type = "button";
-    button.dataset.category = title;
-    button.setAttribute("aria-pressed", String(title === "All"));
-    button.addEventListener("click", () => {
-      activeCategory = title;
-      renderFilter();
-      if (title !== "All") {
-        for (const section of byId("sections")?.querySelectorAll(".section:not(.ad4-filter-hidden)") || [])
-          section.dataset.closed = "false";
-      }
-    });
-    categories.append(button);
-  }
-  const h3 = sidebar.querySelector("h3");
-  if (h3) h3.after(categories);
-  else sheetHeader.after(categories);
-  const sectionRoot = byId("sections");
-  new MutationObserver(() => renderFilter()).observe(sectionRoot, {childList:true});
-  byId("setting-search")?.addEventListener("input", () => {
-    activeCategory = "All";
-    renderFilter();
-  });
+  // Cura's native AD4 settings module now owns category/complexity tabs,
+  // saved presets, reset controls and parameter help. Never duplicate its IDs.
 
   const setSheet = (open) => {
     const next = Boolean(open && isMobile());
