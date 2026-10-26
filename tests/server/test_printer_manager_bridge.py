@@ -1,5 +1,6 @@
 """Regression checks for the local printer manager bridge; no physical printer needed."""
 import json
+import struct
 from pathlib import Path
 import threading
 import unittest
@@ -122,7 +123,10 @@ class BridgeChecks(unittest.TestCase):
         headers = {'Origin': base, 'Content-Type': 'application/octet-stream'}
         with patch.object(bridge, 'command', side_effect=fake_cli):
             req = Request(base + '/api/printer/upload?name=my-part.gx',
-                          data=b'xgcode 1.0\n\0', headers=headers, method='POST')
+                          data=(b'xgcode 1.0\n\0' + struct.pack('<4i', 0, 58, 0, 0) +
+                                struct.pack('<iiih', 120, 0, 0, 1) +
+                                struct.pack('<8h', 200, 0, 2, 60, 55, 205, 0, 1)),
+                          headers=headers, method='POST')
             with urlopen(req, timeout=4) as response:
                 self.assertEqual(json.load(response)['remote_name'], '00_33_0.54m_my-part.gx')
         req = Request(base + '/api/printer/jobs?start=false', data=b'G28\n',
