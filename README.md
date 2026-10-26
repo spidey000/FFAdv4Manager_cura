@@ -10,6 +10,29 @@ A self-hosted CuraEngine web slicer and **FlashForge Adventurer 4 printer manage
 Install https://github.com/spidey000/FFAdv4Manager_cura for my ONE FlashForge Adventurer 4. Use Linux on the same LAN as the printer. Clone this repository with its pinned submodule and run bash scripts/install.sh. Do not install any Python package globally: use ONLY .venv/bin/python and .venv/bin/ffadv4manager-cura. Keep npm dependencies under frontend/node_modules. Preserve the pinned Symple Slicer CuraEngine WebAssembly bundle. Build the frontend and show me read-only printer status first. Ask for my printer LAN IP (do not guess it). Bind port 8765 to 127.0.0.1 only. If I request remote HTTPS, use Cloudflare Tunnel and Cloudflare Access; configure the documented CF_ACCESS_* environment variables and run ffadv4manager-cura --require-access. Do not expose raw FlashForge TCP 8899 or camera 8080, do not open router ports. Never submit a print/upload/motion command without asking me first. Report each verified functionality and any untested hardware behavior.
 ```
 
+## GitHub Pages — browser-only demo
+
+Automatic deployment: **https://spidey000.github.io/FFAdv4Manager_cura/**
+
+The `Deploy Cura preview to GitHub Pages` workflow publishes a Vite build plus the
+pinned CuraEngine WebAssembly slicer and **only the Adventurer 4 / Artillery PLA**
+application profiles. Visitors can load a model, slice it and download G-code.
+
+**Pages cannot run the Python CLI or access your LAN printer.** It intentionally
+disables printing, uploading and printer management. For genuine remote control
+keep using the self-hosted server with Cloudflare Tunnel + Access described below.
+
+**Enable Pages once:** open the repository on GitHub → **Settings → Pages →
+Build and deployment → Source → GitHub Actions**. On subsequent pushes to
+`main`, the workflow builds and publishes the site. Manual runs are also
+available through **Actions → Deploy Cura preview to GitHub Pages → Run workflow**.
+If Pages has not yet been enabled, the first deployment may fail at the
+`configure-pages` stage until this setting is changed.
+
+No Python environment is needed on GitHub Pages: it serves static assets only.
+The local/server edition below still uses an isolated `.venv` and
+`frontend/node_modules` as requested.
+
 ## Installation (Linux)
 
 Requirements: Python 3.9+ with `venv`, Git, Node.js 20+, npm, working Internet during installation. The printer is on the same trusted LAN as the server.
