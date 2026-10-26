@@ -75,6 +75,23 @@ def build():
     settings.write_text(source[:start]+replacement+source[stop:])
     patch("src/gui/options.mjs","filament_name.innerText = material_name;",
           'filament_name.innerText = "Artillery PLA Basic";')
+    # Network failures/cancellations must restore the Slice button instead of
+    # leaving MosaicSlicer's progress state stuck indefinitely.
+    actions=DEST/"src/gui/actions.mjs"
+    action_code=actions.read_text()
+    start='  let slice_info = await slicer.slice(export_stl(), (progress) => {'
+    finish='  set_active_state(slice_export_div);\n});'
+    if start not in action_code or finish not in action_code:
+        raise RuntimeError("Mosaic slice button implementation changed")
+    action_code=action_code.replace(start, '  try {\n'+start, 1)
+    action_code=action_code.replace(finish,
+        '  set_active_state(slice_export_div);\n'
+        '  } catch (error) {\n'
+        '    clear_slice_state();\n'
+        '    notify("Server-side CuraEngine unavailable", error?.message || String(error));\n'
+        '  }\n'
+        '});', 1)
+    actions.write_text(action_code)
     html=DEST/"public/index.html"
     source=html.read_text()
     if "</body>" not in source or "<h1>MosaicSlicer</h1>" not in source:
