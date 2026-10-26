@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import PrinterManager from './PrinterManager.jsx'
+import CuraSettingsDrawer from './CuraSettingsDrawer.jsx'
 import { ARTILLERY_PLA_BASIC } from './profileLibrary.js'
 import { checkArtilleryHeating } from './temperatureSafety.js'
 import './app.css'
@@ -49,6 +50,9 @@ function App() {
   const frame = useRef(null)
   const filePicker = useRef(null)
   const [manager, setManager] = useState(false)
+  const [tuneOpen, setTuneOpen] = useState(false)
+  const [autoSlice, setAutoSlice] = useState(false)
+  const [timelapseEnabled, setTimelapseEnabled] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [curaReady, setCuraReady] = useState(false)
   const [hasModel, setHasModel] = useState(false)
@@ -151,14 +155,14 @@ function App() {
       : 'Upload this file to the Adventurer 4? Firmware behavior is not guaranteed to be upload-only; inspect the printer.')) return
     setSending(true)
     try {
-      const res = await fetch('/api/printer/jobs?name=' + encodeURIComponent(name) + '&start=' + start, {
+      const res = await fetch('/api/printer/jobs?name=' + encodeURIComponent(name) + '&start=' + start + '&timelapse=' + (start && timelapseEnabled), {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
         body: bytes,
       })
       const result = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(result.error || 'Upload failed (HTTP ' + res.status + ')')
-      setNotice('Uploaded as ' + result.remote_name + (start ? ' · Print start requested' : ' · Upload only requested'))
+      setNotice('Uploaded as ' + result.remote_name + (start ? ' · Print start requested' : ' · Upload only requested') + (result.timelapse_error ? ' · Timelapse error: '+result.timelapse_error : ''))
     } catch (e) { setError(e.message) }
     finally { setSending(false) }
   }
@@ -191,6 +195,7 @@ function App() {
         <div><strong>Adventurer 4</strong><small>CuraEngine · Artillery PLA Basic</small></div>
       </div>
       <div className="top-actions">
+        <button type="button" className="quick-tune" onClick={() => setTuneOpen(true)} aria-label="Open advanced Cura tuning and custom profiles">Tune</button>
         {IS_PAGES_DEMO
           ? <span className="status demo-status"><span className="status-dot" />Browser preview</span>
           : <button type="button" className="printer-access" onClick={() => setManager(true)}
@@ -227,6 +232,8 @@ function App() {
         </div>
       </div>
       <div className="job-actions">
+        <label className="cura-pill-switch"><input type="checkbox" checked={autoSlice} onChange={e => setAutoSlice(e.target.checked)}/><span>Auto slice</span></label>
+        {!IS_PAGES_DEMO && <label className="cura-pill-switch"><input type="checkbox" checked={timelapseEnabled} onChange={e => setTimelapseEnabled(e.target.checked)}/><span>Timelapse</span></label>}
         <button type="button" className={'quick-action settings-action' + (settingsOpen ? ' is-on' : '')}
           onClick={() => sendToCura(settingsOpen ? 'close-settings' : 'open-settings')}
           aria-label={settingsOpen ? 'Close slicing settings' : 'Open slicing settings'}
@@ -261,7 +268,8 @@ function App() {
       <button aria-label="Dismiss message" type="button"
         onClick={() => { setNotice(''); setError('') }}>×</button>
     </div>}
-    {manager && <PrinterManager onClose={() => setManager(false)} />}
+    {manager && <PrinterManager onClose={() => setManager(false)} timelapseEnabled={timelapseEnabled} />}
+    {tuneOpen && <CuraSettingsDrawer frameRef={frame} onClose={() => setTuneOpen(false)} onChanged={() => {setReady(false);sendToCura('get-state')}} autoSlice={autoSlice}/>}
   </div>
 }
 

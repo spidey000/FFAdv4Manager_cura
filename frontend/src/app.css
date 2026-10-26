@@ -191,3 +191,12 @@ button:focus-visible, input:focus-visible { outline: 2px solid #a3e635; outline-
 @media(prefers-reduced-motion:reduce) {
   .btn, .quick-action, .printer-access { transition:none; }
 }
+
+/* Cura custom tuning: two modes can coexist with the upstream Cura sheet. */
+.quick-tune{flex:0 0 auto;border:1px solid #668a45;border-radius:10px;background:#2a3a2f;color:#c9f78c;min-height:36px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer}
+.quick-tune:hover{background:#334d38}
+.cura-pill-switch{position:relative;display:flex;align-items:center;justify-content:center;flex:0 0 auto;min-height:34px;padding:0 9px;border-radius:999px;background:#2b3e30;border:1px solid #58765b;color:#d0edd2;cursor:pointer;user-select:none;font-size:10px;font-weight:650}
+.cura-pill-switch:has(input:checked){background:#a3e635;color:#152b0e;border-color:#a3e635}
+.cura-pill-switch input{position:absolute;inset:0;opacity:0;cursor:pointer}.cura-pill-switch:focus-within{outline:2px solid #d4f7a9;outline-offset:2px}
+@media(max-width:767px){.top-actions{gap:5px}.quick-tune{min-height:34px;padding:5px 8px;font-size:11px}.job-actions{flex-wrap:wrap;gap:5px}.cura-pill-switch{min-height:29px;padding:0 6px;font-size:9px}}
+@media(max-width:340px){.cura-pill-switch{font-size:9px;padding:0 5px}.quick-tune{padding:5px 6px}}
