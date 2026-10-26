@@ -135,6 +135,26 @@ body.ad4-has-model #ad4-empty-hint {display:none;}
 #ad4-manager .ad4-stat strong {font-size:15px;}
 #ad4-manager button {border-radius:9px;background:#30463e;}
 #ad4-manager .ad4-head h2 {font-size:18px;letter-spacing:-.02em;}
+#ad4-manager .ad4-head {align-items:center;border-bottom:1px solid #38505a;padding-bottom:10px;}
+#ad4-manager .ad4-headline {display:flex;flex-direction:column;gap:3px;min-width:0;}
+#ad4-manager .ad4-headline small {font-size:9px;color:#c6ec9b;letter-spacing:.12em;font-weight:850;}
+#ad4-manager .ad4-headline h2 {margin:0;}
+#ad4-manager .ad4-headline>span {font-size:11px;color:#abc1ca;}
+#ad4-manager #ad4-close-manager {flex:0 0 37px;width:37px;height:37px;display:grid;place-items:center;
+  font-size:24px;line-height:1;background:#2a3c44;border:1px solid #536774;}
+#ad4-manager .ad4-manager-section {margin:11px 0 0;padding:12px;border:1px solid #3c505b;
+  border-radius:13px;background:#1b2b33;}
+#ad4-manager .ad4-manager-section h3 {margin:0 0 10px;font-size:13px;font-weight:800;color:#eaf3f4;}
+#ad4-manager .ad4-hint {margin:0;color:#a5bac5;font-size:11px;line-height:1.5;}
+#ad4-manager .ad4-tools {margin:8px 0 0;}
+#ad4-manager .ad4-tools button {min-height:37px;padding:8px 11px;font-size:11px;}
+#ad4-manager .ad4-tools button.ad4-cta {background:#a3e635;border-color:#a3e635;color:#1a290e;font-weight:850;}
+#ad4-manager .ad4-tools button.ad4-danger {background:#412a30;border-color:#a55353;color:#ffbcb8;}
+#ad4-manager #ad4-files {flex:1 1 170px;min-width:0;border:1px solid #546b75;border-radius:8px;}
+#ad4-manager #ad4-camera:not([src]) {display:none;}
+#ad4-manager #ad4-camera[src] {display:block;width:100%;height:auto;max-height:280px;object-fit:contain;
+  margin-top:11px;border:1px solid #3c5663;border-radius:10px;background:#111a21;}
+
 #ad4-manager-status {display:block;min-height:20px;}
 #notifications {bottom:calc(var(--ad4-dock) + 8px);z-index:140;}
 #notifications .notification {background:#26343b;border:1px solid #536357;color:#ecf4f6;}
