@@ -40,6 +40,8 @@ def build():
     data["name"]="ffadv4manager-mosaic"
     data["dependencies"].pop("@mosaicslicer/curaengine",None)
     pkg.write_text(json.dumps(data,indent=2)+"\n")
+    with (DEST/"src/gui/index.mjs").open("a",encoding="utf-8") as stream:
+        stream.write('\nexport * as slicer from "./slicer.mjs";\n')
     settings=DEST/"src/settings/index.mjs"
     source=settings.read_text()
     start=source.index("export function apply_prefs() {")
