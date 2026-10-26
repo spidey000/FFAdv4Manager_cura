@@ -47,12 +47,61 @@ function metadataComments(win) {
 
 function App() {
   const frame = useRef(null)
+  const filePicker = useRef(null)
   const [manager, setManager] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [curaReady, setCuraReady] = useState(false)
+  const [hasModel, setHasModel] = useState(false)
+  const [modelName, setModelName] = useState('')
   const [sending, setSending] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
   const [printer, setPrinter] = useState(IS_PAGES_DEMO ? 'Static preview · no printer connection' : 'Checking connection')
+
+  // Only the same-origin Cura iframe is allowed to report UI state.
+  useEffect(() => {
+    const receive = event => {
+      if (event.source !== frame.current?.contentWindow ||
+          event.origin !== window.location.origin ||
+          event.data?.source !== 'ffadv4-cura') return
+      const message = event.data
+      if (message.type === 'state') {
+        setReady(Boolean(message.hasGcode))
+        setHasModel(Boolean(message.hasModel))
+        setSettingsOpen(Boolean(message.settingsOpen))
+        setCuraReady(Boolean(message.initialized))
+      } else if (message.type === 'model-selected') {
+        setModelName(message.name || '')
+      } else if (message.type === 'error') {
+        setError(message.message || 'Cura action failed')
+      } else if (message.type === 'slicing') {
+        setNotice('Slicing with CuraEngine…')
+      }
+    }
+    window.addEventListener('message', receive)
+    return () => window.removeEventListener('message', receive)
+  }, [])
+
+  function sendToCura(command, detail = {}) {
+    const win = frame.current?.contentWindow
+    if (!win) { setError('Cura has not loaded. Reload the slicer.'); return }
+    win.postMessage({ source: 'ffadv4-shell', command, ...detail }, window.location.origin)
+  }
+
+  function chooseModel(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!/\.(?:stl|obj|3mf)$/i.test(file.name) || file.size > MAX_BYTES || !file.size) {
+      setError('Select an STL, OBJ or 3MF model smaller than 100 MB.')
+      return
+    }
+    setError(''); setNotice('')
+    setModelName(file.name)
+    setReady(false)
+    sendToCura('load-model', {file})
+  }
 
   useEffect(() => {
     let active = true
@@ -133,38 +182,84 @@ function App() {
     } catch (e) { setError(e.message) }
   }
 
+  const canSlice = curaReady && hasModel && !sending
+
   return <div className="app-shell">
     <header className="top-bar">
-      <div className="brand"><span className="logo">F4</span><div><strong>Cura · Adventurer 4</strong><small>FFAdv4Manager — CuraEngine</small></div></div>
+      <div className="brand">
+        <span className="logo">F4</span>
+        <div><strong>Adventurer 4</strong><small>CuraEngine · Artillery PLA Basic</small></div>
+      </div>
       <div className="top-actions">
-        <span className="status"><i />{printer}</span>
         {IS_PAGES_DEMO
-          ? <button className="btn secondary" type="button" disabled title="Available only on a private server with FFAdv4Manager installed">Printer manager · local only</button>
-          : <button className="btn secondary" type="button" onClick={() => setManager(true)}>Printer manager</button>}
+          ? <span className="status demo-status"><span className="status-dot" />Browser preview</span>
+          : <button type="button" className="printer-access" onClick={() => setManager(true)}
+              aria-label={'Open printer manager. ' + printer} title="Printer manager">
+              <span className="printer-access-icon" aria-hidden="true">▣</span>
+              <span className="printer-access-label"><strong>AD4</strong><small>{printer}</small></span>
+              <span className="printer-access-arrow" aria-hidden="true">›</span>
+            </button>}
       </div>
     </header>
-    {IS_PAGES_DEMO && <div role="status" className="demo-banner">GitHub Pages preview: CuraEngine runs in your browser. Printer management, GX conversion and printing require the private local server.</div>}
+
+    {IS_PAGES_DEMO && <div role="status" className="demo-banner">
+      Browser-only preview. Printing and printer management require the private server.
+    </div>}
+
     <main className="workspace">
-      <div className="slicer-area" aria-label="Cura web slicer">
-        <iframe ref={frame} title="CuraEngine web slicer for Adventurer 4" src={CURA_URL}
-          allow="clipboard-read; clipboard-write" onLoad={() => setReady(false)} />
+      <div className="slicer-area" aria-label="3D model viewer and Cura slicer">
+        <iframe ref={frame} title="CuraEngine 3D viewer for FlashForge Adventurer 4"
+          src={CURA_URL} allow="clipboard-read; clipboard-write"
+          onLoad={() => { setReady(false); setHasModel(false); setCuraReady(false); sendToCura('get-state') }} />
       </div>
     </main>
-    <footer className="action-bar">
-      <div className="job-state"><span className={ready ? 'signal active' : 'signal'} />
-        <div><strong>{ready ? 'G-code ready' : 'Slice a model in Cura'}</strong><small>{IS_PAGES_DEMO ? 'Preview · Artillery PLA Basic · G-code download only' : 'Artillery PLA Basic · 0.4 mm nozzle · one printer'}</small></div>
+
+    <input type="file" ref={filePicker} className="shell-file-picker"
+      accept=".stl,.obj,.3mf" aria-label="Choose a 3D model" onChange={chooseModel} />
+
+    <footer className="action-bar" aria-label="Slicing and printer quick actions">
+      <div className="job-state" aria-live="polite">
+        <span className={ready ? 'signal active' : 'signal'} />
+        <div>
+          <strong>{sending ? 'Sending to Adventurer 4…' : ready ? 'Ready to print' :
+            !curaReady ? 'Loading CuraEngine…' : hasModel ? 'Model ready to slice' : 'Add a 3D model to begin'}</strong>
+          <small title={modelName}>{modelName || (IS_PAGES_DEMO ? 'G-code download only' : 'Print or upload directly from the browser')}</small>
+        </div>
       </div>
       <div className="job-actions">
-        {IS_PAGES_DEMO
-          ? <button className="btn primary" disabled={!ready} onClick={downloadGcode}>Download G-code</button>
-          : <>
-            <button className="btn secondary" disabled={!ready || sending} onClick={() => upload(false)}>{sending ? 'Sending…' : 'Upload only'}</button>
-            <button className="btn primary" disabled={!ready || sending} onClick={() => upload(true)}>Send & print</button>
-          </>}
+        <button type="button" className={'quick-action settings-action' + (settingsOpen ? ' is-on' : '')}
+          onClick={() => sendToCura(settingsOpen ? 'close-settings' : 'open-settings')}
+          aria-label={settingsOpen ? 'Close slicing settings' : 'Open slicing settings'}
+          aria-expanded={settingsOpen} title="Slicing settings">
+          <span className="quick-icon" aria-hidden="true">⚙</span><span className="quick-label">Settings</span>
+        </button>
+        <button type="button" className="quick-action model-action"
+          onClick={() => filePicker.current?.click()} disabled={!curaReady}
+          title="Add STL, OBJ or 3MF model" aria-label="Add 3D model">
+          <span className="quick-icon" aria-hidden="true">＋</span><span className="quick-label">Model</span>
+        </button>
+        {ready
+          ? <>
+              <button type="button" className="quick-action reslice-action" disabled={!canSlice}
+                onClick={() => sendToCura('slice')} title="Re-slice the model" aria-label="Re-slice model">
+                <span className="quick-icon" aria-hidden="true">↻</span><span className="quick-label">Slice</span>
+              </button>
+              {IS_PAGES_DEMO
+                ? <button className="btn primary main-action" disabled={!ready} onClick={downloadGcode}>Download G-code</button>
+                : <div className="print-split" role="group" aria-label="Send the sliced job to the printer">
+                    <button type="button" className="print-action" disabled={sending} onClick={() => upload(true)}>Print</button>
+                    <button type="button" className="send-action" disabled={sending} onClick={() => upload(false)}>Upload only</button>
+                  </div>}
+            </>
+          : <button type="button" className="btn primary main-action" disabled={!canSlice}
+              onClick={() => sendToCura('slice')}>Slice model</button>}
       </div>
     </footer>
+
     {(error || notice) && <div role={error ? 'alert' : 'status'} className={'toast ' + (error ? 'bad' : 'good')}>
-      <span>{error || notice}</span><button aria-label="Dismiss" onClick={() => { setNotice(''); setError('') }}>×</button>
+      <span>{error || notice}</span>
+      <button aria-label="Dismiss message" type="button"
+        onClick={() => { setNotice(''); setError('') }}>×</button>
     </div>}
     {manager && <PrinterManager onClose={() => setManager(false)} />}
   </div>
