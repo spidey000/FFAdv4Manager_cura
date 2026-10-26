@@ -29,6 +29,9 @@ def build():
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     shutil.copy2(OV/"public/ad4.css",DEST/"public/ad4.css")
+    shutil.copy2(OV/"public/ad4-settings.css",DEST/"public/ad4-settings.css")
+    shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
+    shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
     webpack=DEST/"webpack.config.js"
     cfg=webpack.read_text()
     marker=',\n  {\n    name: "curaengine_worker"'
@@ -42,6 +45,13 @@ def build():
     pkg.write_text(json.dumps(data,indent=2)+"\n")
     with (DEST/"src/gui/index.mjs").open("a",encoding="utf-8") as stream:
         stream.write('\nexport * as slicer from "./slicer.mjs";\n')
+    app_entry=DEST/"src/index.mjs"
+    app_code=app_entry.read_text()
+    app_code=app_code.replace('import * as resources from "./resources.mjs";',
+      'import * as resources from "./resources.mjs";\\nimport {install_ad4_features} from "./gui/ad4-settings.mjs";'.replace('\\n','\n'))
+    app_code=app_code.replace('  console.log("Loaded GUI");',
+      '  console.log("Loaded GUI");\\n  install_ad4_features();'.replace('\\n','\n'))
+    app_entry.write_text(app_code)
     settings=DEST/"src/settings/index.mjs"
     source=settings.read_text()
     start=source.index("export function apply_prefs() {")
@@ -98,7 +108,7 @@ def build():
         raise RuntimeError("Unexpected Mosaic HTML")
     source=source.replace("<h1>MosaicSlicer</h1>","<h1>MosaicSlicer · Adventurer 4</h1>")
     source=source.replace('<link rel="stylesheet" href="main.css">',
-          '<link rel="stylesheet" href="main.css"><link rel="stylesheet" href="ad4.css">')
+          '<link rel="stylesheet" href="main.css"><link rel="stylesheet" href="ad4.css"><link rel="stylesheet" href="ad4-settings.css">')
     source=source.replace('<div class="flex-spacer"></div>\n      <a class="info-link"',
           '<div class="flex-spacer"></div>\n      <button id="ad4-open-manager">Printer manager</button>\n      <a class="info-link"',1)
     dialog="""<dialog id="ad4-manager" aria-label="Adventurer 4 printer manager">
