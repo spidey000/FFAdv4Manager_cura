@@ -1,117 +1,54 @@
-# FFAdv4Manager Cura — FlashForge Adventurer 4 only
+# FFAdv4Manager Cura · MosaicSlicer · Adventurer 4
 
-A self-hosted CuraEngine web slicer and **FlashForge Adventurer 4 printer manager**. Built from [FFAdv4Manager](https://github.com/spidey000/FFAdv4Manager) and [Symple Slicer](https://github.com/SynDaverCO/symple-slicer).
+The old React/Symple interface has been **completely replaced by [MosaicSlicer](https://github.com/ading2210/MosaicSlicer)**. The upstream source is pinned as a git submodule; our modifications live in `overlays/mosaic/` and are applied reproducibly by `scripts/prepare_mosaic.py`.
 
-**One printer: Adventurer 4, 220 × 200 × 250 mm, 0.4 mm nozzle. One default filament: Artillery PLA Basic.** Other printer profiles are not exposed by this application. Both the original CLI implementation and its complete web printer manager are retained.
+**CuraEngine slicing takes place only on the local Linux server.** The browser displays MosaicSlicer's model editor, settings, and G-code preview, but never loads or runs a CuraEngine WASM worker. The printer manager still uses the original FFAdv4Manager LAN CLI.
 
-## Agent installation prompt (copy/paste)
+## Requirements and installation
 
-```text
-Install https://github.com/spidey000/FFAdv4Manager_cura for my ONE FlashForge Adventurer 4. Use Linux on the same LAN as the printer. Clone this repository with its pinned submodule and run bash scripts/install.sh. Do not install any Python package globally: use ONLY .venv/bin/python and .venv/bin/ffadv4manager-cura. Keep npm dependencies under frontend/node_modules. Preserve the pinned Symple Slicer CuraEngine WebAssembly bundle. Build the frontend and show me read-only printer status first. Ask for my printer LAN IP (do not guess it). Bind port 8765 to 127.0.0.1 only. If I request remote HTTPS, use Cloudflare Tunnel and Cloudflare Access; configure the documented CF_ACCESS_* environment variables and run ffadv4manager-cura --require-access. Do not expose raw FlashForge TCP 8899 or camera 8080, do not open router ports. Never submit a print/upload/motion command without asking me first. Report each verified functionality and any untested hardware behavior.
-```
-
-## GitHub Pages — browser-only demo
-
-Automatic deployment: **https://spidey000.github.io/FFAdv4Manager_cura/**
-
-The `Deploy Cura preview to GitHub Pages` workflow publishes a Vite build plus the
-pinned CuraEngine WebAssembly slicer and **only the Adventurer 4 / Artillery PLA**
-application profiles. Visitors can load a model, slice it and download G-code.
-
-**Pages cannot run the Python CLI or access your LAN printer.** It intentionally
-disables printing, uploading and printer management. For genuine remote control
-keep using the self-hosted server with Cloudflare Tunnel + Access described below.
-
-**Enable Pages once:** open the repository on GitHub → **Settings → Pages →
-Build and deployment → Source → GitHub Actions**. On subsequent pushes to
-`main`, the workflow builds and publishes the site. Manual runs are also
-available through **Actions → Deploy Cura preview to GitHub Pages → Run workflow**.
-If Pages has not yet been enabled, the first deployment may fail at the
-`configure-pages` stage until this setting is changed.
-
-No Python environment is needed on GitHub Pages: it serves static assets only.
-The local/server edition below still uses an isolated `.venv` and
-`frontend/node_modules` as requested.
-
-## Installation (Linux)
-
-Requirements: Python 3.9+ with `venv`, Git, Node.js 20+, npm, working Internet during installation. The printer is on the same trusted LAN as the server.
+- Linux machine on the same LAN as the printer, Python 3.10+, Node.js 20+, npm and git.
+- **Native MosaicSlicer/CuraEngine** executable with support for `-r` resolved settings JSON (ordinary CuraEngine binaries might not support it).
+- For building native engine: a C++20 compiler, CMake 3.20+, build tools and access to the UltiMaker/Conan dependency remotes.
 
 ```bash
 git clone https://github.com/spidey000/FFAdv4Manager_cura.git
 cd FFAdv4Manager_cura
 bash scripts/install.sh
-.venv/bin/ffadv4manager config set --host YOUR_PRINTER_LAN_IP
-.venv/bin/ffadv4manager status --json  # read-only
+bash scripts/build_engine.sh
+.venv/bin/ffadv4manager config set --host YOUR_ADVENTURER4_LAN_IP
+.venv/bin/ffadv4manager status --json
 .venv/bin/ffadv4manager-cura
 ```
 
-Open `http://127.0.0.1:8765/` **on the server machine**. For remote use, configure **Cloudflare Tunnel + Cloudflare Access** and launch `.venv/bin/ffadv4manager-cura --require-access`. The bridge binds to `127.0.0.1` only; keep the private HTTP origin inaccessible to the Internet. `--require-access` intentionally fails closed if Access configuration is missing. Follow the original [Cloudflare deployment guide](https://github.com/spidey000/FFAdv4Manager/blob/main/docs/DEPLOY_CLOUDFLARE.md) for the required identity claims.
+Open `http://127.0.0.1:8765/` on the Linux server. Installation creates `.venv/` for all Python packages, `frontend/node_modules/` for MosaicSlicer dependencies, and `.local/curaengine/` for the natively compiled engine. No Python packages are installed globally.
 
-### Isolation and reproducibility
+The **native engine compilation has not yet been tested successfully in CI**. `scripts/build_engine.sh` is the build recipe; if it fails due to a missing C++ dependency, the web server can still display MosaicSlicer but will **not** slice until a compatible binary is installed. Alternatively set `AD4_CURAENGINE_BIN=/absolute/path/to/CuraEngine` to a verified compatible executable. The HTTP endpoint `/api/slice/engine` reports whether the executable is configured.
 
-* All Python packages are installed into `.venv/`, never into system Python; do **not** use `sudo pip` or `--break-system-packages`.
-* Node packages are installed under `frontend/node_modules/` with `npm ci`, using the committed `package-lock.json`.
-* CuraEngine is the **pinned WebAssembly binary** provided by the AGPL-3.0 Symple Slicer submodule. It runs inside the browser, and does **not** need a global Cura or CuraEngine installation. It is not a Python dependency.
-* The source checkout includes only the AD4 application profiles; the pinned vendor submodule contains its upstream code/resources, but additional printers are not registered in the UI. External profile lists are overridden with the local single-printer list.
-* The installer downloads packages and the submodule on first installation. A `venv` is isolated, **not automatically an offline bundle**; a fully air-gapped installer would additionally require vendored wheels and npm packages.
+## What runs where
 
-## Mobile-first workflow
-
-The mobile interface follows the **Three_slicer_responsive** layout: a full-height 3D viewport, compact quick-action bar at the bottom, and a collapsible Cura settings sheet that rises above the viewport. The native Cura controls are preserved inside the sheet; the slicing engine and single-printer profiles are unchanged.
-
-1. Tap **Model (+)** in the bottom bar to load an STL, OBJ or 3MF file (up to 100 MB). The model is passed into Cura's own loader; the desktop editor's native file picker remains usable.
-2. Tap **Settings (⚙)** to open the bottom sheet. Configure the default **FlashForge Adventurer 4** printer, **Artillery PLA Basic** material and process parameters with native Cura controls. Close with **×**, the backdrop, or Escape. On desktop the normal Cura panel remains visible.
-3. Tap **Slice model** to invoke CuraEngine directly from the bottom bar. The view stays unobstructed while the model is prepared. Once real G-code is available, **Re-slice** becomes available.
-4. When G-code is ready, the bottom bar splits into **Print** (upload GX and request a print start) and **Upload only** (store without requesting a start). Both actions use the original authenticated FFAdv4Manager bridge and show confirmation before contacting the printer. Upload-only is subject to firmware behavior.
-5. Tap the **AD4 status button** in the top bar to open the full printer manager: live status, temperature, camera, stored files, controls and diagnostics. This is available only on your self-hosted server.
-6. On **GitHub Pages**, there is no printer connection: the action is **Download G-code**, and the printer manager does not appear.
-
-To use layer preview after slicing, open **Settings** and select **Print and Preview** from Cura's built-in page selector. Changes to a Cura model or print parameter invalidate older G-code, so re-slice before sending.
-
-**Remote use:** serve the application privately through Cloudflare Tunnel + Access. GitHub Pages is only a slicing demonstration, never a printer controller.
-
-The source filename is retained (ASCII-normalized by the CLI), and GX upload names are prefixed with available time/filament metadata, for example `01_02_1.23m_Benchy.gx`. Unknown estimates are **not fabricated**. The GX converter includes a header and BMP thumbnail support. The shell attempts to capture an 80×60 thumbnail from the Cura WebGL canvas and embeds it as G-code comments for GX conversion; if WebGL capture fails the converter uses a blank image. The firmware display preview has not been confirmed for this flow.
-
-**Safety:** The material profile starts conservatively with 205 °C nozzle (210 °C first layer), 55 °C bed and controlled print speeds, not a calibrated manufacturer-certified preset. Always inspect the model and G-code; verify the physical printer in person before unattended operation. An upload-only command is not a manufacturer guarantee that every firmware revision will avoid starting the print.
-
-## Project structure
-
-| Component | What it does |
-|---|---|
-| `vendor/symple-slicer/` | Pinned AGPL CuraEngine WebAssembly / Three.js web slicer |
-| `cura-profiles/` | Single-machine Cura definitions and default Artillery PLA preset |
-| `frontend/` | Mobile-first 3D viewer, bottom Cura settings sheet, safe same-origin slicer bridge and existing printer manager |
-| `server/cura_bridge.py` | Serves Cura from the pinned submodule and profile files through the same-origin bridge |
-| `server/ad4_bridge.py` | Original printer API, JWT Access checks, upload/jobs and timelapse |
-| `ffadv4manager/` | The unchanged LAN printer CLI, GX converter, and thumbnail/metadata utilities |
-| `scripts/install.sh` | `venv` creation, dependency installation and frontend build |
-
-The core LAN transport, auth and upload APIs are copied from upstream FFAdv4Manager at commit `3aba69cd9661d76b5591d5a577fa4348bc111831`. Browser Cura is supplied by Symple Slicer at commit `6e580c4591c90ac235c6a5dd8e9a58c1faf82c39`. The FlashForge machine JSON comes from `Ultimaker/Cura/resources/definitions/flashforge_adventurer4.def.json` and its base/extruder definition. Filament temperature range: [Artillery Basic PLA](https://es.store.artillery3d.com/products/pla-basic-1).
-
-## Tests
-
-```bash
-.venv/bin/python -m pip install pytest
-.venv/bin/python -m pytest -q tests
-npm test --prefix frontend
-npm run build --prefix frontend
+```text
+Browser: MosaicSlicer viewer · editable Cura settings · G-code preview
+  POST /api/slice (STL + resolved Cura settings)
+      ↓
+Local Linux server: Python API in .venv → native CuraEngine -r → G-code
+      ↓
+Browser: preview and optional export
+      ↓ upload / print from Printer manager
+FFAdv4Manager CLI → GX (thumbnail + metadata) → FlashForge Adventurer 4 LAN
 ```
 
-Printer hardware is **not tested** by installing or running CI. The original frontend ThreeSlicer UI is not the default in this fork; the pinned Symple interface replaces the slicer while preserving the original PrinterManager implementation.
+Only the **Adventurer 4**, 220 × 200 × 250 mm with a 0.4 mm nozzle, is configured. The starting filament settings correspond to **Artillery PLA Basic**: 205 °C nozzle, 210 °C first layer, and 55 °C bed. Other printer models are not selectable. The server locks the machine dimensions, single extruder and firmware start/end G-code and applies safety limits to temperatures and speeds.
 
-## Licenses
+The **Printer manager** provides read-only status and diagnostics plus the supported existing CLI controls for stored files, camera, fan, pause/resume/cancel, timelapse, upload-only and send & print.
 
-AGPL-3.0-or-later applies to the web UI and Symple Slicer; the imported FFAD4Manager CLI is GPL-3.0-or-later. Preserve the original license notices and publish the corresponding source when required by these licenses. This repository is not affiliated with FlashForge, Cura/UltiMaker, SynDaver, or Artillery.
+## Secure remote usage
 
-## Camera, uploads and MP4 timelapses
+For remote access, publish the loopback-only service through **Cloudflare Tunnel + Cloudflare Access** and launch `.venv/bin/ffadv4manager-cura --require-access`, with server-side `CF_ACCESS_*` variables set according to [deployment documentation](docs/DEPLOY_CLOUDFLARE.md). Never expose printer TCP port 8899 or camera port 8080 to the public internet.
 
-The local bridge now exposes an on-demand, authenticated MJPEG stream (never the camera LAN URL), a paginated printer-file viewer with metadata learned only from uploads made by this host, and an MP4 timelapse gallery with HTML5 seek/download. Timelapses are recorded by a server-owned process and survive closing the browser. Auto recording is opt-in per print; if FFmpeg fails after printing has started, the API reports `timelapse_error` without pretending the print was cancelled. A recovered session is encoded at server restart when JPEG frames exist. The Python venv includes `imageio-ffmpeg` to provide an FFmpeg binary without global package installation (host FFmpeg is fallback). This is interval-based capture; hardware layer synchronization is not guaranteed.
+GitHub Pages cannot execute server-side CuraEngine. The former Pages slicer is removed and its public URL displays a notice pointing to this server-only repository.
 
-## Mobile Cura settings and profiles
+## Tests and provenance
 
-The **Settings** drawer controls the pinned CuraEngine slicer through its real getOption/setOption interface, never replacing the engine. It has full-width Quality/Strength/Speed/Support/Material tabs, Basic/Advanced/Expert filters, descriptions on parameter taps, yellow reset indicators for modified values, soft-green expanded presets, and responsive mobile controls. Custom process and material presets are browser-local, with save/update/delete operations. Only the Adventurer 4 machine is available. Changing settings invalidates previously sliced G-code; enabling **Auto slice** triggers a new slice after settings are changed in the drawer when a model is loaded. The **Timelapse** toggle opts in per remote print. The printer API still blocks excessive Artillery PLA temperatures.
+The repository ships GitHub Actions checks for the isolated frontend compilation, server-side request validation, CLI/GX regressions and printer bridge smoke tests. CI does **not** compile native CuraEngine or physically operate your printer; fully successful end-to-end slicing and printing require supervised verification on your hardware.
 
-### Optional Z-layer-triggered timelapse
-
-For a **real private-server print**, enable Timelapse and choose **By Z layer · experimental**. The server samples read-only `ffadv4manager position --json` (M114), requires two matching higher Z-layer estimates while the printer reports printing, and captures a still only after the estimate advances. Cura's actual `layer_height` metadata is used if available; otherwise 0.20 mm is assumed, not a firmware-reported layer. Z-hops and adaptive layer heights can cause inaccurate layer boundaries; the mode must be verified against actual Adventurer 4 hardware before relying on it. The default **By time** mode remains stable and unchanged. No browser connection is required for either recording mode.
+MosaicSlicer upstream is AGPL-3.0-only; CuraEngine is AGPL-3.0; the imported FFAdv4Manager CLI retains GPL-3.0-or-later notices. Preserve all upstream attribution and comply with AGPL network-use source obligations.
