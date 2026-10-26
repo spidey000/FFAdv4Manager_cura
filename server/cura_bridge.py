@@ -1,85 +1,71 @@
-"""CuraEngine web frontend + the FFAdv4Manager secure printer bridge.
-
-Only a single printer (FlashForge Adventurer 4) is exposed in Symple's
-forced profile list. This module delegates ALL printer operations to the
-upstream ffadv4manager CLI; no duplicate protocol client exists here.
-"""
+"""MosaicSlicer frontend served locally; all slicing takes place on this server."""
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
-from io import BytesIO
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import urlsplit
 
 from . import ad4_bridge as bridge
+from .mosaic_slicer import MAX_FRAME, SlicingError, cancel_slice, engine_binary, parse_frame, slice_model
 
 ROOT = Path(__file__).resolve().parents[1]
-SYMPLE = ROOT / "vendor" / "symple-slicer" / "src-app"
-PROFILES = ROOT / "cura-profiles"
+DIST = ROOT / "frontend" / "dist"
 
 
-class CuraHandler(bridge.Handler):
-    """Serve Cura WASM and proprietary machine presets behind Access checks."""
-
-    def translate_path(self, path):
-        clean = urlsplit(path).path
-        for prefix, root in (("/cura/", SYMPLE), ("/cura-profiles/", PROFILES)):
-            if clean.startswith(prefix):
-                # Absolute and traversal paths must never leave the approved tree.
-                rel = unquote(clean[len(prefix):]).replace("\\", "/")
-                target = (root / rel).resolve()
-                if not target.is_relative_to(root.resolve()):
-                    return str(root / "__blocked__")
-                return str(target)
-        return super().translate_path(path)
-
-    def send_head(self):
-        # Auth is performed in the inherited Handler.do_GET, prior to this.
-        if urlsplit(self.path).path == "/cura/index.html":
+class MosaicHandler(bridge.Handler):
+    def do_GET(self):
+        if urlsplit(self.path).path == "/api/slice/engine":
+            if not self.request_authorized():
+                return self.json(401 if bridge.ACCESS_CONFIG else 403, {"error": "Unauthorized"})
             try:
-                page = (SYMPLE / "index.html").read_text(encoding="utf-8")
-            except OSError:
-                self.send_error(503, "Cura web submodule not installed")
-                return None
-            page = page.replace(
-                "</body>",
-                '<script src="../cura-integration.js"></script></body>',
-            )
-            payload = page.encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(payload)))
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.end_headers()
-            return BytesIO(payload)
-        return super().send_head()
+                engine_binary()
+                return self.json(200, {"available": True, "location": "server"})
+            except SlicingError as error:
+                return self.json(503, {"available": False, "error": str(error)})
+        return super().do_GET()
+
+    def do_POST(self):
+        path = urlsplit(self.path).path
+        if path not in ("/api/slice", "/api/slice/cancel"):
+            return super().do_POST()
+        if not self.request_authorized(write=True):
+            return self.json(401 if bridge.ACCESS_CONFIG else 403, {"error": "Unauthorized"})
+        if path == "/api/slice/cancel":
+            return self.json(200, {"cancelled": cancel_slice()})
+        if not self.headers.get("Content-Type", "").startswith("application/vnd.ffadv4-slice"):
+            return self.json(415, {"error": "Unsupported slice media type"})
+        try:
+            size = int(self.headers.get("Content-Length", "0"))
+            if size < 88 or size > MAX_FRAME:
+                return self.json(413, {"error": "Invalid model or settings size"})
+            model, settings = parse_frame(self.rfile.read(size))
+            result = slice_model(model, settings)
+            return self.json(200, {
+                "gcode": result.gcode,
+                "time_seconds": result.seconds,
+                "filament_mm": result.filament_mm,
+                "engine": "server",
+            })
+        except (ValueError, OSError, SlicingError) as error:
+            return self.json(422, {"error": str(error)})
 
 
 def serve(*, require_access=False):
-    if not (SYMPLE / "index.html").is_file():
-        raise RuntimeError(
-            "Cura slicer missing: run git submodule update --init vendor/symple-slicer"
-        )
-    wasm = SYMPLE / "lib/slicing-engines/CuraEngine/CuraEngine.wasm"
-    if not wasm.is_file():
-        raise RuntimeError("CuraEngine WASM missing from the pinned Symple Slicer")
-    if not (PROFILES / "profile_list.toml").is_file():
-        raise RuntimeError("Missing Adventurer 4 profile list")
-    # A venv console script may be invoked directly without activating PATH.
-    # Resolve the printer CLI using this same interpreter, not system Python.
+    if not (DIST / "index.html").is_file():
+        raise RuntimeError("MosaicSlicer missing. Run bash scripts/install.sh")
+    bridge.DIST = DIST
     if not os.environ.get("AD4_CLI"):
         bridge.CLI = str(Path(sys.executable).with_name("ffadv4manager"))
-    bridge.Handler = CuraHandler
+    bridge.Handler = MosaicHandler
     bridge.serve(require_access=require_access)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AD4 Cura web slicer and printer manager")
-    parser.add_argument("--require-access", action="store_true",
-                        help="Fail closed unless valid Cloudflare Access config exists")
+    parser = argparse.ArgumentParser(description="MosaicSlicer UI and server-side CuraEngine")
+    parser.add_argument("--require-access", action="store_true")
     args = parser.parse_args()
     serve(require_access=args.require_access)
 
