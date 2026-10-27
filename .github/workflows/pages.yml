@@ -36,11 +36,12 @@ jobs:
           index=root/"index.html"
           assert index.is_file()
           html=index.read_text()
-          assert "ad4-studio.js" in html and "ad4-studio.css" in html
+          assert all(x in html for x in ("ad4-studio.js","ad4-studio.css","ad4-v3.js","ad4-v3.css"))
           assert (root/"js/app.mjs").is_file()
           assert (root/"ad4-manager.js").is_file()
           assert (root/"ad4-studio.js").is_file()
           assert (root/"ad4-studio.css").is_file()
+          assert (root/"ad4-v3.js").is_file() and (root/"ad4-v3.css").is_file()
           assert (root/"demo-cube-20mm.stl").is_file()
           assert (root/"resources/cura_data.tar.gz").is_file()
           assert not (root/"js/worker.js").exists(), "CuraEngine must not run in the browser"
@@ -53,7 +54,7 @@ jobs:
           import os
           revision=os.environ["GITHUB_SHA"][:12]
           for asset in ("js/app.mjs","main.css","ad4.css","ad4-settings.css",
-                        "ad4-studio.css","ad4-manager.js","ad4-studio.js"):
+                        "ad4-studio.css","ad4-manager.js","ad4-studio.js","ad4-v3.css","ad4-v3.js"):
               html=html.replace('"' + asset + '"','"' + asset + '?v=' + revision + '"')
           index.write_text(html)
           (root/".nojekyll").touch()
@@ -105,7 +106,7 @@ jobs:
                       html=response.read().decode("utf-8")
                   assert "__AD4_STATIC_PREVIEW__=true" in html
                   assert "ad4-studio.js" in html
-                  for asset in ("ad4-studio.css","ad4-studio.js","demo-cube-20mm.stl","js/app.mjs","resources/cura_data.tar.gz"):
+                  for asset in ("ad4-studio.css","ad4-studio.js","ad4-v3.css","ad4-v3.js","demo-cube-20mm.stl","js/app.mjs","resources/cura_data.tar.gz"):
                       with urllib.request.urlopen(site+asset,timeout=30) as response:
                           assert response.status==200,asset
                   print("Verified live mobile AD4 Studio public preview",site)

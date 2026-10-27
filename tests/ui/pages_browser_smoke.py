@@ -69,29 +69,52 @@ with sync_playwright() as p:
                     print("USER FILE UPLOAD LOADED AS 3D MODEL",flush=True)
             except Exception as error:
                 failures.append(f"{width}: STL preview/upload: {error}")
-        if page.locator("#ad4-dock-model").count() and width<500 and not startup_error:
-            page.locator("#ad4-dock-settings").click()
-            if not page.locator("body.ad4-sheet-open").count():failures.append("bottom sheet not working")
-            else:
+        if page.locator("#ad4-v3-top").count()==0:
+            failures.append(f"{width}: new five-tab navigation missing")
+        else:
+            top_buttons=page.locator("#ad4-v3-top button")
+            if top_buttons.count()!=5:
+                failures.append(f"{width}: expected five sections, got {top_buttons.count()}")
+            if page.evaluate("document.body.dataset.ad4Screen")!="preview":
+                failures.append(f"{width}: workspace did not start in Preview")
+        if not startup_error and width<500:
+            try:
+                # Navigate using the V3 visible controls, not legacy hidden buttons.
+                page.locator('#ad4-v3-top [data-route="print"]').click(timeout=4000)
+                page.wait_for_function("document.body.dataset.ad4Screen==='print'",timeout=4000)
+                page.wait_for_timeout(250)
                 categories=page.locator("#ad4-categories button").count()
-                print("MOBILE CATEGORIES",categories,flush=True)
-                if categories<5: failures.append("Cura categories missing")
-                # Wait for the translated bottom sheet to finish its 250 ms transition.
-                page.wait_for_timeout(450)
+                print("V3 PRINT / CURA CATEGORIES",categories,flush=True)
+                if categories<5:failures.append("Print settings categories missing")
                 visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
-                if not visible:
-                    print("QUALITY DEBUG",page.evaluate("""() => ({
-                      selected:Array.from(document.querySelectorAll('#ad4-categories button')).map(b=>[b.textContent,b.getAttribute('aria-pressed')]),
-                      rows:Array.from(document.querySelectorAll('#sections .setting[data-setting_id]')).slice(0,12).map(x=>[x.dataset.setting_id,x.hidden,x.closest('.section')?.hidden]),
-                      sheet:document.querySelector('#sidebar-container')?.getBoundingClientRect().toJSON()
-                    })"""),flush=True)
-                print("VISIBLE CURA QUALITY SETTINGS",visible,flush=True)
-                if visible<1: failures.append("Quality settings not rendered")
+                print("PRINT QUALITY SETTINGS VISIBLE",visible,flush=True)
+                if visible<1:failures.append("Print settings not visible")
                 page.locator("#ad4-categories button[data-name='Speed']").click()
                 speed_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
-                print("VISIBLE CURA SPEED SETTINGS",speed_visible,flush=True)
-                if speed_visible<1: failures.append("Speed settings not rendered")
-            page.locator("#ad4-sheet-close").click(timeout=3000)
+                if speed_visible<1:failures.append("Cura Speed values missing")
+                page.locator('#ad4-v3-top [data-route="filament"]').click()
+                page.wait_for_function("document.body.dataset.ad4Screen==='filament'",timeout=4000)
+                material_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
+                print("V3 MATERIAL SETTINGS",material_visible,flush=True)
+                if material_visible<1:failures.append("Artillery PLA parameters missing")
+                page.locator('#ad4-v3-top [data-route="app"]').click()
+                page.wait_for_function("document.body.dataset.ad4Screen==='app'",timeout=4000)
+                if not page.locator("#ad4-v3-export-profiles:visible").count():
+                    failures.append("App profile exporter missing")
+                page.locator("#ad4-v3-nav-orient").click()
+                page.wait_for_function("document.body.dataset.ad4Screen==='transform'",timeout=4000)
+                if page.locator(".ad4-v3-axis input:visible").count()!=3:
+                    failures.append("Three-axis transform missing")
+                page.locator('#ad4-v3-top [data-route="preview"]').click()
+                page.wait_for_function("document.body.dataset.ad4Screen==='preview'",timeout=4000)
+                if not page.locator("#ad4-v3-open-model:visible").count():
+                    failures.append("Model import control missing")
+                if not page.locator("#ad4-v3-run-slice").is_disabled():
+                    failures.append("Public Pages exposed backend slicing")
+                if not page.locator("#ad4-v3-print").is_disabled():
+                    failures.append("Public Pages exposed physical printing")
+            except Exception as error:
+                failures.append(f"{width}: V3 navigation failed: {error}")
         if errors:
             failures.append(f"{width}: browser console/runtime errors: "+" | ".join(errors[:8])[:1000])
         for msg in errors: print("FINAL",msg[:750],flush=True)

@@ -24,6 +24,7 @@ jobs:
           .venv/bin/python -m pip install pytest
           .venv/bin/python -m pytest -q tests/cli tests/server tests/integration tests/cura tests/ui
           node --check overlays/mosaic/public/ad4-studio.js
+          node --check overlays/mosaic/public/ad4-v3.js
           node --check overlays/mosaic/public/ad4-manager.js
       - name: Ensure no CuraEngine browser worker is shipped
         run: |
@@ -35,6 +36,8 @@ jobs:
           grep -q ad4-settings.css frontend/dist/index.html
           grep -q ad4-studio.js frontend/dist/index.html
           grep -q ad4-studio.css frontend/dist/index.html
+          grep -q ad4-v3.js frontend/dist/index.html
+          grep -q ad4-v3.css frontend/dist/index.html
           test -f frontend/dist/ad4-studio.js
           test -f frontend/dist/ad4-studio.css
           test -f frontend/dist/resources/cura_data.tar.gz
