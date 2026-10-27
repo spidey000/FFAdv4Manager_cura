@@ -108,6 +108,11 @@ main().catch(error => {
 
 """
     settings.write_text(source[:start]+replacement+source[stop:])
+    # Adventurer 4 metadata omits exclude_materials. Upstream Mosaic assumes
+    # it is always a list and crashes on undefined.includes().
+    patch("src/settings/containers.mjs",
+          "let excluded_materials = this.parent_meta.exclude_materials;",
+          "let excluded_materials = this.parent_meta.exclude_materials ?? [];")
     patch("src/gui/options.mjs","filament_name.innerText = material_name;",
           'filament_name.innerText = "Artillery PLA Basic";')
     # Network failures/cancellations must restore the Slice button instead of
