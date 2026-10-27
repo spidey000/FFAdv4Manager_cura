@@ -88,7 +88,7 @@ with sync_playwright() as p:
                 if categories<5:failures.append("Print settings categories missing")
                 visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("PRINT QUALITY SETTINGS VISIBLE",visible,flush=True)
-                if visible<1:failures.append("Print settings not visible")
+                if visible<10:failures.append(f"Native Quality settings unexpectedly missing: {visible} (previously just 3)")
                 # Capture the real Print screen from the deployed bundle before scrolling.
                 print_shot=Path(f"/tmp/ad4-pages-print-{width}.png")
                 page.screenshot(path=str(print_shot),full_page=False)
@@ -112,8 +112,35 @@ with sync_playwright() as p:
                     failures.append(f"{width}: Print settings panel is not an independently scrolling region: {layout}")
                 # Ensure enough Cura settings exist for actual scrolling, then use a
                 # physical wheel gesture instead of assigning scrollTop directly.
+                # All Cura must be a first-class accessible control, never a hidden
+                # checkbox inside the profile editor. Assert every native row is
+                # available, including categories outside the five quick filters.
+                all_cura=page.locator("#ad4-all-cura")
+                if not all_cura.is_visible():failures.append("All Cura catalog selector hidden")
+                all_cura.click()
+                native_stats=page.evaluate("""() => {
+                    const rows=[...document.querySelectorAll('#sections .setting[data-setting_id]')];
+                    const categories=[...document.querySelectorAll('#sections > .section[data-category_id]')];
+                    return {
+                      total:rows.length,
+                      visible:rows.filter(x=>!x.hidden).length,
+                      groups:categories.map(s=>({id:s.dataset.category_id,
+                        name:s.querySelector('.section-title-container .left')?.textContent?.trim(),
+                        total:s.querySelectorAll('.setting[data-setting_id]').length,
+                        visible:[...s.querySelectorAll('.setting[data-setting_id]')].filter(x=>!x.hidden).length}))
+                    };
+                }""")
+                print("NATIVE CURA CATALOG",native_stats,flush=True)
+                if native_stats["total"] < 100:
+                    failures.append(f"Missing Cura settings: expected extensive native catalog, got {native_stats['total']}")
+                if native_stats["visible"] != native_stats["total"]:
+                    failures.append(f"All Cura did not expose every parameter: {native_stats['visible']}/{native_stats['total']}")
+                if len(native_stats["groups"]) < 8:
+                    failures.append("Native Cura category hierarchy missing")
+                menu=page.locator("#ad4-native-category")
+                if menu.locator("option").count() < 9:
+                    failures.append("Native Cura categories not selectable")
                 page.locator("#ad4-presets-toggle").click()
-                page.locator("#ad4-native-toggle").check()
                 page.wait_for_timeout(250)
                 scroller=page.locator("#sidebar")
                 dims=page.evaluate("""() => {
@@ -134,12 +161,12 @@ with sync_playwright() as p:
                 page.screenshot(path=f"/tmp/ad4-pages-print-scrolled-{width}.png",full_page=False)
                 page.locator("#ad4-categories button[data-name='Speed']").click()
                 speed_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
-                if speed_visible<1:failures.append("Cura Speed values missing")
+                if speed_visible<10:failures.append(f"Native Cura Speed settings missing: {speed_visible}")
                 page.locator('#ad4-v3-top [data-route="filament"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='filament'",timeout=4000)
                 material_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("V3 MATERIAL SETTINGS",material_visible,flush=True)
-                if material_visible<1:failures.append("Artillery PLA parameters missing")
+                if material_visible<8:failures.append(f"Native Material settings missing: {material_visible}")
                 page.locator('#ad4-v3-top [data-route="app"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='app'",timeout=4000)
                 if not page.locator("#ad4-v3-export-profiles:visible").count():
