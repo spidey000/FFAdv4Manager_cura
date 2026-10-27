@@ -99,37 +99,38 @@ with sync_playwright() as p:
                     const r=frame.getBoundingClientRect();
                     return {top:r.top,bottom:r.bottom,viewport:innerHeight,
                       height:r.height,sidebarHeight:body.clientHeight,
-                      scrollClient:sections.clientHeight,scrollFull:sections.scrollHeight,
+                      scrollClient:body.clientHeight,scrollFull:body.scrollHeight,
                       actionHidden:getComputedStyle(document.querySelector("#ad4-v3-action-row")).display==='none',
-                      sectionOverflow:getComputedStyle(sections).overflowY};
+                      sheetOverflow:getComputedStyle(body).overflowY};
                 }""")
                 print("PRINT SCROLL LAYOUT",layout,flush=True)
                 if layout["top"] < 0 or layout["bottom"] > height - 64:
                     failures.append(f"{width}: Print panel clipped outside viewport: {layout}")
                 if not layout["actionHidden"]:
                     failures.append(f"{width}: oversized Save Profile action bar still visible")
-                if layout["scrollClient"] <= 0 or layout["sectionOverflow"] != "auto":
-                    failures.append(f"{width}: Print setting list is not a bounded scrolling region: {layout}")
+                if layout["scrollClient"] <= 0 or layout["sheetOverflow"] != "auto":
+                    failures.append(f"{width}: Print settings panel is not an independently scrolling region: {layout}")
                 # Ensure enough Cura settings exist for actual scrolling, then use a
                 # physical wheel gesture instead of assigning scrollTop directly.
                 page.locator("#ad4-presets-toggle").click()
                 page.locator("#ad4-native-toggle").check()
                 page.wait_for_timeout(250)
-                scroller=page.locator("#sections")
+                scroller=page.locator("#sidebar")
                 dims=page.evaluate("""() => {
-                    const el=document.querySelector("#sections");
+                    const el=document.querySelector("#sidebar");
                     return {client:el.clientHeight,total:el.scrollHeight};
                 }""")
                 if dims["total"] <= dims["client"] + 30:
-                    failures.append(f"{width}: Native Cura settings are not scrollable: {dims}")
+                    failures.append(f"{width}: Expanded profiles and Cura settings are not scrollable together: {dims}")
                 else:
                     scroller.hover()
-                    page.mouse.wheel(0,750)
+                    scroller.evaluate("(el) => {el.scrollTop=0}")
+                    page.mouse.wheel(0,950)
                     page.wait_for_timeout(250)
                     scrolled=scroller.evaluate("(el) => el.scrollTop")
                     print("PRINT WHEEL SCROLL",width,"scrollTop",scrolled,flush=True)
                     if scrolled < 20:
-                        failures.append(f"{width}: wheel gesture did not scroll Print settings")
+                        failures.append(f"{width}: wheel gesture did not scroll the expanded Print sheet")
                 page.screenshot(path=f"/tmp/ad4-pages-print-scrolled-{width}.png",full_page=False)
                 page.locator("#ad4-categories button[data-name='Speed']").click()
                 speed_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
