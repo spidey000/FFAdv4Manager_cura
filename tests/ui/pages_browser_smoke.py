@@ -17,7 +17,7 @@ with sync_playwright() as p:
     for width,height in [(390,844),(1280,800)]:
         page=browser.new_page(viewport={"width":width,"height":height},device_scale_factor=1)
         errors=[]
-        page.on("pageerror",lambda e: errors.append("PAGE ERROR: "+str(e)))
+        page.on("pageerror",lambda e: errors.append("PAGE ERROR: "+str(e)+"\n"+str(getattr(e,"stack",""))))
         page.on("console",lambda e: errors.append("CONSOLE: "+e.text) if e.type=="error" else None)
         page.on("requestfailed",lambda req: errors.append("REQUEST FAILED: "+req.url+" "+str(req.failure)))
         page.goto(url,wait_until="domcontentloaded",timeout=30000)
