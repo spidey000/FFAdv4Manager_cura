@@ -155,6 +155,7 @@ with sync_playwright() as p:
                 page.wait_for_function("document.body.dataset.ad4Screen==='app'",timeout=4000)
                 if not page.locator("#ad4-v3-export-profiles:visible").count():
                     failures.append("App profile exporter missing")
+                page.locator('#ad4-v3-top [data-route="preview"]').click()
                 page.locator("#ad4-v3-nav-move").click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='transform'",timeout=4000)
                 if page.locator(".ad4-v3-axis-slider:visible").count()!=3:
