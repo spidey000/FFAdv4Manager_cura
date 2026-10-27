@@ -110,6 +110,25 @@ main().catch(error => {
     settings.write_text(source[:start]+replacement+source[stop:])
     # Adventurer 4 metadata omits exclude_materials. Upstream Mosaic assumes
     # it is always a list and crashes on undefined.includes().
+    # Adventurer 4 has no upstream Cura build-plate mesh. A missing
+    # metadata.platform previously caused a 404 and undefined.endsWith().
+    # Render a geometrically correct 220 x 200 mm build plate instead.
+    patch("src/gui/viewer/viewer.mjs",
+          '    let res = await fetch("resources/meshes/" + model_filename);',
+          """    if (!model_filename) {
+      buildplate_mesh = new THREE.Mesh(new THREE.BoxGeometry(220, 1, 200), buildplate_material);
+      buildplate_mesh.position.set(0, -0.5, 0);
+      scene.add(buildplate_mesh);
+      const bedSize = new THREE.Vector3(220, 1, 200);
+      const shell = new THREE.Mesh(new THREE.BoxGeometry(bedSize.x, 0.5, bedSize.z), buildplate_shell_material);
+      shell.position.y = -1.25;
+      scene.add(shell);
+      const axes = new AxesBoxesGroup(20);
+      axes.position.set(-110, 0.1, 100);
+      scene.add(axes);
+      return;
+    }
+    let res = await fetch("resources/meshes/" + model_filename);""")
     patch("src/settings/containers.mjs",
           "let excluded_materials = this.parent_meta.exclude_materials;",
           "let excluded_materials = this.parent_meta.exclude_materials ?? [];")
