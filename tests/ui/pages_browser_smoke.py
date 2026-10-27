@@ -163,7 +163,27 @@ with sync_playwright() as p:
                     failures.append("Three-axis transform missing")
                 if page.locator(".ad4-v3-axis-value:visible").count()!=3:failures.append(f"{width}: labeled numeric axis inputs missing")
                 if page.locator("#ad4-v3-snap").count()!=1 or page.locator("#ad4-v3-resize-lock").count()!=1:failures.append(f"{width}: transform snap/lock missing")
+                if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
+                    numeric_x=page.locator('.ad4-v3-axis[data-axis="x"] .ad4-v3-axis-value')
+                    numeric_x.fill("12")
+                    numeric_x.press("Tab")
+                    if numeric_x.input_value()!="10":failures.append(f"{width}: 5mm Move snap did not apply")
                 page.locator(".ad4-v3-mode [data-mode='scale']").click()
+                if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
+                    numeric_x=page.locator('.ad4-v3-axis[data-axis="x"] .ad4-v3-axis-value')
+                    numeric_x.fill("127")
+                    numeric_x.press("Tab")
+                    proportion_values=[page.locator(f'.ad4-v3-axis[data-axis="{axis}"] .ad4-v3-axis-value').input_value() for axis in ("x","y","z")]
+                    if proportion_values!=["125","125","125"]:
+                        failures.append(f"{width}: lock proportions failed: {proportion_values}")
+                page.locator(".ad4-v3-mode [data-mode='rotate']").click()
+                if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
+                    before=float(page.locator('.ad4-v3-axis[data-axis="z"] .ad4-v3-axis-value').input_value())
+                    page.locator("#ad4-v3-rotate90").click()
+                    after=float(page.locator('.ad4-v3-axis[data-axis="z"] .ad4-v3-axis-value').input_value())
+                    if abs((((after-before)+360)%360)-45)>0.1:
+                        failures.append(f"{width}: Z rotate +45 step failed: {before} -> {after}")
+
                 if page.locator("#ad4-v3-rotate90").is_visible():failures.append(f"{width}: Rotate action visible during Resize")
                 page.screenshot(path=f"/tmp/ad4-pages-transform-{width}.png",full_page=False)
                 page.locator("#ad4-v3-nav-slice").click()
