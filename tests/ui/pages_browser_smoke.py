@@ -137,6 +137,27 @@ with sync_playwright() as p:
                     failures.append(f"All Cura did not expose every parameter: {native_stats['visible']}/{native_stats['total']}")
                 if len(native_stats["groups"]) < 8:
                     failures.append("Native Cura category hierarchy missing")
+                # Verify named Process presets persist a real Cura property
+                # which was NOT in the old 20-key AD4 whitelist.
+                extra=page.locator('#sections .setting[data-setting_id="wall_line_width"] > .setting-bar input[type="number"]')
+                if extra.count()==1:
+                    prior=float(extra.input_value())
+                    extra.fill(str(round(prior+0.03,4)))
+                    extra.dispatch_event("change")
+                    page.wait_for_timeout(650)
+                    page.locator("#ad4-preset-type").select_option("process")
+                    page.locator("#ad4-preset-name").fill("Full Cura Catalog Test")
+                    page.locator("#ad4-save-preset").click()
+                    stored=page.evaluate("""() => {
+                      const data=JSON.parse(localStorage.getItem("ffadv4-mosaic-custom-presets-v1")||"{}");
+                      return data.process?.find(p=>p.name==="Full Cura Catalog Test")?.values?.wall_line_width;
+                    }""")
+                    print("NATIVE WALL SETTING STORED IN PROFILE",stored,flush=True)
+                    if stored is None or abs(stored-(prior+0.03))>0.001:
+                        failures.append("Named Process profiles still lose native Cura wall_line_width")
+                else:
+                    failures.append("Cura native wall_line_width numeric parameter absent")
+
                 menu=page.locator("#ad4-native-category")
                 if menu.locator("option").count() < 9:
                     failures.append("Native Cura categories not selectable")
