@@ -12,6 +12,21 @@
 #sidebar .ad4-printer-fixed{font-size:11px;color:#daf9c1}
 #sidebar #ad4-presets-panel .ad4-native-label{display:flex;flex-direction:row;gap:7px;align-items:center}
 #sidebar #ad4-presets-panel input[type=checkbox]{accent-color:#a3e635;width:17px;height:17px}
+
+/* Full original Cura catalog lives alongside the five quick filters.
+ * The native category select prevents loss of Experimental/Mesh Fixes/etc. */
+#sidebar #ad4-native-catalog-nav{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.45fr);
+  align-items:center;gap:6px;min-width:0}
+#sidebar #ad4-native-catalog-nav button,#sidebar #ad4-native-category{
+  min-width:0;max-width:100%;min-height:39px;border-radius:9px;
+  font-size:11px;padding:8px;color:#d8e8dc;background:#222e2a;
+  border:1px solid #50665b}
+#sidebar #ad4-all-cura{cursor:pointer;font-weight:750}
+#sidebar #ad4-all-cura[aria-pressed=true]{
+  color:#142719;background:#a3e635;border-color:#a3e635}
+#sidebar #ad4-native-category{cursor:pointer;text-overflow:ellipsis}
+#sidebar #ad4-catalog-count{font-size:11px;color:#bbcabf;margin:0 4px 4px;
+  font-variant-numeric:tabular-nums}
 #sidebar #ad4-categories,#sidebar #ad4-complexity{display:grid;gap:3px;min-width:0;padding:3px;background:#25303a;border:1px solid #44535e;border-radius:10px}
 #sidebar #ad4-categories{grid-template-columns:repeat(5,minmax(0,1fr))}
 #sidebar #ad4-complexity{grid-template-columns:repeat(4,minmax(0,1fr))}
