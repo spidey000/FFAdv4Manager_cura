@@ -129,6 +129,28 @@ body[data-ad4-screen=print] #sidebar .section-title-container,body[data-ad4-scre
 body[data-ad4-screen=print] #sidebar .section .settings-group,body[data-ad4-screen=filament] #sidebar .section .settings-group{padding:9px 11px}
 body[data-ad4-screen=print] #ad4-bottom-dock,body[data-ad4-screen=filament] #ad4-bottom-dock{display:none!important}
 body[data-ad4-screen=print] #ad4-sheet-scrim,body[data-ad4-screen=filament] #ad4-sheet-scrim{display:none!important}
+/* Print/Filament scrolling: override the earlier mobile sheet's !important inset:auto 0 0.
+ * Without an explicit top+bottom the fixed container sizes to its content, clips it,
+ * and the scrollable #sections has no bounded flex height. */
+body[data-ad4-screen=print] #sidebar-container,
+body[data-ad4-screen=filament] #sidebar-container{
+ inset:calc(var(--v3-head) + var(--v3-tabs)) 0 var(--v3-bottom) 0!important;
+ min-height:0!important;height:auto!important;max-height:none!important;
+ visibility:visible!important;overflow:hidden!important;
+}
+body[data-ad4-screen=print] #sidebar,
+body[data-ad4-screen=filament] #sidebar{
+ min-height:0!important;height:100%!important;overflow:hidden!important;
+}
+body[data-ad4-screen=print] #sidebar #sections,
+body[data-ad4-screen=filament] #sidebar #sections{
+ flex:1 1 0!important;min-height:0!important;
+ overflow-x:hidden!important;overflow-y:auto!important;
+ -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y;
+}
+/* Save profiles already belongs inside Profiles & filters, not as a full-width CTA. */
+body[data-ad4-screen=print] #ad4-v3-action-row,
+body[data-ad4-screen=filament] #ad4-v3-action-row{display:none!important}
 body[data-ad4-screen=filament] #profile-selector-div{display:none!important}
 body[data-ad4-screen=app] #ad4-v3-app{display:block;position:fixed;z-index:65;left:0;right:0;
  top:calc(var(--v3-head) + var(--v3-tabs));bottom:var(--v3-bottom);padding:20px 15px;
