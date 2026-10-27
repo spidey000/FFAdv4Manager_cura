@@ -14,7 +14,7 @@ screenshot=Path(os.environ.get("AD4_SCREENSHOT","/tmp/ad4-pages-smoke.png"))
 failures=[]
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path=os.environ.get("CHROME_BIN") or None,args=["--no-sandbox","--disable-dev-shm-usage","--use-gl=angle","--use-angle=swiftshader"])
-    for width,height in [(390,844),(1280,800)]:
+    for width,height in [(320,568),(390,844),(1280,800)]:
         page=browser.new_page(viewport={"width":width,"height":height},device_scale_factor=1)
         errors=[]
         page.on("pageerror",lambda e: errors.append("PAGE ERROR: "+str(e)+"\n"+str(getattr(e,"stack",""))))
@@ -104,7 +104,7 @@ with sync_playwright() as p:
                       sheetOverflow:getComputedStyle(body).overflowY};
                 }""")
                 print("PRINT SCROLL LAYOUT",layout,flush=True)
-                if layout["top"] < 0 or layout["bottom"] > height - 64:
+                if layout["top"] < 0 or layout["bottom"] > height + 2:
                     failures.append(f"{width}: Print panel clipped outside viewport: {layout}")
                 if not layout["actionHidden"]:
                     failures.append(f"{width}: oversized Save Profile action bar still visible")
@@ -132,6 +132,11 @@ with sync_playwright() as p:
                     if scrolled < 20:
                         failures.append(f"{width}: wheel gesture did not scroll the expanded Print sheet")
                 page.screenshot(path=f"/tmp/ad4-pages-print-scrolled-{width}.png",full_page=False)
+                page.locator("#setting-search").fill("temperature")
+                page.wait_for_timeout(100)
+                if page.locator("#sidebar .setting[data-setting_id]:visible").count()<1:failures.append(f"{width}: global settings search cannot find temperature")
+                page.locator("#ad4-search-clear").click()
+                if page.locator("#setting-search").input_value():failures.append(f"{width}: clear-search failed")
                 page.locator("#ad4-categories button[data-name='Speed']").click()
                 speed_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 if speed_visible<1:failures.append("Cura Speed values missing")
@@ -140,16 +145,37 @@ with sync_playwright() as p:
                 material_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("V3 MATERIAL SETTINGS",material_visible,flush=True)
                 if material_visible<1:failures.append("Artillery PLA parameters missing")
+                if page.locator("#ad4-categories [data-name='Material']").get_attribute("aria-pressed")!="true":failures.append(f"{width}: Filament did not select Material")
+                page.screenshot(path=f"/tmp/ad4-pages-filament-{width}.png",full_page=False)
+                page.locator('#ad4-v3-top [data-route="printer"]').click()
+                if page.evaluate("document.body.dataset.ad4Screen")!="printer":failures.append(f"{width}: Printer tab does not navigate")
+                if not page.locator("#ad4-v3-printer-page:visible").count():failures.append(f"{width}: Printer page empty")
+                page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
                 page.locator('#ad4-v3-top [data-route="app"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='app'",timeout=4000)
                 if not page.locator("#ad4-v3-export-profiles:visible").count():
                     failures.append("App profile exporter missing")
-                page.locator("#ad4-v3-nav-orient").click()
+                page.locator("#ad4-v3-nav-move").click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='transform'",timeout=4000)
-                if page.locator(".ad4-v3-axis input:visible").count()!=3:
+                if page.locator(".ad4-v3-axis-slider:visible").count()!=3:
                     failures.append("Three-axis transform missing")
+                if page.locator(".ad4-v3-axis-value:visible").count()!=3:failures.append(f"{width}: labeled numeric axis inputs missing")
+                if page.locator("#ad4-v3-snap").count()!=1 or page.locator("#ad4-v3-resize-lock").count()!=1:failures.append(f"{width}: transform snap/lock missing")
+                page.locator(".ad4-v3-mode [data-mode='scale']").click()
+                if page.locator("#ad4-v3-rotate90").is_visible():failures.append(f"{width}: Rotate action visible during Resize")
+                page.screenshot(path=f"/tmp/ad4-pages-transform-{width}.png",full_page=False)
+                page.locator("#ad4-v3-nav-slice").click()
+                if page.evaluate("document.body.dataset.ad4Screen")!="slice-info":failures.append(f"{width}: Slice does not show its unavailable-state panel")
+                page.screenshot(path=f"/tmp/ad4-pages-slice-{width}.png",full_page=False)
                 page.locator('#ad4-v3-top [data-route="preview"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='preview'",timeout=4000)
+                page.locator("#ad4-v3-status").click()
+                if not page.locator("#ad4-v3-status-menu").is_visible():failures.append(f"{width}: top-right menu did not open")
+                if "FFAdv4Manager_cura" not in (page.locator("#ad4-v3-status-menu a").get_attribute("href") or ""):failures.append(f"{width}: wrong source code URL")
+                page.locator("#ad4-v3-status").click()
+                page.locator("#ad4-v3-nav-camera").click()
+                if page.evaluate("document.body.dataset.ad4Screen")!="printer":failures.append(f"{width}: camera missing unavailable-state view")
+                page.locator('#ad4-v3-top [data-route="preview"]').click()
                 if not page.locator("#ad4-v3-open-model:visible").count():
                     failures.append("Model import control missing")
                 if not page.locator("#ad4-v3-run-slice").is_disabled():
@@ -160,6 +186,8 @@ with sync_playwright() as p:
                     failures.append("Public Pages exposed physical printing")
             except Exception as error:
                 failures.append(f"{width}: V3 navigation failed: {error}")
+        if page.evaluate("document.documentElement.scrollWidth > innerWidth + 1"):
+            failures.append(f"{width}: unexpected horizontal overflow")
         if errors:
             failures.append(f"{width}: browser console/runtime errors: "+" | ".join(errors[:8])[:1000])
         for msg in errors: print("FINAL",msg[:750],flush=True)
