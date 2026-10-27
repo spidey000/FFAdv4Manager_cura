@@ -34,7 +34,9 @@ with sync_playwright() as p:
                 loading:document.querySelector('#loading')?.outerHTML?.slice(0,500),
                 resources: performance.getEntriesByType('resource').slice(-20).map(x=>x.name)
             })""").__str__().splitlines())
-        print(f"VIEWPORT {width}x{height} | loaded={page.evaluate('getComputedStyle(document.getElementById(\"loading\")).display')} | JS={page.evaluate('typeof globalThis.app')} | errors={len(errors)}",flush=True)
+        loaded_style=page.evaluate("getComputedStyle(document.getElementById('loading')).display")
+        js_state=page.evaluate("typeof globalThis.app")
+        print(f"VIEWPORT {width}x{height} | loaded={loaded_style} | JS={js_state} | errors={len(errors)}",flush=True)
         for msg in errors:print(msg[:1000],flush=True)
         if page.evaluate("getComputedStyle(document.getElementById('loading')).display")!="none":failures.append(f"{width}: stuck loading")
         if not page.locator("#ad4-dock-model").count():failures.append(f"{width}: missing model button")
