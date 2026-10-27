@@ -94,7 +94,7 @@ function refreshState(){
  if(newPreview)newPreview.textContent=sliced?"Real G-code ready":"Slice a model to preview layers";
  const navSlice=$("ad4-v3-nav-slice");if(navSlice)navSlice.classList.toggle("ready",sliced);
  const slicingBusy=$("slice-progress-container")?.dataset.active==="true";
- const start=$("ad4-v3-run-slice");if(start){start.hidden=!model||sliced;start.disabled=staticPreview||slicingBusy}
+ const start=$("ad4-v3-run-slice");if(start){start.hidden=staticPreview||!model||sliced;start.disabled=staticPreview||slicingBusy}
  const preview=$("ad4-v3-show-layers");if(preview)preview.hidden=!sliced;
  for(const name of ["ad4-v3-export","ad4-v3-send","ad4-v3-print"]){
   const b=$(name);if(b)b.disabled=!sliced||(staticPreview&&name!=="ad4-v3-export");
@@ -219,6 +219,8 @@ function setTransform(next){
   input.setAttribute("aria-label",axis.toUpperCase()+" "+next+" slider");
   row.querySelector("output").textContent=input.value+(next==="rotate"?"°":next==="scale"?"%":" mm");
  }
+ $("ad4-v3-rotate90").hidden=next!=="rotate";
+ $("ad4-v3-lock-wrap").hidden=next!=="scale";
  $("ad4-v3-transform-help").textContent=focused?"Drag a slider or the colored axes above":"Tap the model on the bed to select it";
 }
 for(const b of transform.querySelectorAll("[data-mode]"))b.addEventListener("click",()=>setTransform(b.dataset.mode));
@@ -376,9 +378,7 @@ setInterval(()=>{
   }
   if(current==="transform"){
    const focused=globalThis.app?.gui?.model_viewer?.focused;
-   $("ad4-v3-rotate90").hidden=next!=="rotate";
-  $("ad4-v3-lock-wrap").hidden=next!=="scale";
-  $("ad4-v3-transform-help").textContent=focused?"Drag the axes or adjust values":"Tap the model on the bed to select it";
+   $("ad4-v3-transform-help").textContent=focused?"Drag the axes or adjust values":"Tap the model on the bed to select it";
   }
  }
 },1000);
