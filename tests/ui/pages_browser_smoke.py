@@ -111,7 +111,9 @@ with sync_playwright() as p:
                     failures.append("Model import control missing")
                 if not page.locator("#ad4-v3-run-slice").is_disabled():
                     failures.append("Public Pages exposed backend slicing")
-                if not page.locator("#ad4-v3-print").is_disabled():
+                # The print action is absent until a real server slice exists.
+                # When present, Pages must still disable it.
+                if page.locator("#ad4-v3-print").count() and not page.locator("#ad4-v3-print").is_disabled():
                     failures.append("Public Pages exposed physical printing")
             except Exception as error:
                 failures.append(f"{width}: V3 navigation failed: {error}")
