@@ -188,6 +188,22 @@ with sync_playwright() as p:
                     failures.append("Public Pages exposed physical printing")
             except Exception as error:
                 failures.append(f"{width}: V3 navigation failed: {error}")
+        if width==1280 and not startup_error and page.locator("#ad4-v3-remove-model").count():
+            try:
+                # Deletion of the final model must atomically clear geometry and all UI.
+                page.locator('#ad4-v3-top [data-route="preview"]').click()
+                page.wait_for_timeout(1100)
+                page.once("dialog", lambda dlg: dlg.accept())
+                page.locator("#ad4-v3-remove-model").click(timeout=3500)
+                page.wait_for_function("() => Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length===0",timeout=9000)
+                page.wait_for_timeout(1300)
+                assert page.locator("#ad4-v3-file-label").inner_text()=="No model loaded"
+                assert not page.locator("body").evaluate("(el)=>el.classList.contains('ad4-has-model')")
+                assert page.locator("#ad4-v3-remove-model").is_hidden()
+                page.screenshot(path="/tmp/ad4-pages-remove-model-1280.png",full_page=False)
+                print("REMOVE LAST MODEL: UI STATE CLEAN",flush=True)
+            except Exception as error:
+                failures.append(f"{width}: remove model state inconsistent: {error}")
         if page.evaluate("document.documentElement.scrollWidth > innerWidth + 1"):
             failures.append(f"{width}: unexpected horizontal overflow")
         if errors:
