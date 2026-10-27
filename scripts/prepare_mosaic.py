@@ -32,6 +32,7 @@ def build():
     shutil.copy2(OV/"public/ad4-settings.css",DEST/"public/ad4-settings.css")
     shutil.copy2(OV/"public/ad4-studio.css",DEST/"public/ad4-studio.css")
     shutil.copy2(OV/"public/ad4-studio.js",DEST/"public/ad4-studio.js")
+    shutil.copy2(OV/"public/demo-cube-20mm.stl",DEST/"public/demo-cube-20mm.stl")
     shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
     shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
     webpack=DEST/"webpack.config.js"
@@ -47,12 +48,36 @@ def build():
     pkg.write_text(json.dumps(data,indent=2)+"\n")
     with (DEST/"src/gui/index.mjs").open("a",encoding="utf-8") as stream:
         stream.write('\nexport * as slicer from "./slicer.mjs";\n')
+        # Safe read-only model scene visibility for 3D and upload smoke tests.
+        stream.write('\nexport * as model_viewer from "./viewer/model_viewer.mjs";\n')
     app_entry=DEST/"src/index.mjs"
     app_code=app_entry.read_text()
     app_code=app_code.replace('import * as resources from "./resources.mjs";',
       'import * as resources from "./resources.mjs";\\nimport {install_ad4_features} from "./gui/ad4-settings.mjs";'.replace('\\n','\n'))
     app_code=app_code.replace('  console.log("Loaded GUI");',
       '  console.log("Loaded GUI");\\n  install_ad4_features();'.replace('\\n','\n'))
+    # Prevent an exception in the loader from leaving users with an eternal spinner.
+    app_code=app_code.replace('main();', '''
+main().catch(error => {
+  console.error("AD4 Studio startup failed", error);
+  const loading=document.getElementById("loading");
+  if (loading) {
+    loading.style.display="none";
+  }
+  const problem=document.createElement("aside");
+  problem.id="ad4-startup-error";
+  problem.setAttribute("role","alert");
+  problem.style.cssText="position:fixed;z-index:200;inset:70px 14px auto;max-width:680px;margin:auto;padding:20px;background:#39282b;border:1px solid #e5a2a2;border-radius:13px;color:#fff;";
+  const title=document.createElement("h2");
+  title.textContent="Model editor could not start";
+  const msg=document.createElement("p");
+  msg.textContent=error?.message || String(error);
+  const link=document.createElement("button");
+  link.type="button";link.textContent="Reload editor";
+  link.onclick=()=>location.reload();
+  problem.append(title,msg,link);document.body.append(problem);
+});
+''')
     app_entry.write_text(app_code)
     settings=DEST/"src/settings/index.mjs"
     source=settings.read_text()
@@ -85,6 +110,43 @@ def build():
 
 """
     settings.write_text(source[:start]+replacement+source[stop:])
+    # Adventurer 4 metadata omits exclude_materials. Upstream Mosaic assumes
+    # it is always a list and crashes on undefined.includes().
+    # Adventurer 4 has no upstream Cura build-plate mesh. A missing
+    # metadata.platform previously caused a 404 and undefined.endsWith().
+    # Render a geometrically correct 220 x 200 mm build plate instead.
+    patch("src/gui/viewer/viewer.mjs",
+          '    let res = await fetch("resources/meshes/" + model_filename);',
+          """    if (!model_filename) {
+      buildplate_mesh = new THREE.Mesh(new THREE.BoxGeometry(220, 1, 200), buildplate_material);
+      buildplate_mesh.position.set(0, -0.5, 0);
+      scene.add(buildplate_mesh);
+      const bedSize = new THREE.Vector3(220, 1, 200);
+      const shell = new THREE.Mesh(new THREE.BoxGeometry(bedSize.x, 0.5, bedSize.z), buildplate_shell_material);
+      shell.position.y = -1.25;
+      scene.add(shell);
+      const axes = new AxesBoxesGroup(20);
+      axes.position.set(-110, 0.1, 100);
+      scene.add(axes);
+      return;
+    }
+    let res = await fetch("resources/meshes/" + model_filename);""")
+    # Also fix Mosaic's square default build-volume outline: AD4 is 220x200.
+    patch("src/gui/viewer/viewer.mjs",
+          """    machine_settings.machine_width.default_value,
+    machine_settings.machine_height.default_value,
+    machine_settings.machine_width.default_value""",
+          """    machine_settings.machine_width.default_value,
+    machine_settings.machine_height.default_value,
+    machine_settings.machine_depth.default_value""")
+    patch("src/gui/viewer/viewer.mjs",
+          "  gridHelperBig.position.y += 0.01;",
+          """  gridHelperBig.position.y += 0.01;
+  gridHelperSmall.scale.z = machine_settings.machine_depth.default_value / machine_settings.machine_width.default_value;
+  gridHelperBig.scale.z = machine_settings.machine_depth.default_value / machine_settings.machine_width.default_value;""")
+    patch("src/settings/containers.mjs",
+          "let excluded_materials = this.parent_meta.exclude_materials;",
+          "let excluded_materials = this.parent_meta.exclude_materials ?? [];")
     patch("src/gui/options.mjs","filament_name.innerText = material_name;",
           'filament_name.innerText = "Artillery PLA Basic";')
     # Network failures/cancellations must restore the Slice button instead of

@@ -20,6 +20,18 @@
     return item;
   };
   const isMobile = () => matchMedia("(max-width: 767px)").matches;
+  // The upstream viewer tab clips overflowing children. A fixed settings
+  // sheet inside it can be visually present but untouchable behind canvas.
+  // Portal the sheet to <body> on phones; restore it for desktop layout.
+  const sidebarParent = sidebarContainer.parentNode;
+  const sidebarNext = sidebarContainer.nextSibling;
+  function placeSettingsSheet() {
+    if (isMobile() && sidebarContainer.parentNode !== document.body)
+      document.body.append(sidebarContainer);
+    else if (!isMobile() && sidebarContainer.parentNode !== sidebarParent)
+      sidebarParent.insertBefore(sidebarContainer, sidebarNext);
+  }
+  placeSettingsSheet();
   const scrim = node("button", "ad4-sheet-scrim");
   scrim.type = "button";
   scrim.setAttribute("aria-label", "Close print settings");
@@ -58,6 +70,7 @@
     }
   });
   window.addEventListener("resize", () => {
+    placeSettingsSheet();
     if (!isMobile()) document.body.classList.remove("ad4-sheet-open");
     sidebarContainer.setAttribute("aria-hidden",
       String(isMobile() && !document.body.classList.contains("ad4-sheet-open")));
@@ -95,6 +108,30 @@
   settingsButton.setAttribute("aria-controls","sidebar-container");
   button("ad4-dock-model", "＋ Model", "ad4-dock-light",
     () => byId("stl-file")?.click());
+  // Public Pages demo: a real manifold STL is opened through MosaicSlicer's
+  // existing FileReader -> STLLoader -> Three.js model-viewer path.
+  // This is a geometry preview only. We never synthesize print G-code.
+  let demoPending = false;
+  async function loadDemoModel() {
+    if (demoPending) return;
+    const editor = globalThis.app?.gui?.file;
+    if (!editor?.load_file) return;
+    demoPending = true;
+    try {
+      const res = await fetch("./demo-cube-20mm.stl", {cache:"force-cache"});
+      if (!res.ok) throw Error("Demo STL not available (HTTP " + res.status + ")");
+      const data = await res.blob();
+      const sample = new File([data], "AD4_demo_cube_20mm.stl", {type:"model/stl"});
+      editor.load_file(sample);
+    } catch (error) {
+      console.error("Could not load example STL", error);
+      byId("ad4-dock-state").textContent = "Demo STL could not load";
+    } finally {
+      demoPending = false;
+    }
+  }
+  const demoButton = button("ad4-dock-demo", "◈ Demo STL", "ad4-dock-light", loadDemoModel);
+  demoButton.hidden = !staticPreview;
   const previewButton = button("ad4-dock-preview", "◫ Preview", "ad4-dock-light",
     () => byId("preview-tab-button")?.click());
   const sliceButton = button("ad4-dock-slice", "Slice model", "ad4-dock-primary",
@@ -191,19 +228,31 @@
     sliceButton.textContent = progress ? "Slicing…" : "Slice model";
     uploadButton.disabled = staticPreview || !exported;
     printButton.disabled = staticPreview || !exported;
-    if (hasModel !== lastHasModel) {
-      lastHasModel = hasModel;
-      if (hasModel) setSheet(false);
-    }
+    // The asynchronous demo STL finishes loading after users may already
+    // be inspecting settings; do not automatically dismiss their drawer.
+    if (hasModel !== lastHasModel) lastHasModel = hasModel;
   }
 
-  byId("stl-file")?.addEventListener("change", () => setTimeout(refreshDock,500));
+  byId("stl-file")?.addEventListener("change", () => { setSheet(false); setTimeout(refreshDock,500); });
   byId("prepare-tab-button")?.addEventListener("click", refreshDock);
   byId("preview-tab-button")?.addEventListener("click", () => setSheet(false));
   byId("ad4-open-manager")?.addEventListener("click", () => setSheet(false));
   if (staticPreview) {
     stateNode.textContent = "Model viewer · public demo";
     detailNode.textContent = engineNotice;
+  }
+  if (staticPreview) {
+    // Boot may finish before or after this independent UI overlay.
+    // Only auto-populate an EMPTY plate after the complete editor has loaded.
+    let sampleStarted = false;
+    const timer = setInterval(() => {
+      if (sampleStarted) return clearInterval(timer);
+      const ready = byId("loading")?.style.display === "none";
+      if (!ready || byId("ad4-startup-error")) return;
+      sampleStarted = true;
+      clearInterval(timer);
+      if (!globalThis.app?.gui?.file?.stl_file_name) loadDemoModel();
+    }, 400);
   }
   checkEngine();
   checkPrinter();
