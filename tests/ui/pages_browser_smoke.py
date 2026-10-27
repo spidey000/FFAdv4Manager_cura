@@ -21,15 +21,6 @@ with sync_playwright() as p:
         page.on("console",lambda e: errors.append("CONSOLE: "+e.text) if e.type=="error" else None)
         page.on("requestfailed",lambda req: errors.append("REQUEST FAILED: "+req.url+" "+str(req.failure)))
         page.on("response",lambda r: errors.append(f"HTTP {r.status}: {r.url}") if r.status>=400 and "/api/" not in r.url else None)
-        page.add_init_script("""(() => {
-          const original=document.getElementById;
-          document.getElementById=function(id) {
-            const result=original.call(this,id);
-            if (!result && String(id).startsWith('ad4-'))
-              console.error('MISSING AD4 ELEMENT: '+id);
-            return result;
-          };
-        })()""")
         page.goto(url,wait_until="domcontentloaded",timeout=30000)
         try:
             page.wait_for_function("""() => {
