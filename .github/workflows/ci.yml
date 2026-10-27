@@ -70,7 +70,8 @@ jobs:
         if: always()
         with:
           name: ad4-pages-browser-screenshot
-          path: /tmp/ad4-pages-smoke.png
+          path: /tmp/ad4-pages-*.png
+          retention-days: 14
           if-no-files-found: ignore
       - name: Smoke test local web server
         run: |
