@@ -228,13 +228,12 @@
     sliceButton.textContent = progress ? "Slicing…" : "Slice model";
     uploadButton.disabled = staticPreview || !exported;
     printButton.disabled = staticPreview || !exported;
-    if (hasModel !== lastHasModel) {
-      lastHasModel = hasModel;
-      if (hasModel) setSheet(false);
-    }
+    // The asynchronous demo STL finishes loading after users may already
+    // be inspecting settings; do not automatically dismiss their drawer.
+    if (hasModel !== lastHasModel) lastHasModel = hasModel;
   }
 
-  byId("stl-file")?.addEventListener("change", () => setTimeout(refreshDock,500));
+  byId("stl-file")?.addEventListener("change", () => { setSheet(false); setTimeout(refreshDock,500); });
   byId("prepare-tab-button")?.addEventListener("click", refreshDock);
   byId("preview-tab-button")?.addEventListener("click", () => setSheet(false));
   byId("ad4-open-manager")?.addEventListener("click", () => setSheet(false));
