@@ -151,6 +151,19 @@ main().catch(error => {
           "let excluded_materials = this.parent_meta.exclude_materials ?? [];")
     patch("src/gui/options.mjs","filament_name.innerText = material_name;",
           'filament_name.innerText = "Artillery PLA Basic";')
+    # Upstream only removes the Three.js mesh but leaves it registered; fix
+    # both the scene bookkeeping and stale imported filename at the source.
+    patch("src/gui/viewer/model_viewer.mjs",
+          "    scene.remove(models[focused].mesh);\n    delete interactions.scene_objects[focused];\n    focused = null;",
+          "    scene.remove(models[focused].mesh);\n    delete interactions.scene_objects[focused];\n"
+          "    delete models[focused];\n    focused = null;\n"
+          "    document.dispatchEvent(new CustomEvent('ad4:models-changed', {detail:{count:Object.keys(models).length}}));")
+    patch("src/gui/file.mjs",
+          "export let stl_file_name = null;",
+          "export let stl_file_name = null;\n"
+          "document.addEventListener('ad4:models-changed', event => {\n"
+          "  if (event.detail.count === 0) stl_file_name = null;\n"
+          "});")
     # Network failures/cancellations must restore the Slice button instead of
     # leaving MosaicSlicer's progress state stuck indefinitely.
     actions=DEST/"src/gui/actions.mjs"
