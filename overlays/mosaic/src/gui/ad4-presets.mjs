@@ -5,7 +5,7 @@
 export const KEY="ffadv4-mosaic-custom-presets-v1";
 export const GROUPS={
   Quality:["resolution","quality","shell"],
-  Strength:["shell","infill"],
+  Strength:["shell","top_bottom","infill"],
   Speed:["speed","travel","cooling"],
   Support:["support","platform_adhesion","adhesion"],
   Material:["material"]
