@@ -160,29 +160,39 @@ $("ad4-v3-layer-input").addEventListener("input",event=>{
 const transform=make("section","ad4-v3-transform");transform.id="ad4-v3-transform";
 transform.innerHTML='<div class="ad4-v3-transform-top"><strong>Orientation / Transform</strong><small id="ad4-v3-transform-help">Select a model on the plate to transform it</small></div>'+
 '<nav class="ad4-v3-mode"><button type="button" data-mode="translate">'+svg("move")+'Move</button><button type="button" data-mode="rotate">'+svg("rotate")+'Rotate</button><button type="button" data-mode="scale">'+svg("scale")+'Scale</button></nav>'+
-'<div class="ad4-v3-axis-list"></div>'+
-'<div class="ad4-v3-transform-actions"><button type="button" id="ad4-v3-rotate90">Rotate Z +90°</button><button type="button" id="ad4-v3-transform-reset">Reset selected axis</button><button type="button" id="ad4-v3-transform-apply">Apply</button></div>';
+'<div class="ad4-v3-snap"><label><input id="ad4-v3-snap" type="checkbox" checked> Snap 5 units</label><label id="ad4-v3-lock-wrap"><input id="ad4-v3-resize-lock" type="checkbox" checked> Lock proportions</label></div>'+
+ '<div class="ad4-v3-axis-list"></div>'+
+'<div class="ad4-v3-transform-actions"><button type="button" id="ad4-v3-rotate90">Rotate Z +45°</button><button type="button" id="ad4-v3-transform-reset">Reset selected axis</button><button type="button" id="ad4-v3-transform-apply">Apply</button></div>';
 root.append(transform);
 const axisList=transform.querySelector(".ad4-v3-axis-list");
 let mode="rotate";
 for(const axis of ["x","y","z"]){
  const row=make("label","ad4-v3-axis");row.dataset.axis=axis;
- row.innerHTML='<b>'+axis.toUpperCase()+'</b><input type="range" min="-180" max="180" step="1" value="0" aria-label="'+axis.toUpperCase()+' transform"><output>0°</output>';
+ row.innerHTML='<b>'+axis.toUpperCase()+'</b><input class="ad4-v3-axis-slider" type="range" min="-180" max="180" step="5" value="0" aria-label="'+axis.toUpperCase()+' axis slider"><input class="ad4-v3-axis-value" type="number" step="5" value="0" aria-label="'+axis.toUpperCase()+' axis value"><output>0°</output>';
  axisList.append(row);
- row.querySelector("input").addEventListener("input",e=>setAxis(axis,Number(e.target.value)));
+ row.querySelector(".ad4-v3-axis-slider").addEventListener("input",e=>setAxis(axis,Number(e.target.value)));
+ row.querySelector(".ad4-v3-axis-value").addEventListener("change",e=>setAxis(axis,Number(e.target.value)));
 }
 function sourceAxis(axis){
  const prefix=mode==="rotate"?"rotation":mode==="translate"?"movement":"scale";
  return $(prefix+"-"+axis+"-value");
 }
-function setAxis(axis,value){
- const source=sourceAxis(axis);
+function setAxis(axis,raw){
  const focused=globalThis.app?.gui?.model_viewer?.focused;
- if(!focused||!source){notify("Tap the model to select it before editing its orientation");return}
- source.value=String(value);
- source.dispatchEvent(new Event("input",{bubbles:true}));
- const row=axisList.querySelector('[data-axis="'+axis+'"]');
- row.querySelector("output").textContent=String(value)+(mode==="rotate"?"°":mode==="scale"?"%":" mm");
+ if(!focused){notify("Select the model on the plate to transform it");return}
+ const snap=$("ad4-v3-snap").checked;
+ const value=snap?Math.round(raw/5)*5:raw;
+ const targets=mode==="scale" && $("ad4-v3-resize-lock").checked?["x","y","z"]:[axis];
+ for(const key of targets){
+  const source=sourceAxis(key);
+  if(!source)continue;
+  source.value=String(value);
+  source.dispatchEvent(new Event("input",{bubbles:true}));
+  const row=axisList.querySelector('[data-axis="'+key+'"]');
+  row.querySelector(".ad4-v3-axis-slider").value=String(value);
+  row.querySelector(".ad4-v3-axis-value").value=String(value);
+  row.querySelector("output").textContent=String(value)+(mode==="rotate"?"°":mode==="scale"?"%":" mm");
+ }
  $("slice-export-container")?.setAttribute("data-active","false");
 }
 function setTransform(next){
@@ -196,20 +206,27 @@ function setTransform(next){
  }
  for(const axis of ["x","y","z"]){
   const row=axisList.querySelector('[data-axis="'+axis+'"]');
-  const input=row.querySelector("input"),source=sourceAxis(axis);
+  const input=row.querySelector(".ad4-v3-axis-slider"),source=sourceAxis(axis);
   const value=Number(source?.value);
   input.min=next==="rotate"?"-180":next==="scale"?"10":"-110";
   input.max=next==="rotate"?"180":next==="scale"?"250":"110";
+  input.step=$("ad4-v3-snap").checked?"5":"1";
   input.value=String(Number.isFinite(value)?value:next==="scale"?100:0);
+  row.querySelector(".ad4-v3-axis-value").min=input.min;
+  row.querySelector(".ad4-v3-axis-value").max=input.max;
+  row.querySelector(".ad4-v3-axis-value").step=input.step;
+  row.querySelector(".ad4-v3-axis-value").value=input.value;
+  input.setAttribute("aria-label",axis.toUpperCase()+" "+next+" slider");
   row.querySelector("output").textContent=input.value+(next==="rotate"?"°":next==="scale"?"%":" mm");
  }
  $("ad4-v3-transform-help").textContent=focused?"Drag a slider or the colored axes above":"Tap the model on the bed to select it";
 }
 for(const b of transform.querySelectorAll("[data-mode]"))b.addEventListener("click",()=>setTransform(b.dataset.mode));
+$("ad4-v3-snap").addEventListener("change",()=>setTransform(mode));
 $("ad4-v3-rotate90").addEventListener("click",()=>{
- if(mode!=="rotate")setTransform("rotate");
+ if(mode!=="rotate")return;
  const value=Number(sourceAxis("z")?.value)||0;
- setAxis("z",((value+270)%360)-180);
+ setAxis("z",((value+225)%360)-180);
  setTransform("rotate");
 });
 $("ad4-v3-transform-reset").addEventListener("click",()=>{for(const axis of ["x","y","z"])setAxis(axis,mode==="scale"?100:0);setTransform(mode)});
@@ -359,7 +376,9 @@ setInterval(()=>{
   }
   if(current==="transform"){
    const focused=globalThis.app?.gui?.model_viewer?.focused;
-   $("ad4-v3-transform-help").textContent=focused?"Drag the axes or adjust values":"Tap the model on the bed to select it";
+   $("ad4-v3-rotate90").hidden=next!=="rotate";
+  $("ad4-v3-lock-wrap").hidden=next!=="scale";
+  $("ad4-v3-transform-help").textContent=focused?"Drag the axes or adjust values":"Tap the model on the bed to select it";
   }
  }
 },1000);
