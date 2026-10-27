@@ -110,7 +110,7 @@ function refreshState(){
  if(progressBadge)progressBadge.hidden=!sliced;
 }
 function topActive(){
- for(const b of top.querySelectorAll("button"))b.setAttribute("aria-pressed",String(b.dataset.route===(current==="sliced"||current==="transform"?"preview":current)));
+ for(const b of top.querySelectorAll("button"))b.setAttribute("aria-pressed",String(b.dataset.route===(current==="sliced"||current==="transform"||current==="slice-info"?"preview":current)));
 }
 function activate(name){
  closeStatusMenu();closeSheet();
