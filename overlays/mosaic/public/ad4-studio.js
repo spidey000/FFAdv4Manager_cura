@@ -95,6 +95,30 @@
   settingsButton.setAttribute("aria-controls","sidebar-container");
   button("ad4-dock-model", "＋ Model", "ad4-dock-light",
     () => byId("stl-file")?.click());
+  // Public Pages demo: a real manifold STL is opened through MosaicSlicer's
+  // existing FileReader -> STLLoader -> Three.js model-viewer path.
+  // This is a geometry preview only. We never synthesize print G-code.
+  let demoPending = false;
+  async function loadDemoModel() {
+    if (demoPending) return;
+    const editor = globalThis.app?.gui?.file;
+    if (!editor?.load_file) return;
+    demoPending = true;
+    try {
+      const res = await fetch("./demo-cube-20mm.stl", {cache:"force-cache"});
+      if (!res.ok) throw Error("Demo STL not available (HTTP " + res.status + ")");
+      const data = await res.blob();
+      const sample = new File([data], "AD4_demo_cube_20mm.stl", {type:"model/stl"});
+      editor.load_file(sample);
+    } catch (error) {
+      console.error("Could not load example STL", error);
+      byId("ad4-dock-state").textContent = "Demo STL could not load";
+    } finally {
+      demoPending = false;
+    }
+  }
+  const demoButton = button("ad4-dock-demo", "◈ Demo STL", "ad4-dock-light", loadDemoModel);
+  demoButton.hidden = !staticPreview;
   const previewButton = button("ad4-dock-preview", "◫ Preview", "ad4-dock-light",
     () => byId("preview-tab-button")?.click());
   const sliceButton = button("ad4-dock-slice", "Slice model", "ad4-dock-primary",
@@ -204,6 +228,19 @@
   if (staticPreview) {
     stateNode.textContent = "Model viewer · public demo";
     detailNode.textContent = engineNotice;
+  }
+  if (staticPreview) {
+    // Boot may finish before or after this independent UI overlay.
+    // Only auto-populate an EMPTY plate after the complete editor has loaded.
+    let sampleStarted = false;
+    const timer = setInterval(() => {
+      if (sampleStarted) return clearInterval(timer);
+      const ready = byId("loading")?.style.display === "none";
+      if (!ready || byId("ad4-startup-error")) return;
+      sampleStarted = true;
+      clearInterval(timer);
+      if (!globalThis.app?.gui?.file?.stl_file_name) loadDemoModel();
+    }, 400);
   }
   checkEngine();
   checkPrinter();
