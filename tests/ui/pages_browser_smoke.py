@@ -176,6 +176,7 @@ with sync_playwright() as p:
                     proportion_values=[page.locator(f'.ad4-v3-axis[data-axis="{axis}"] .ad4-v3-axis-value').input_value() for axis in ("x","y","z")]
                     if proportion_values!=["125","125","125"]:
                         failures.append(f"{width}: lock proportions failed: {proportion_values}")
+                if page.locator("#ad4-v3-rotate90").is_visible():failures.append(f"{width}: Rotate action visible during Resize")
                 page.locator(".ad4-v3-mode [data-mode='rotate']").click()
                 if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
                     before=float(page.locator('.ad4-v3-axis[data-axis="z"] .ad4-v3-axis-value').input_value())
@@ -184,7 +185,6 @@ with sync_playwright() as p:
                     if abs((((after-before)+360)%360)-45)>0.1:
                         failures.append(f"{width}: Z rotate +45 step failed: {before} -> {after}")
 
-                if page.locator("#ad4-v3-rotate90").is_visible():failures.append(f"{width}: Rotate action visible during Resize")
                 page.screenshot(path=f"/tmp/ad4-pages-transform-{width}.png",full_page=False)
                 page.locator("#ad4-v3-nav-slice").click()
                 if page.evaluate("document.body.dataset.ad4Screen")!="slice-info":failures.append(f"{width}: Slice does not show its unavailable-state panel")
