@@ -4,11 +4,11 @@ import {sections} from "./sidebar.mjs";
 import {update_all} from "./actions.mjs";
 import {models} from "./viewer/model_viewer.mjs";
 import {cura_engine} from "./slicer.mjs";
-import {KEY,GROUPS,LEVELS,TIERS,allowed,readLibrary,savePreset,LIMITS} from "./ad4-presets.mjs";
+import {KEY,GROUPS,LEVELS,TIERS,allowed,readLibrary,savePreset,configureCatalog,validate} from "./ad4-presets.mjs";
 
 const $=id=>document.getElementById(id);
 const categories=Object.keys(GROUPS);
-let selected="Quality",tier="All",native=false,library={},original={},autoTimer;
+let selected="Quality",tier="All",nativeCategory="",library={},original={},autoTimer;
 const printer=()=>active_containers.containers.extruders[0];
 const meta=id=>printer().settings[id]||active_containers.containers.global.settings[id];
 const value=id=>{try{return printer().resolve_setting(id)}catch{return undefined}};
@@ -43,12 +43,14 @@ function applyOverrides(values){
  reSlice();
 }
 function capture(type){
+ // Save every explicitly overridden Cura setting from the native profile
+ // rather than freezing hundreds of inherited/formula-based default values.
  const current={};
- for(const key of allowed(type)){
-  const v=value(key);
-  if(typeof v!=="number"&&typeof v!=="boolean")continue;
-  if(LIMITS[key]&&(v<LIMITS[key][0]||v>LIMITS[key][1]))continue;
-  current[key]=v;
+ for(const stack of [active_containers.containers.global,printer()]){
+  for(const [key,raw] of Object.entries(stack.active_profiles.user.values)){
+   if(!allowed(type).has(key))continue;
+   try{current[key]=validate(key,raw)}catch{/* omit unsafe/unsupported values */}
+  }
  }
  return current;
 }
@@ -77,7 +79,7 @@ function dialogHelp(id){
 function decorateRows(){
  for(const row of sections.querySelectorAll(".setting[data-setting_id]")){
   const id=row.dataset.setting_id,name=row.querySelector(".setting-name"),bar=row.querySelector(".setting-bar");
-  if(!name||name.dataset.helpAttached)return;
+  if(!name||name.dataset.helpAttached)continue;
   name.dataset.helpAttached="1";name.tabIndex=0;name.setAttribute("role","button");name.title="Explain "+name.textContent;
   name.addEventListener("click",()=>dialogHelp(id));
   name.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();dialogHelp(id)}});
@@ -98,22 +100,69 @@ function decorateRows(){
   reset.title=changed?"Restore default preset value":"Using default";
  }
 }
-function filterRows(){
- let count=0;
- const search=($("setting-search")?.value||"").toLowerCase();
- for(const section of sections.querySelectorAll(".section")){
-  let shown=0;
-  for(const row of section.querySelectorAll(".setting[data-setting_id]")){
-   const id=row.dataset.setting_id;
-   const included=native||GROUPS[selected].includes(id)&&(
-    tier==="All"||(TIERS[id]??3)<LEVELS.indexOf(tier));
-   const label=row.querySelector(".setting-name")?.textContent?.toLowerCase()||"";
-   const show=included&&(!search||label.includes(search)||id.includes(search));
-   row.hidden=!show;if(show)shown++;
-  }
-  section.hidden=!shown;if(shown){count+=shown;section.dataset.closed="false"}
+// Native Mosaic already constructs the full Cura hierarchy; preserve it.
+function nativeSections(){return [...sections.querySelectorAll(":scope > .section[data-category_id]")]}
+function nativeCategoryLabel(section){
+ return section.querySelector(".section-title-container .left")?.textContent?.trim()||
+        section.dataset.category_id||"Cura";
+}
+function groupContains(section,group){
+ if(group==="All Cura")return true;
+ const id=(section.dataset.category_id||"").toLowerCase();
+ const label=nativeCategoryLabel(section).toLowerCase();
+ return (GROUPS[group]||[]).some(word=>id===word||id.includes(word)||label.includes(word.replaceAll("_"," ")));
+}
+function populateNativeCategories(){
+ const menu=$("ad4-native-category");if(!menu)return;
+ const old=menu.value;
+ menu.replaceChildren(element("option",{value:""},"Browse native Cura categories…"));
+ for(const section of nativeSections()){
+  const id=section.dataset.category_id;
+  const quantity=section.querySelectorAll(".setting[data-setting_id]").length;
+  menu.append(element("option",{value:id},nativeCategoryLabel(section)+" · "+quantity));
  }
- $("ad4-tuning-empty").hidden=!!count;
+ if([...menu.options].some(o=>o.value===old))menu.value=old;
+}
+function chooseFamily(group){
+ selected=group;nativeCategory="";
+ const menu=$("ad4-native-category");if(menu)menu.value="";
+ for(const button of $("ad4-categories").querySelectorAll("button"))
+  button.setAttribute("aria-pressed",String(button.dataset.name===group));
+ $("ad4-all-cura").setAttribute("aria-pressed",String(group==="All Cura"));
+ filterRows();
+}
+function filterRows(){
+ const search=($("setting-search")?.value||"").trim().toLowerCase();
+ let visibleCount=0,allCount=0;
+ for(const section of nativeSections()){
+  const inGroup=search||(!nativeCategory ?
+    groupContains(section,selected):section.dataset.category_id===nativeCategory);
+  const rows=[...section.querySelectorAll(".setting[data-setting_id]")];
+  allCount+=rows.length;
+  let shown=0;
+  // Walk from leaves upwards so a nested matching Cura property never
+  // disappears when its containing property itself fails the text search.
+  for(let index=rows.length-1;index>=0;index--){
+   const row=rows[index],id=row.dataset.setting_id;
+   const name=row.querySelector(":scope > .setting-bar .setting-name")?.textContent?.toLowerCase()||"";
+   const matches=!search||name.includes(search)||id.includes(search);
+   const rank=TIERS[id]??2;
+   const allowedAtLevel=tier==="All"||tier==="Expert"||
+     (tier==="Basic"?rank===0:rank<=2);
+   const visibleChild=[...row.querySelectorAll(".setting[data-setting_id]")].some(child=>!child.hidden);
+   const show=Boolean(inGroup)&&((matches&&allowedAtLevel)||visibleChild);
+   row.hidden=!show;
+   if(show)shown++;
+  }
+  section.hidden=!shown;
+  if(shown){
+   visibleCount+=shown;
+   if(section.dataset.ad4ManuallyClosed!=="true")section.dataset.closed="false";
+  }
+ }
+ const summary=$("ad4-catalog-count");
+ if(summary)summary.textContent="Showing "+visibleCount+" of "+allCount+" native Cura settings";
+ $("ad4-tuning-empty").hidden=visibleCount>0;
  decorateRows();
 }
 function tab(parent,labels,key,handler){
@@ -127,8 +176,11 @@ function tab(parent,labels,key,handler){
 }
 export function install_ad4_features(){
  if(!$("sidebar")||!active_containers)return;
+ configureCatalog(active_containers.definitions.printer,{
+  ...active_containers.containers.global.settings,...printer().settings
+ });
  library=readLibrary(storage());
- for(const keys of Object.values(GROUPS))for(const key of keys)original[key]=value(key);
+ for(const key of new Set([...allowed("process"),...allowed("material")]))original[key]=value(key);
  const root=element("div",{id:"ad4-tuning-controls"});
  const toggle=element("button",{id:"ad4-presets-toggle",type:"button","aria-expanded":"false"},"Profiles & filters · Artillery PLA Basic ⌄");
  root.append(toggle);
@@ -147,18 +199,37 @@ export function install_ad4_features(){
  const tools=element("div",{class:"ad4-preset-row"});
  tools.append(element("button",{id:"ad4-update-preset",type:"button"},"Update selected"),
    element("button",{id:"ad4-delete-preset",type:"button"},"Delete selected"));panel.append(tools);
- const nativeLabel=element("label",{class:"ad4-native-label"},"Show all native Cura settings ");
- nativeLabel.append(element("input",{id:"ad4-native-toggle",type:"checkbox"}));panel.append(nativeLabel);
- root.append(panel,element("nav",{id:"ad4-categories","aria-label":"Slicing categories"}),
-  element("nav",{id:"ad4-complexity","aria-label":"Slicing complexity"}),
+ // Display the whole native Cura catalog without hiding an advanced toggle
+ // inside profile management.
+ const catalogBar=element("div",{id:"ad4-native-catalog-nav"});
+ const allCura=element("button",{id:"ad4-all-cura",type:"button","aria-pressed":"false"},"All Cura settings");
+ const nativeMenu=element("select",{id:"ad4-native-category","aria-label":"Browse native Cura category"});
+ catalogBar.append(allCura,nativeMenu);
+ root.append(panel,element("nav",{id:"ad4-categories","aria-label":"Quick Cura filters"}),
+  catalogBar,element("nav",{id:"ad4-complexity","aria-label":"Slicing complexity"}),
+  element("p",{id:"ad4-catalog-count",role:"status"},"Loading Cura settings…"),
   element("p",{id:"ad4-tuning-empty"},"No parameters for this filter"),
   element("p",{id:"ad4-preset-note",role:"status"}));
  const sidebar=$("sidebar");sidebar.insertBefore(root,$("profile-selector-div"));
- tab("ad4-categories",categories,"category",name=>{selected=name;native=false;$("ad4-native-toggle").checked=false});
+ tab("ad4-categories",categories,"category",chooseFamily);
  tab("ad4-complexity",LEVELS,"level",name=>tier=name);
+ allCura.addEventListener("click",()=>chooseFamily("All Cura"));
+ nativeMenu.addEventListener("change",()=>{
+  if(!nativeMenu.value){chooseFamily("All Cura");return}
+  nativeCategory=nativeMenu.value;selected="All Cura";
+  for(const b of $("ad4-categories").querySelectorAll("button"))b.setAttribute("aria-pressed","false");
+  allCura.setAttribute("aria-pressed","false");filterRows();
+ });
+ populateNativeCategories();
+ sections.addEventListener("click",event=>{
+  const header=event.target.closest(".section-title-container");
+  if(!header)return;
+  const section=header.closest(".section");
+  if(section)section.dataset.ad4ManuallyClosed=String(section.dataset.closed!=="true");
+ });
  toggle.addEventListener("click",()=>{panel.hidden=!panel.hidden;toggle.setAttribute("aria-expanded",String(!panel.hidden));
   toggle.textContent=panel.hidden?"Profiles & filters · Artillery PLA Basic ⌄":"Profiles & filters · Expanded ⌃"});
- $("ad4-native-toggle").addEventListener("change",event=>{native=event.target.checked;filterRows()});
+
  drawPresets();
  for(const type of ["process","material"])$("ad4-"+type+"-preset").addEventListener("change",e=>choose(type,e.target.value));
  function selectedPreset(){const type=kind.value;return {type,name:$("ad4-"+type+"-preset").value}}
@@ -189,6 +260,6 @@ export function install_ad4_features(){
  $("setting-search").addEventListener("input",filterRows);
  sections.addEventListener("change",()=>{setTimeout(()=>{decorateRows();filterRows()},360);reSlice()});
  $("stl-file")?.addEventListener("change",()=>setTimeout(reSlice,900));
- const observer=new MutationObserver(()=>{decorateRows();filterRows()});observer.observe(sections,{childList:true});
+ const observer=new MutationObserver(()=>{populateNativeCategories();decorateRows();filterRows()});observer.observe(sections,{childList:true});
  decorateRows();filterRows();
 }
