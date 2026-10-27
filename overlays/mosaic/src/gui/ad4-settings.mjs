@@ -113,7 +113,16 @@ function filterRows(){
   for(const row of section.querySelectorAll(".setting[data-setting_id]")){
    const id=row.dataset.setting_id;
    const category=row.closest(".section")?.dataset.category_id;
-    const included=native||(search?allCategories.has(category):GROUPS[selected].includes(category))&&(
+    const settingPrefixes={
+      Quality:/^(?:layer_|line_width|initial_layer|resolution|quality)/,
+      Strength:/^(?:wall_|top_|bottom_|infill_|skin_|shell_)/,
+      Speed:/^(?:speed_|acceleration_|jerk_|travel_|cool_)/,
+      Support:/^(?:support_|adhesion_|skirt_|brim_|raft_)/,
+      Material:/^(?:material_|cool_)/
+    };
+    const belongs=GROUPS[selected].includes(category)||GROUPS[selected].includes(id)||settingPrefixes[selected].test(id);
+    const searchable=allCategories.has(category)||Object.values(settingPrefixes).some(pattern=>pattern.test(id));
+    const included=native||(search?searchable:belongs)&&(
     tier==="All"||(TIERS[id]??3)<LEVELS.indexOf(tier));
    const label=row.querySelector(".setting-name")?.textContent?.toLowerCase()||"";
    const show=included&&(!search||label.includes(search)||id.includes(search));
