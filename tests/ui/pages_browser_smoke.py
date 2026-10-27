@@ -88,6 +88,7 @@ with sync_playwright() as p:
                 if categories<5:failures.append("Print settings categories missing")
                 visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("PRINT QUALITY SETTINGS VISIBLE",visible,flush=True)
+                print("CURA DOM CATEGORIES",page.evaluate("""() => Array.from(document.querySelectorAll("#sections .section")).slice(0,16).map(el=>({category:el.dataset.category_id,title:el.querySelector(".section-title-container")?.textContent?.trim(),count:el.querySelectorAll(".setting[data-setting_id]").length,visible:Array.from(el.querySelectorAll(".setting[data-setting_id]")).filter(n=>!n.hidden).slice(0,8).map(n=>n.dataset.setting_id)}))"""),flush=True)
                 if visible<1:failures.append("Print settings not visible")
                 # Capture the real Print screen from the deployed bundle before scrolling.
                 print_shot=Path(f"/tmp/ad4-pages-print-{width}.png")
