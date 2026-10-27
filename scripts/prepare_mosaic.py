@@ -131,6 +131,19 @@ main().catch(error => {
       return;
     }
     let res = await fetch("resources/meshes/" + model_filename);""")
+    # Also fix Mosaic's square default build-volume outline: AD4 is 220x200.
+    patch("src/gui/viewer/viewer.mjs",
+          """    machine_settings.machine_width.default_value,
+    machine_settings.machine_height.default_value,
+    machine_settings.machine_width.default_value""",
+          """    machine_settings.machine_width.default_value,
+    machine_settings.machine_height.default_value,
+    machine_settings.machine_depth.default_value""")
+    patch("src/gui/viewer/viewer.mjs",
+          "  gridHelperBig.position.y += 0.01;",
+          """  gridHelperBig.position.y += 0.01;
+  gridHelperSmall.scale.z = machine_settings.machine_depth.default_value / machine_settings.machine_width.default_value;
+  gridHelperBig.scale.z = machine_settings.machine_depth.default_value / machine_settings.machine_width.default_value;""")
     patch("src/settings/containers.mjs",
           "let excluded_materials = this.parent_meta.exclude_materials;",
           "let excluded_materials = this.parent_meta.exclude_materials ?? [];")
