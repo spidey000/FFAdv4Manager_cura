@@ -76,7 +76,15 @@ with sync_playwright() as p:
                 categories=page.locator("#ad4-categories button").count()
                 print("MOBILE CATEGORIES",categories,flush=True)
                 if categories<5: failures.append("Cura categories missing")
+                # Wait for the translated bottom sheet to finish its 250 ms transition.
+                page.wait_for_timeout(450)
                 visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
+                if not visible:
+                    print("QUALITY DEBUG",page.evaluate("""() => ({
+                      selected:Array.from(document.querySelectorAll('#ad4-categories button')).map(b=>[b.textContent,b.getAttribute('aria-pressed')]),
+                      rows:Array.from(document.querySelectorAll('#sections .setting[data-setting_id]')).slice(0,12).map(x=>[x.dataset.setting_id,x.hidden,x.closest('.section')?.hidden]),
+                      sheet:document.querySelector('#sidebar-container')?.getBoundingClientRect().toJSON()
+                    })"""),flush=True)
                 print("VISIBLE CURA QUALITY SETTINGS",visible,flush=True)
                 if visible<1: failures.append("Quality settings not rendered")
                 page.locator("#ad4-categories button[data-name='Speed']").click()
