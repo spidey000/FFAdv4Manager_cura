@@ -88,6 +88,11 @@ function decorateRows(){
     applyOverrides({[id]:original[id]});
    });
    bar.append(reset);
+    for(const input of row.querySelectorAll("input,select,textarea")){
+      if(!input.getAttribute("aria-label") && !input.getAttribute("aria-labelledby")){
+        input.setAttribute("aria-label",(name.textContent||id).trim());
+      }
+    }
   }
  }
  for(const row of sections.querySelectorAll(".setting[data-setting_id]")){
@@ -100,20 +105,25 @@ function decorateRows(){
 }
 function filterRows(){
  let count=0;
- const search=($("setting-search")?.value||"").toLowerCase();
+ const search=($("setting-search")?.value||"").trim().toLowerCase();
+  const allCategories=new Set(Object.values(GROUPS).flat());
+  $("ad4-search-clear").hidden=!search;
  for(const section of sections.querySelectorAll(".section")){
   let shown=0;
   for(const row of section.querySelectorAll(".setting[data-setting_id]")){
    const id=row.dataset.setting_id;
-   const included=native||GROUPS[selected].includes(id)&&(
+   const included=native||(search?allCategories.has(id):GROUPS[selected].includes(id))&&(
     tier==="All"||(TIERS[id]??3)<LEVELS.indexOf(tier));
    const label=row.querySelector(".setting-name")?.textContent?.toLowerCase()||"";
    const show=included&&(!search||label.includes(search)||id.includes(search));
    row.hidden=!show;if(show)shown++;
   }
-  section.hidden=!shown;if(shown){count+=shown;section.dataset.closed="false"}
+  section.hidden=!shown;
+   section.classList.toggle("ad4-single-setting",shown===1);
+   if(shown){count+=shown;section.dataset.closed="false";section.style.height="auto";section.style.maxHeight="none"}
  }
  $("ad4-tuning-empty").hidden=!!count;
+  $("ad4-tuning-empty").textContent=search?"No settings match your search":"No parameters available in this category";
  decorateRows();
 }
 function tab(parent,labels,key,handler){
@@ -146,7 +156,7 @@ export function install_ad4_features(){
  panel.append(saveRow);
  const tools=element("div",{class:"ad4-preset-row"});
  tools.append(element("button",{id:"ad4-update-preset",type:"button"},"Update selected"),
-   element("button",{id:"ad4-delete-preset",type:"button"},"Delete selected"));panel.append(tools);
+   element("button",{id:"ad4-delete-preset",type:"button",class:"ad4-danger-action"},"Delete selected"));panel.append(tools);
  const nativeLabel=element("label",{class:"ad4-native-label"},"Show all native Cura settings ");
  nativeLabel.append(element("input",{id:"ad4-native-toggle",type:"checkbox"}));panel.append(nativeLabel);
  root.append(panel,element("nav",{id:"ad4-categories","aria-label":"Slicing categories"}),
@@ -154,6 +164,12 @@ export function install_ad4_features(){
   element("p",{id:"ad4-tuning-empty"},"No parameters for this filter"),
   element("p",{id:"ad4-preset-note",role:"status"}));
  const sidebar=$("sidebar");sidebar.insertBefore(root,$("profile-selector-div"));
+  $("profile-selector")?.setAttribute("aria-label","Process profile");
+  const searchInput=$("setting-search");
+  searchInput.setAttribute("aria-label","Search all Cura settings");
+  const clearSearch=element("button",{id:"ad4-search-clear",type:"button","aria-label":"Clear settings search"},"×");
+  clearSearch.hidden=true;searchInput.after(clearSearch);
+  clearSearch.addEventListener("click",()=>{searchInput.value="";filterRows();searchInput.focus()});
  tab("ad4-categories",categories,"category",name=>{selected=name;native=false;$("ad4-native-toggle").checked=false});
  tab("ad4-complexity",LEVELS,"level",name=>tier=name);
  toggle.addEventListener("click",()=>{panel.hidden=!panel.hidden;toggle.setAttribute("aria-expanded",String(!panel.hidden));
@@ -184,7 +200,8 @@ export function install_ad4_features(){
  inside.append(close,element("h3",{id:"ad4-help-heading"}),element("p",{id:"ad4-help-description"}),element("small",{id:"ad4-help-id"}));
  help.append(inside);help.addEventListener("click",e=>{if(e.target===help)help.close()});document.body.append(help);
  const auto=element("label",{id:"ad4-auto-slice-label"},"Auto slice ");
- auto.append(element("input",{id:"ad4-auto-slice",type:"checkbox"}));
+ auto.append(element("input",{id:"ad4-auto-slice",type:"checkbox",tabindex:"-1"}));
+  auto.hidden=true;auto.setAttribute("aria-hidden","true");
  const actions=$("slice-button-container");actions?.parentNode?.insertBefore(auto,actions);
  $("setting-search").addEventListener("input",filterRows);
  sections.addEventListener("change",()=>{setTimeout(()=>{decorateRows();filterRows()},360);reSlice()});
