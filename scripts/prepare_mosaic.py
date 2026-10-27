@@ -32,6 +32,8 @@ def build():
     shutil.copy2(OV/"public/ad4-settings.css",DEST/"public/ad4-settings.css")
     shutil.copy2(OV/"public/ad4-studio.css",DEST/"public/ad4-studio.css")
     shutil.copy2(OV/"public/ad4-studio.js",DEST/"public/ad4-studio.js")
+    shutil.copy2(OV/"public/ad4-v3.js",DEST/"public/ad4-v3.js")
+    shutil.copy2(OV/"public/ad4-v3.css",DEST/"public/ad4-v3.css")
     shutil.copy2(OV/"public/demo-cube-20mm.stl",DEST/"public/demo-cube-20mm.stl")
     shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
     shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
@@ -173,7 +175,7 @@ main().catch(error => {
     source=source.replace("<h1>MosaicSlicer</h1>","<h1>AD4 Studio</h1>")
     source=source.replace('id="stl-file" accept=".stl"', 'id="stl-file" accept=".stl,.3mf"')
     source=source.replace('<link rel="stylesheet" href="main.css">',
-          '<link rel="stylesheet" href="main.css"><link rel="stylesheet" href="ad4.css"><link rel="stylesheet" href="ad4-settings.css"><link rel="stylesheet" href="ad4-studio.css">')
+          '<link rel="stylesheet" href="main.css"><link rel="stylesheet" href="ad4.css"><link rel="stylesheet" href="ad4-settings.css"><link rel="stylesheet" href="ad4-studio.css"><link rel="stylesheet" href="ad4-v3.css">')
     source=source.replace('<div class="flex-spacer"></div>\n      <a class="info-link"',
           '<div class="flex-spacer"></div>\n      <button id="ad4-open-manager" type="button" aria-label="Open Adventurer 4 printer manager">AD4 · Printer</button>\n      <a class="info-link"',1)
     dialog="""<dialog id="ad4-manager" aria-label="Adventurer 4 printer manager">
@@ -237,11 +239,11 @@ main().catch(error => {
     <pre id="ad4-diagnostic-result"></pre>
   </details>
 </dialog>
-<script type="module" src="ad4-manager.js"></script>\n<script type="module" src="ad4-studio.js"></script>
+<script type="module" src="ad4-manager.js"></script>\n<script type="module" src="ad4-studio.js"></script>\n<script type="module" src="ad4-v3.js"></script>
 """
     html.write_text(source.replace("</body>",dialog+"</body>"))
     built=html.read_text()
-    for required in ("ad4-settings.css", "ad4-studio.css", "ad4-studio.js", "ad4-manager.js"):
+    for required in ("ad4-settings.css", "ad4-studio.css", "ad4-studio.js", "ad4-v3.js", "ad4-v3.css", "ad4-manager.js"):
         if required not in built:
             raise RuntimeError("Required AD4 overlay missing: "+required)
     print("AD4 Studio generated with native preset controls; slicing remains server-only")
