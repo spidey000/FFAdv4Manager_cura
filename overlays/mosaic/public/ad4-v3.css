@@ -138,15 +138,21 @@ body[data-ad4-screen=filament] #sidebar-container{
  min-height:0!important;height:auto!important;max-height:none!important;
  visibility:visible!important;overflow:hidden!important;
 }
+/* Use ONE scroller for the entire settings sheet. The expanded profile editor
+ * can be taller than a phone; nested #sections scrolling would hide settings. */
 body[data-ad4-screen=print] #sidebar,
 body[data-ad4-screen=filament] #sidebar{
- min-height:0!important;height:100%!important;overflow:hidden!important;
-}
-body[data-ad4-screen=print] #sidebar #sections,
-body[data-ad4-screen=filament] #sidebar #sections{
- flex:1 1 0!important;min-height:0!important;
+ min-height:0!important;height:100%!important;
  overflow-x:hidden!important;overflow-y:auto!important;
  -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y;
+ scrollbar-width:thin;
+}
+body[data-ad4-screen=print] #sidebar #ad4-tuning-controls,
+body[data-ad4-screen=filament] #sidebar #ad4-tuning-controls{flex:0 0 auto!important}
+body[data-ad4-screen=print] #sidebar #sections,
+body[data-ad4-screen=filament] #sidebar #sections{
+ flex:0 0 auto!important;min-height:0!important;height:auto!important;
+ max-height:none!important;overflow:visible!important;
 }
 /* Save profiles already belongs inside Profiles & filters, not as a full-width CTA. */
 body[data-ad4-screen=print] #ad4-v3-action-row,
