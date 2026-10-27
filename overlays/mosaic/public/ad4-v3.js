@@ -80,6 +80,11 @@ function refreshState(){
  const newPreview=$("ad4-v3-preview-status");
  if(newPreview)newPreview.textContent=sliced?"Real G-code ready":"Slice a model to preview layers";
  const navSlice=$("ad4-v3-nav-slice");if(navSlice)navSlice.classList.toggle("ready",sliced);
+ const start=$("ad4-v3-run-slice");if(start){start.hidden=!model||sliced;start.disabled=staticPreview||progress}
+ const preview=$("ad4-v3-show-layers");if(preview)preview.hidden=!sliced;
+ for(const name of ["ad4-v3-export","ad4-v3-send","ad4-v3-print"]){
+  const b=$(name);if(b)b.disabled=!sliced||(staticPreview&&name!=="ad4-v3-export");
+ }
  const layer=$("ad4-v3-layer-input"),native=$("layer-number");
  if(layer&&native){
   const max=Number(native.max)||1;
