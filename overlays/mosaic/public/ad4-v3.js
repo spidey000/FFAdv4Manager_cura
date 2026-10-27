@@ -273,21 +273,21 @@ function setManagerPane(pane){
  }
 }
 function openPrinter(pane){
- if(staticPreview){notify("Connect your private Linux server to use the physical printer");return}
+ if(staticPreview){activate("printer");return}
  closeSheet();setManagerPane(pane);
  if(!manager.open)$("ad4-open-manager")?.click();
  setManagerPane(pane);
 }
-$("ad4-v3-status").addEventListener("click",()=>openPrinter("camera"));
+
 function toolBtn(symbol,label,fn,id){
  const b=navButton(symbol,label,fn);if(id)b.id=id;return b;
 }
 const editorButtons={
  file:()=>activate("preview"),
- camera:()=>openPrinter("camera"),
+ camera:()=>{activate("printer");if(!staticPreview)openPrinter("camera")},
  orient:()=>{activate("transform");setTransform("rotate")},
  move:()=>{activate("transform");setTransform("translate")},
- slice:()=>{if(sliceReady())activate("sliced");else if(staticPreview)notify("Server CuraEngine is not available on GitHub Pages");else $("ad4-dock-slice")?.click()}
+ slice:()=>{if(sliceReady())activate("sliced");else if(staticPreview||!hasModel())activate("slice-info");else $("ad4-dock-slice")?.click()}
 };
 bottom.append(
  toolBtn("file","File",editorButtons.file,"ad4-v3-nav-file"),
@@ -305,6 +305,7 @@ const removeModel=actionButton("ad4-v3-remove-model","Remove model",()=>{
  if(!focused){notify("Select a model on the plate to remove it");return}
  if(!confirm("Remove the selected model?"))return;
  $("context-delete")?.click();
+  setTimeout(()=>{refreshState();renderTools()},150);
 });
 const demoModel=actionButton("ad4-v3-demo","◈ Demo STL",()=>$("ad4-dock-demo")?.click());
 const previewLayers=actionButton("ad4-v3-show-layers","◫ Layers",()=>activate("sliced"));
@@ -315,22 +316,22 @@ const runSlice=actionButton("ad4-v3-run-slice","Slice model",()=>{if(!staticPrev
 function renderTools(){
  action.replaceChildren();
  if(current==="preview"){
-  action.append(openModel,removeModel,...(staticPreview?[demoModel]:[]),previewLayers,runSlice);
+  action.append(openModel,removeModel,...(staticPreview?[demoModel]:[]),previewLayers,...(staticPreview?[]:[runSlice]));
  }else if(current==="sliced"){
   action.append(previewLayers,exportGcode,upload,print);
  }
  // Profile save/update actions live inside "Profiles & filters". Do not duplicate
  // them as a large green action that only toggles the panel (and can close it).
- const entries=current==="preview"||current==="sliced"||current==="transform"?["file","orient","slice"]:
- current==="print"?["orient","slice"]:current==="filament"?["file","slice"]:[];
+
  for(const b of bottom.querySelectorAll("button")){
   b.setAttribute("aria-pressed",String(
-   current==="transform"?b.id==="ad4-v3-nav-orient":
-   current==="sliced"?b.id==="ad4-v3-nav-slice":
+   current==="transform"?b.id==="ad4-v3-nav-move":
+   current==="sliced"||current==="slice-info"?b.id==="ad4-v3-nav-slice":
    current==="preview"?b.id==="ad4-v3-nav-file":false
   ));
  }
- runSlice.hidden=!hasModel()||sliceReady();
+ runSlice.hidden=staticPreview||!hasModel()||sliceReady();
+  removeModel.hidden=!hasModel();
  previewLayers.hidden=!sliceReady();
  exportGcode.disabled=!sliceReady();
  upload.disabled=staticPreview||!sliceReady();
@@ -338,7 +339,11 @@ function renderTools(){
 }
 function checkStatus(){
  const original=$("ad4-open-manager")?.textContent||"";
- $("ad4-v3-printer-status").textContent=staticPreview?"Demo preview":original.replace("AD4 · ","");
+ const state=staticPreview?"Demo":(original.replace("AD4 · ","")||"Offline");
+  $("ad4-v3-printer-status").textContent=state;
+  $("ad4-v3-menu-status").textContent=staticPreview?"Demo · Private server not connected":state;
+  $("ad4-v3-status").setAttribute("aria-label","Printer status: "+state+". Open navigation menu");
+  $("ad4-v3-printer-page-state").textContent=staticPreview?"Preview mode · connect to the authenticated server to manage the printer":state;
 }
 $("ad4-v3-file-label")?.addEventListener("click",()=>$("ad4-dock-model")?.click());
 $("stl-file")?.addEventListener("change",()=>{activate("preview");setTimeout(refreshState,500)});
@@ -346,6 +351,7 @@ $("ad4-v3-layer-number").textContent="1 / 1";
 let tick=0;
 setInterval(()=>{
  refreshState();checkStatus();
+  if(current==="preview"){removeModel.hidden=!hasModel()}
  if(++tick%3===0){
   if(current==="sliced"){
    $("ad4-v3-time").textContent=$("gcode-time-estimate")?.textContent||"—";
@@ -359,6 +365,7 @@ setInterval(()=>{
 },1000);
 addEventListener("keydown",e=>{
  if(e.key!=="Escape")return;
+  if(!statusMenu.hidden){closeStatusMenu();return}
  if(current!=="preview" && !manager?.open)activate("preview");
 });
 activate("preview");
