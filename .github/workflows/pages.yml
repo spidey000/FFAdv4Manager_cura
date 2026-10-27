@@ -110,3 +110,17 @@ jobs:
                   print("Waiting for live Pages asset propagation:",err)
                   time.sleep(5)
           PY
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate the actual published Pages in Chromium
+        env:
+          AD4_TEST_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          python -m venv .preview-venv
+          .preview-venv/bin/python -m pip install 'playwright==1.56.0'
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CHROME_BIN" ]; then .preview-venv/bin/python -m playwright install chromium; fi
+          CHROME_BIN="$CHROME_BIN" .preview-venv/bin/python tests/ui/pages_browser_smoke.py
+
