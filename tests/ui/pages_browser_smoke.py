@@ -137,6 +137,7 @@ with sync_playwright() as p:
                     failures.append(f"All Cura did not expose every parameter: {native_stats['visible']}/{native_stats['total']}")
                 if len(native_stats["groups"]) < 8:
                     failures.append("Native Cura category hierarchy missing")
+                page.locator("#ad4-presets-toggle").click()
                 # Verify named Process presets persist a real Cura property
                 # which was NOT in the old 20-key AD4 whitelist.
                 extra=page.locator('#sections .setting[data-setting_id="wall_line_width"] > .setting-bar input[type="number"]')
@@ -161,7 +162,6 @@ with sync_playwright() as p:
                 menu=page.locator("#ad4-native-category")
                 if menu.locator("option").count() < 9:
                     failures.append("Native Cura categories not selectable")
-                page.locator("#ad4-presets-toggle").click()
                 page.wait_for_timeout(250)
                 scroller=page.locator("#sidebar")
                 dims=page.evaluate("""() => {
