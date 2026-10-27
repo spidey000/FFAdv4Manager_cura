@@ -20,6 +20,7 @@ with sync_playwright() as p:
         page.on("pageerror",lambda e: errors.append("PAGE ERROR: "+str(e)+"\n"+str(getattr(e,"stack",""))))
         page.on("console",lambda e: errors.append("CONSOLE: "+e.text) if e.type=="error" else None)
         page.on("requestfailed",lambda req: errors.append("REQUEST FAILED: "+req.url+" "+str(req.failure)))
+        page.on("response",lambda r: errors.append(f"HTTP {r.status}: {r.url}") if r.status>=400 and "/api/" not in r.url else None)
         page.add_init_script("""(() => {
           const original=document.getElementById;
           document.getElementById=function(id) {
@@ -52,6 +53,25 @@ with sync_playwright() as p:
         if startup_error:
             failures.append(f"{width}: startup error: "+page.locator("#ad4-startup-error").inner_text()[:500])
         if not page.locator("#ad4-dock-model").count():failures.append(f"{width}: missing model button")
+        if not startup_error and loaded_style=="none":
+            try:
+                page.wait_for_function("""() => {
+                  const gui=globalThis.app?.gui;
+                  return gui?.file?.stl_file_name==="AD4_demo_cube_20mm.stl"
+                    && Object.keys(gui.model_viewer?.models||{}).length>0;
+                }""",timeout=18000)
+                count=page.evaluate("Object.keys(app.gui.model_viewer.models).length")
+                print("DEMO STL GEOMETRY LOADED",count,flush=True)
+                assert count>=1
+                assert page.locator("#ad4-dock-demo").count()==1
+                assert page.locator("#slice-button").is_disabled()
+                assert page.locator("#ad4-dock-slice").is_disabled()
+                if width<500:
+                    page.locator("#stl-file").set_input_files("frontend/dist/demo-cube-20mm.stl")
+                    page.wait_for_function("() => Object.keys(app.gui.model_viewer.models).length>=2",timeout=8000)
+                    print("USER FILE UPLOAD LOADED AS 3D MODEL",flush=True)
+            except Exception as error:
+                failures.append(f"{width}: STL preview/upload: {error}")
         if page.locator("#ad4-dock-model").count() and width<500 and not startup_error:
             page.locator("#ad4-dock-settings").click()
             if not page.locator("body.ad4-sheet-open").count():failures.append("bottom sheet not working")
@@ -60,6 +80,9 @@ with sync_playwright() as p:
                 print("MOBILE CATEGORIES",categories,flush=True)
                 if categories<4:failures.append("Cura categories missing")
             page.locator("#ad4-sheet-close").click(timeout=3000)
+        if errors:
+            failures.append(f"{width}: browser console/runtime errors: "+" | ".join(errors[:8])[:1000])
+        for msg in errors: print("FINAL",msg[:750],flush=True)
         if width<500:
             screenshot.parent.mkdir(parents=True,exist_ok=True)
             page.screenshot(path=str(screenshot),full_page=True)
