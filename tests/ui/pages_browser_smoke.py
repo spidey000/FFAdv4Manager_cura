@@ -89,6 +89,48 @@ with sync_playwright() as p:
                 visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("PRINT QUALITY SETTINGS VISIBLE",visible,flush=True)
                 if visible<1:failures.append("Print settings not visible")
+                # Capture the real Print screen from the deployed bundle before scrolling.
+                print_shot=Path(f"/tmp/ad4-pages-print-{width}.png")
+                page.screenshot(path=str(print_shot),full_page=False)
+                layout=page.evaluate("""() => {
+                    const frame=document.querySelector("#sidebar-container");
+                    const body=document.querySelector("#sidebar");
+                    const sections=document.querySelector("#sections");
+                    const r=frame.getBoundingClientRect();
+                    return {top:r.top,bottom:r.bottom,viewport:innerHeight,
+                      height:r.height,sidebarHeight:body.clientHeight,
+                      scrollClient:sections.clientHeight,scrollFull:sections.scrollHeight,
+                      actionHidden:getComputedStyle(document.querySelector("#ad4-v3-action-row")).display==='none',
+                      sectionOverflow:getComputedStyle(sections).overflowY};
+                }""")
+                print("PRINT SCROLL LAYOUT",layout,flush=True)
+                if layout["top"] < 0 or layout["bottom"] > height - 64:
+                    failures.append(f"{width}: Print panel clipped outside viewport: {layout}")
+                if not layout["actionHidden"]:
+                    failures.append(f"{width}: oversized Save Profile action bar still visible")
+                if layout["scrollClient"] <= 0 or layout["sectionOverflow"] != "auto":
+                    failures.append(f"{width}: Print setting list is not a bounded scrolling region: {layout}")
+                # Ensure enough Cura settings exist for actual scrolling, then use a
+                # physical wheel gesture instead of assigning scrollTop directly.
+                page.locator("#ad4-presets-toggle").click()
+                page.locator("#ad4-native-toggle").check()
+                page.wait_for_timeout(250)
+                scroller=page.locator("#sections")
+                dims=page.evaluate("""() => {
+                    const el=document.querySelector("#sections");
+                    return {client:el.clientHeight,total:el.scrollHeight};
+                }""")
+                if dims["total"] <= dims["client"] + 30:
+                    failures.append(f"{width}: Native Cura settings are not scrollable: {dims}")
+                else:
+                    scroller.hover()
+                    page.mouse.wheel(0,750)
+                    page.wait_for_timeout(250)
+                    scrolled=scroller.evaluate("(el) => el.scrollTop")
+                    print("PRINT WHEEL SCROLL",width,"scrollTop",scrolled,flush=True)
+                    if scrolled < 20:
+                        failures.append(f"{width}: wheel gesture did not scroll Print settings")
+                page.screenshot(path=f"/tmp/ad4-pages-print-scrolled-{width}.png",full_page=False)
                 page.locator("#ad4-categories button[data-name='Speed']").click()
                 speed_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 if speed_visible<1:failures.append("Cura Speed values missing")
