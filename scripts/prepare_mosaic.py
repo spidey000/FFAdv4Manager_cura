@@ -32,6 +32,7 @@ def build():
     shutil.copy2(OV/"public/ad4-settings.css",DEST/"public/ad4-settings.css")
     shutil.copy2(OV/"public/ad4-studio.css",DEST/"public/ad4-studio.css")
     shutil.copy2(OV/"public/ad4-studio.js",DEST/"public/ad4-studio.js")
+    shutil.copy2(OV/"public/demo-cube-20mm.stl",DEST/"public/demo-cube-20mm.stl")
     shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
     shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
     webpack=DEST/"webpack.config.js"
@@ -53,6 +54,28 @@ def build():
       'import * as resources from "./resources.mjs";\\nimport {install_ad4_features} from "./gui/ad4-settings.mjs";'.replace('\\n','\n'))
     app_code=app_code.replace('  console.log("Loaded GUI");',
       '  console.log("Loaded GUI");\\n  install_ad4_features();'.replace('\\n','\n'))
+    # Prevent an exception in the loader from leaving users with an eternal spinner.
+    app_code=app_code.replace('main();', '''
+main().catch(error => {
+  console.error("AD4 Studio startup failed", error);
+  const loading=document.getElementById("loading");
+  if (loading) {
+    loading.style.display="none";
+  }
+  const problem=document.createElement("aside");
+  problem.id="ad4-startup-error";
+  problem.setAttribute("role","alert");
+  problem.style.cssText="position:fixed;z-index:200;inset:70px 14px auto;max-width:680px;margin:auto;padding:20px;background:#39282b;border:1px solid #e5a2a2;border-radius:13px;color:#fff;";
+  const title=document.createElement("h2");
+  title.textContent="Model editor could not start";
+  const msg=document.createElement("p");
+  msg.textContent=error?.message || String(error);
+  const link=document.createElement("button");
+  link.type="button";link.textContent="Reload editor";
+  link.onclick=()=>location.reload();
+  problem.append(title,msg,link);document.body.append(problem);
+});
+''')
     app_entry.write_text(app_code)
     settings=DEST/"src/settings/index.mjs"
     source=settings.read_text()
