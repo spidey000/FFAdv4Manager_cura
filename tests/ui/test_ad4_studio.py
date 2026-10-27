@@ -56,3 +56,23 @@ def test_public_pages_build_deploys_editor_without_browser_engine():
     assert "__AD4_STATIC_PREVIEW__=true" in workflow
     assert 'not (root/"js/worker.js").exists()' in workflow
     assert "actions/deploy-pages@v4" in workflow
+
+
+def test_complete_v3_workspace_is_built_and_wires_actual_editor():
+    from pathlib import Path
+    source = (ROOT / "overlays/mosaic/public/ad4-v3.js").read_text()
+    css = (ROOT / "overlays/mosaic/public/ad4-v3.css").read_text()
+    recipe = PREPARE.read_text()
+    for name in ("ad4-v3.js","ad4-v3.css"):
+        assert name in recipe
+    for route in ('"preview"','"print"','"filament"','"printer"','"app"','"sliced"','"transform"'):
+        assert route in source
+    for control in ("ad4-v3-top","ad4-v3-bottom","ad4-v3-layer-input",
+                    "ad4-v3-axis","ad4-v3-manager-tabs","ad4-v3-app"):
+        assert control in source or control in css
+    assert '"layer-number"' in source
+    assert '"rotation"' in source and '"movement"' in source
+    assert '"api/slice"' not in source  # all slicing delegated to Mosaic's server bridge
+    assert 'globalThis.app?.gui?.slicer?.exported_gcode' in source
+    assert 'window.__AD4_STATIC_PREVIEW__ === true' in source
+    assert '@media(max-width:767px)' in css
