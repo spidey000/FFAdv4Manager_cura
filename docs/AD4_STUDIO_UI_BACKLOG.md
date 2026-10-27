@@ -1,6 +1,6 @@
 # AD4 Studio — Documento vivo de mejoras UX/UI
 
-> **Versión:** 0.1 · **Fecha:** 27 de octubre de 2026 · **Estado:** lluvia de ideas y definición, **sin implementar cambios de interfaz**.
+> **Versión:** 0.2 · **Fecha:** 27 de octubre de 2026 · **Estado:** catálogo de componentes y requisitos confirmados, **sin implementar cambios de interfaz**.
 >
 > **Repositorio:** [FFAdv4Manager_cura](https://github.com/spidey000/FFAdv4Manager_cura) · **Referencia técnica revisada:** \`main\` @ \`ea0e9cb\` (AD4 Studio v3).
 >
@@ -30,6 +30,18 @@ Queremos una app móvil de laminado y gestión de **FlashForge Adventurer 4** qu
 | **UI-05** | P0 | Cabecera | Rediseñar el selector/indicador de impresora superior derecho | **Acordado · pendiente** |
 | **UI-06** | **P0 — bloqueo** | **Print** | Mostrar **todos los parámetros** aunque no exista conexión con el backend de laminado | **Acordado · fallo a investigar** |
 | **UI-07** | Mantener | Cabecera superior | Mantener la navegación superior **Preview / Print / Filament / Printer / App** | **Acordado · sin rediseño estructural** |
+| **UI-08** | P1 | Print | **Accordion Group**, **Accordion Trigger/Panel** y categorías plegables de ajustes | **Aprobado · pendiente** |
+| **UI-14** | P1 | Slice | **Toolpath Preview** real y **Layer Range Selector** con dos reglas | **Aprobado · pendiente** |
+| **UI-21** | P0 | Transform | **Ruler Picker** tipo regla desplazable basado en `wusb/slide-ruler`, **sin slider inferior** | **Aprobado · pendiente** |
+| **UI-22** | P0 | Transform / Move | Desplazamiento X/Y/Z en mm con **Snap 5 mm** opcional | **Aprobado · pendiente** |
+| **UI-23** | P0 | Transform / Rotate | Rotación X/Y/Z con **Snap 5°** opcional y botones de giro **−45° / +45°** | **Aprobado · pendiente** |
+| **UI-24** | P0 | Transform / Scale | **Resize Locked** proporcional activo por defecto; desbloqueo por eje; snap opcional | **Aprobado · pendiente** |
+| **UI-25** | P1 | Transform | **Segmented Control**, **Draggable Bottom Sheet** y **Drag Handle** | **Aprobado · pendiente** |
+| **UI-26** | P1 | File / Slice | **Action Tiles** y **Contextual Action Toolbar** según pantalla | **Aprobado · pendiente** |
+| **UI-27** | P1 | Visor | **3D Viewport / Build Plate Grid / Axis Helper / Selection Brackets** coherentes | **Aprobado · pendiente** |
+| **UI-28** | P1 | Ajustes | **Dropdown Select / Inline Edit / Tooltip / Sticky Footer / Reset** | **Aprobado · pendiente** |
+| **UI-29** | P1 | Slice | Acciones independientes **Export / Send Only / Send & Print** con estados reales | **Aprobado · pendiente** |
+| **UI-30** | P1 | Global | **Modal Dialog / Toast / Snackbar / Empty State / Loading State** | **Aprobado · pendiente** |
 
 ### UI-01 · Paquete de iconos único
 
@@ -50,9 +62,9 @@ Queremos una app móvil de laminado y gestión de **FlashForge Adventurer 4** qu
 
 - Eliminar el botón **Orient** de la barra inferior.
 - Pulsar **Transform** abre un único espacio de trabajo con pestañas o segmentos:
-  - **Move / Position**: desplazamiento XYZ.
-  - **Rotate / Orientation**: ángulos XYZ, giro rápido de 90° y herramientas de orientación.
-  - **Scale**: tamaño uniforme/por eje y restablecimiento.
+  - **Move / Position**: desplazamiento XYZ en mm, con `Snap 5 mm` opcional.
+  - **Rotate / Orientation**: ángulos XYZ, `Snap 5°` opcional, **giros relativos ±45° por eje**, giro 90° y herramientas de orientación.
+  - **Scale / Resize**: dimensiones XYZ con **Resize Locked proporcional** por defecto, desbloqueo, snap opcional y restablecimiento.
   - **Otras operaciones del visor que realmente estén soportadas**, p. ej. centrar o colocar sobre la cama.
 - Trabajar sobre el modelo realmente seleccionado. Mostrar un mensaje claro si no hay selección.
 - Evitar duplicidades de transformaciones con herramientas nativas ocultas; conservar sus conexiones con el editor y el estado de G-code pendiente de regeneración.
@@ -112,17 +124,129 @@ El botón actual puede aparecer cortado como **“De…”** y con un gran despl
 
 **Mantener** las cinco pestañas existentes \`Preview / Print / Filament / Printer / App\`; respetar colores, selección verde, títulos y jerarquía. Sólo sustituir los iconos por los de la familia común. Evitar cambios de posición o renombres no solicitados.
 
+
+## 2.1. Componentes identificados en las cinco capturas y especificación nueva (aprobado)
+
+Los términos en inglés deben utilizarse para definir tickets/componentes de implementación. Son patrones UX/UI y **no obligan a adoptar React, recrear el visor 3D ni trasladar CuraEngine al navegador**.
+
+| Imagen | Nombre técnico de los elementos | Comportamiento que implementaremos |
+| --- | --- | --- |
+| **1 — Rotate** | `Top Icon Tab Bar`, `Active Pill Indicator`, `3D Viewport`, `Build Plate Grid`, `Selection Brackets`, `Axis Rotation Controls`, `Ruler Picker`, `Center Indicator`, `Inline Numeric Editor`, `Primary Apply Button`, `Back Navigation Button` | Reglas X/Y/Z, valor editable y marcadores coloreados sin slider auxiliar; Apply/Undo integrados con el modelo real |
+| **2 — Model / File** | `3D Model Mesh`, `Axis Helper`, `Action Tiles / Shortcut Cards`, `Horizontal Contextual Action Toolbar`, `Bottom Navigation Bar` | File muestra Open/Remove/Demo y perfiles si están soportados; mantener barra de navegación compacta |
+| **3 — Slice** | `Color-coded Toolpath Preview`, `Layer Preview Action`, `Contextual Action Toolbar`, `Export Action`, `Share Sheet Trigger`, `Upload Action`, `Upload-and-Start Action` | Tras slicing **real**: Layers, Export, Send Only y Send & Print. Share opcional si se soporta |
+| **4 — Layers** | `Cross-section / Toolpath Renderer`, `Layer Visibility Clipping`, `Lower Bound Ruler Picker`, `Upper Bound Ruler Picker`, `Dual-Ended Range Selector` | Ver únicamente capas A–B del G-code real. Dos reglas sincronizadas, **nunca un slider adicional debajo** |
+| **5 — Print** | `Dropdown Select`, `Accordion Group`, `Accordion Item`, `Accordion Header/Trigger`, `Disclosure Chevron`, `Accordion Panel`, `Leading Icon`, `Sticky Footer Action Bar`, `Primary Save Action`, `Reset Defaults Action` | Parámetros agrupados y plegables, selección de perfiles/material y barra de guardar/restablecer fija, sin esperar al backend |
+
+**Patrones transversales confirmados:** `Segmented Control` para Move/Rotate/Scale, `Draggable/Collapsible Bottom Sheet` con `Drag Handle`, `Tooltip/Popover` al tocar la etiqueta de cada parámetro, `Modal Dialog` para confirmaciones, `Toast/Snackbar` para resultados, `Loading/Error/Empty States` y `Sticky Primary Action`.
+
+**No copiar literalmente:** impresora Kingroon KP3S, selector multimpresora, ajustes `Multiple Extruders`, botón inferior `Orientation`, controles laterales redundantes, una pantalla de ajustes que tape permanentemente el STL, previsualizaciones de capas simuladas en GitHub Pages ni segundos sliders debajo de reglas.
+
+### UI-21 — Biblioteca seleccionada para Ruler Picker
+
+**Elección para web: [wusb/slide-ruler](https://github.com/wusb/slide-ruler)** (JavaScript nativo, sin frameworks, MIT; **334 estrellas en GitHub verificadas el 2026-10-27**). Documentación y [demo del autor](https://wusb.github.io/slide-ruler/). Su interfaz configurable ofrece `minValue`, `maxValue`, `currentValue`, `precision`, `divide`, marcas de escala, desplazamiento con inercia y callback de valor.
+
+**Comparación y criterio de popularidad:** [daybrush/ruler](https://github.com/daybrush/ruler) tiene aproximadamente **365 estrellas** pero es un renderizador de reglas y guías, **no un selector móvil de valores completo**. [adcentury/react-mobile-picker](https://github.com/adcentury/react-mobile-picker) es un picker tipo rueda React, distinto del control solicitado. Paquetes React Native, Android y Flutter no son directamente reutilizables en la UI web. Seleccionamos `wusb/slide-ruler` por popularidad *dentro de las alternativas comparables de selector tipo regla*, adecuación visual y compatibilidad con JavaScript sin React; no se afirma que sea el repositorio de «ruler» más estrellado de todo GitHub.
+
+**Advertencia técnica:** la actividad pública del paquete es antigua (2023). Antes de implementar, auditar licencia, versión, bugs abiertos, API, seguridad, compatibilidad móvil y carga local; fijar versión e incluir un adaptador propio y mantenible (o fork versionado si fuera necesario), **sin CDN ni framework adicional**. La elección es de referencia funcional y visual, no una integración ya realizada.
+
+**Diseño exigido:**
+- Una sola **regla horizontal desplazable** por valor. Las marcas y números avanzan bajo una **línea/aguja central fija**; número grande encima como `X = 0.00 mm`, `Z = -135.00°` o `Scale X = 125%` e icono **pencil** para edición numérica exacta.
+- Colores de eje X rojo, Y verde, Z azul; etiquetas visibles, unidades explícitas y contraste sobre fondo antracita.
+- **Prohibido añadir debajo un `input type=range`, slider convencional u otra barra de desplazamiento.** La propia regla es el control táctil.
+- Soportar swipe/arrastre con inercia moderada, snapping al terminar el gesto, accesibilidad por teclado y lector, entrada numérica directa, enter/escape, negativos cuando corresponda y límites válidos.
+- API interna propuesta (no es la API literal de la biblioteca): `RulerValuePicker({axis, value, min, max, unit, fineStep, snapEnabled, snapStep, onPreview, onCommit, onEdit})`. La lógica del modelo vive en Mosaic, **no en el componente visual**.
+- Mantener valor interno preciso y formatear sólo para visualización; evitar redondeo acumulativo. Cambiar el toggle `Snap` no debe modificar por sí solo un valor existente. Invalidar previsualización G-code anterior **sólo al confirmar** una transformación.
+
+### UI-22 — Transform → Move: Snap 5 mm opcional
+
+- Tres `RulerValuePicker` independientes X, Y, Z; valores de **posición en mm**, colores de ejes y edición numérica.
+- **Toggle `Snap 5 mm`** visible que afecta a los tres ejes. ON: al mover mediante la regla, snap a posiciones cuantizadas de **5 mm** y acciones de ±5 mm cuando estén disponibles. OFF: ajuste fino y entrada exacta; sin cuantización forzada.
+- La rejilla de snap se interpreta **en coordenadas de posición del modelo**, no mediante acumulaciones de redondeos. Los negativos y el origen del volumen se tratan de manera consistente.
+- Mantener `Center on Bed`, `Place on Bed / Drop to Bed` y `Reset Position` únicamente si los soporta el editor real; diferenciar centrar XY y colocar Z=0.
+- Límites de cama y volumen de Adventurer 4, estado fuera de volumen, Undo/Reset y precisión. El toggle no mueve el modelo hasta la siguiente manipulación.
+
+### UI-23 — Transform → Rotate: Snap 5° y botones ±45°
+
+- Tres reglas X/Y/Z expresadas en **grados** y editables tocando el valor/lápiz.
+- **Toggle `Snap 5°`** opcional e independiente de los accesos rápidos. Con snap ON: reglas en múltiplos de 5°; OFF: precisión fina y edición libre.
+- Acciones `−45°` y `+45°` **en cada eje**: **rotación relativa**, no fijar el ángulo absoluto a ±45°. Dos pulsaciones de +45° acumulan +90°, y −45° invierte una pulsación, sin modificar la escala.
+- Mantener `Reset Rotation`, giros de 90° y orientación sobre cara si existen; preservar orden Euler/quaternion y evitar saltos al actualizar la escena. Aviso si la orientación excede volumen.
+- El paso rápido de 45° y Snap 5° coexisten: el primero actúa incluso si el toggle está OFF. La vista y el estado de transformación deben permanecer sincronizados.
+
+### UI-24 — Transform → Scale / Resize: proporciones bloqueadas
+
+- Mostrar **dimensiones actuales X/Y/Z en mm** y escala en **%**, con `100%` como referencia del modelo original.
+- **`Resize Locked / Keep Proportions` activo por defecto** (icono `lock`); no deshabilitar la entrada de X, Y o Z. Con ON, cambiar un solo eje aplica **el mismo factor multiplicativo a los tres**, conservando la proporción X:Y:Z dentro de la precisión numérica.
+- Con lock OFF, cada eje se puede escalar independientemente. Si el usuario vuelve a activar el lock, **no deshacer automáticamente las diferencias ya aplicadas**: tomar las proporciones actuales como base de futuras modificaciones.
+- Para mantener la opción de **Snap de 5 en 5** también en Size: ofrecer `Snap 5%` en modo porcentaje y `Snap 5 mm` en modo dimensiones; sólo cuantizar el **eje que se está editando**, calculando los otros mediante proporción exacta cuando lock está ON. Con Snap OFF, ajuste fino.
+- `Reset Scale` restaura escala base sin borrar rotaciones ni traslaciones. Impedir factores 0/negativos si la geometría no los soporta y validar límites físicos.
+- Criterio: un cambio uniforme al 125% preserva proporciones; con lock OFF un cambio de X no altera Y/Z; el nuevo bloqueo no deforma un modelo ya alterado.
+
+### UI-25 — Navegación, Bottom Sheet y gestos
+
+- **Mantener** `Preview / Print / Filament / Printer / App` en la barra superior (**Top Icon Tabs**) y `File / Camera / Transform / Slice` en la inferior (**Bottom Navigation**). `Active Pill Indicator` verde para opción activa. La ilustración anterior de Settings en la barra inferior **no sustituye esta decisión**.
+- En Transform, cambiar entre `Move / Rotate / Scale` mediante **Segmented Control** interno. Presentar controles en un **Draggable Bottom Sheet** con `Drag Handle` y estados compacto / medio / expandido; usar el patrón también para parámetros donde tenga sentido.
+- Visor 3D visible cuando el panel está colapsado. Arrastrar la regla **no desplaza el Bottom Sheet ni orbita el STL**; arrastrar STL no abre el sheet. Resolver `touch-action`, scroll interior, z-index, safe areas, teclado móvil y focus.
+- Botón **Apply** explícito cuando la operación tiene confirmación diferida; si se usa preview en directo, separar `onPreview` de `onCommit` y ofrecer Cancel/Undo. Al confirmar, G-code laminado previamente pasa a `stale` hasta recalcular.
+
+### UI-26 — Action Tiles y Contextual Action Toolbar
+
+- **`Action Tile`**: tarjeta compacta, icono de la familia Lucide y etiqueta clara. **File:** Open Model, Remove Model, Demo STL y perfiles donde haya soporte; Remove disabled cuando no hay modelo y modal si la operación es destructiva.
+- **`Contextual Action Toolbar`**: conjunto que cambia al activar File o Slice; **Slice:** Layers / Export to File / Send Only / Send & Print tras G-code **real**. Diferenciar primaria verde, secundaria neutra y destructiva.
+- `Share` sólo si existe capacidad del navegador/plataforma y alternativa honesta. `Calibrate` sólo si está implementado. No botones que simulen éxito en Pages.
+- Implementar tarjeta genérica y catálogo declarativo de acciones, no duplicar SVG, llamadas API ni lógica por sección. Sin scroll horizontal ni recortes a 320 px.
+
+### UI-27 y UI-14 — Visor, capas y Toolpath Preview
+
+- `3D Viewport` de Mosaic/Three.js real, `Build Plate Grid` con cama de Adventurer 4, `Axis Helper` de coordenadas, `Selection Brackets` no intrusivos sobre el modelo seleccionado. Eliminar `Transform Gizmo` lateral duplicado sin perder selección, órbita ni zoom táctil.
+- **`Color-coded Toolpath Preview`** exclusivamente desde G-code de CuraEngine; colores/leyenda para walls, infill, top/bottom, support y travel cuando esos tipos estén efectivamente identificados. `Cross-section` real y `Layer Visibility Clipping` para ocultar capas no deseadas.
+- `Layer Range Selector`: **dos reglas** (`Lower Bound` y `Upper Bound`), cada una con centro fijo y valor editable, rango `Layers A–B`; `1 ≤ A ≤ B ≤ N`; actualización sincronizada con datos G-code y gestos sin slider inferior.
+- Botones opcionales anterior/siguiente capa; sin G-code en Pages mostrar estado vacío informativo, **nunca toolpaths ficticios**.
+
+### UI-08 y UI-28 — Print Settings, Accordion, Popover, Sticky Footer
+
+- **`Accordion Group`** con `Accordion Item`, icono izquierdo `Leading Icon`, `Accordion Header/Trigger`, chevron y `Accordion Panel` desplegable; preservar scroll, apertura y valores cuando se navega.
+- Categorías conforme a los parámetros reales de CuraEngine: Layers & Perimeters, Infill, Skirt & Brim, Support Material, Speed, Advanced, Output Options, Notes **sólo si están soportadas**. No crear `Multiple Extruders` en una máquina monoextrusora.
+- Conservar filtros/taxonomías existentes `Quality / Strength / Speed / Support` y `All / Basic / Advanced / Expert`; no ocultar parámetros expertos ni repetir un campo en varias fuentes de estado.
+- **`Dropdown Select`** para perfiles de proceso y material (Artillery PLA Basic predeterminado), guardado de variantes. La impresora única Adventurer 4 se indica, no se elige entre otras.
+- Clic en el **nombre del parámetro** abre `Tooltip/Popover` explicativo; clic fuera o segundo clic lo cierra. `Inline Numeric Input` para edición, unidades y validación accesibles **aunque Pages no tenga backend**.
+- **`Sticky Footer Action Bar`** para Save/Apply y Reset Defaults. **Único indicador de diferencia con default = botón Reset** (gris si no hay diferencia, activo si la hay); eliminar circulitos extra. Panel expandido Profiles/Filters con fondo verde **muy tenue** para hacerlo identificable.
+
+### UI-29 y UI-30 — Acciones, diálogos, estados y accesibilidad
+
+- **Export** genera archivo; **Send Only** sube GX sin iniciar impresión; **Send & Print** sube e inicia. Dos acciones separadas, mismas validaciones de backend, nombres/metadatos correctos, autenticación y estado confirmable. En Pages, inhabilitadas con explicación.
+- `Modal Dialog` de confirmación antes de iniciar o cancelar impresión, mostrando nombre, material, temperaturas, duración y miniatura **sólo si se conocen**; marcar los desconocidos como tal.
+- `Toast/Snackbar` para errores/success, `Loading State`, `Empty State`, `Error State`, sin afirmaciones falsas de impresora conectada, envío completado o slicing real.
+- Objetivos táctiles >=44×44 CSS px, `aria-expanded` en acordeones, rangos accesibles, navegación teclado, foco visible, contraste y `prefers-reduced-motion`. Mensajes de error con texto, nunca solo un color.
+
+### Matriz de pruebas nueva para los componentes aprobados
+
+| Prueba | Resultado esperado |
+| --- | --- |
+| Ruler Picker XYZ a 320/360/390/430 px | Una única regla por eje sin slider debajo, valor editable, línea central fija, touch+teclado funcionales |
+| Snap Move | Con ON: cuantización/acciones a 5 mm; OFF conserva precisión, también para valores negativos |
+| Snap Rotate / Steps | Snap 5° en cada eje; +45° dos veces suma +90° relativo; −45° revierte; sin alterar escala |
+| Scale Locked | ON por defecto, X/Y/Z ligados por factor común, OFF permite cambiar uno, re-lock no cambia dimensiones actuales; Snap 5%/5 mm opcional |
+| Undo/Apply | Valor interno sin drift; cancel restaura; commit cambia el modelo seleccionado y marca G-code `stale` |
+| Bottom Sheet | Scroll y gestos de regla no orbitan el modelo ni desplazan accidentalmente el panel; safe area y teclado correctos |
+| Settings Accordion | Expandir/contraer mantiene valores, restablecer correcto, tooltip fuera/segundo clic cierra; sin backend siguen visibles |
+| Layer Range | 1 ≤ A ≤ B ≤ N, toolpaths reales actualizan con el rango, sin G-code no existen capas falsas |
+| Contextual Actions | File/Slice enseñan acciones correspondientes; Send Only no inicia; Send & Print requiere confirmación real |
+| Seguridad e integración | Sin CDN/framework extra; Playwright móvil, consola libre de errores, accesibilidad, API desconectada y CLI autenticado |
+
+**Fuentes:** [wusb/slide-ruler](https://github.com/wusb/slide-ruler) y [demo](https://wusb.github.io/slide-ruler/); [daybrush/ruler](https://github.com/daybrush/ruler); [react-mobile-picker](https://github.com/adcentury/react-mobile-picker). Los detalles visuales derivan de las **cinco capturas facilitadas el 2026-10-27**, no de activos versionados en este repositorio.
+
 ## 3. Ideas adicionales para seguir debatiendo (NO aprobadas todavía)
+
+> UI-08 (acordeones) y UI-14 (capas) pasan de propuestas a requisitos aprobados; se detallan en el catálogo de referencia 2.1.
 
 | ID | Idea | Beneficio | Prioridad sugerida |
 | --- | --- | --- | --- |
-| UI-08 | Secciones de Print plegables con **contadores de parámetros** y un breve resumen de su configuración | Menos desplazamiento y mayor claridad | P1 |
 | UI-09 | Resumen flotante/colapsable: altura de capa, relleno, soporte, velocidad y temperaturas | Entender el perfil sin abrir diez menús | P1 |
 | UI-10 | Separar el estado **perfil cambiado / valor por defecto** únicamente mediante reset activo; evitar indicadores redundantes | Consistencia | P1 |
 | UI-11 | Filament con ficha dedicada Artillery PLA Basic, temperatures y flow; guardar variantes | No mezclar ajustes de proceso con material | P1 |
 | UI-12 | Navegación gestual de **subpantallas** en \`Transform\`, pero sin activar accidentalmente gestos cuando se arrastra el STL | Ergonomía | P2 |
 | UI-13 | Controles del visor: **Fit to model**, vista cenital e isométrica, sin superposición permanente | Manipulación más fácil | P2 |
-| UI-14 | Previsualización de capas con slider grande, botones anterior/siguiente y código de color claro | Revisar laminados mejor en móvil | P1 |
 | UI-15 | Tarjeta resumen antes de imprimir: nombre, temperaturas, duración, material, miniatura y confirmación | Evitar impresiones involuntarias | P1 |
 | UI-16 | Pantalla de impresora con estados compactos, cámara, lista de archivos y timelapses bajo pestañas consistentes | Unificar experiencia | P2 |
 | UI-17 | Modo demo seguro: cargar STL de prueba, personalizar perfil local, importarlo/exportarlo y reconocer qué funciona sin backend | Facilitar pruebas en Pages | P1 |
@@ -180,9 +304,9 @@ El botón actual puede aparecer cortado como **“De…”** y con un gran despl
 
 1. **PR A — Corrección crítica de Print**. Desacoplar catálogo de ajustes del backend, arreglar visibilidad real en Pages y añadir tests offline.
 2. **PR B — Sistema de iconos y cabecera**. Iconos Lucide globales, chips de estado, estilos compartidos.
-3. **PR C — Navegación y Transform**. Barra inferior con cuatro iconos, Move/Rotate/Scale unificados y eliminación de superposiciones laterales.
+3. **PR C — Navegación y Transform**. Barra inferior con cuatro iconos, Move/Rotate/Scale unificados, **ruler pickers sin slider inferior, Snap 5 mm, Snap 5°, ±45° y Resize Locked**, y eliminación de superposiciones laterales.
 4. **PR D — Botones y pulido responsive**. Acciones de modelo, estados vacíos, jerarquía de botones y accesibilidad.
-5. **PR E — Auditoría de pantallas**. Print, Filament, App, capas y Printer; pruebas de regresión móvil/escritorio.
+5. **PR E — Auditoría de pantallas**. Print, Filament, App, capas y Printer; acordeones, rango de capas, bottom sheets, acciones contextuales y pruebas de regresión móvil/escritorio.
 
 **Ninguna de estas fases ha sido autorizada para implementación por este documento.** Se trata de un orden sugerido, que podremos modificar al cerrar los criterios visuales.
 
@@ -197,6 +321,11 @@ El botón actual puede aparecer cortado como **“De…”** y con un gran despl
 | 2026-10-27 | Retirar controles duplicados laterales del visor | Acordada |
 | 2026-10-27 | Rediseñar chip de estado de impresora | Acordada |
 | 2026-10-27 | Mostrar todos los parámetros de impresión en Pages sin backend | Acordada |
+| 2026-10-27 | Catalogar los componentes de las cinco capturas y aplicarlos al diseño de AD4 Studio | Aprobada |
+| 2026-10-27 | Elegir `wusb/slide-ruler` como referencia web para el Ruler Picker, **sin segundo slider** | Aprobada |
+| 2026-10-27 | Move con Snap 5 mm; Rotate con Snap 5° y botones ±45° | Aprobada |
+| 2026-10-27 | Resize Locked/Keep Proportions por defecto en Scale | Aprobada |
+| 2026-10-27 | Toolpath Preview, selector de rango de capas, Action Tiles, Accordions y Bottom Sheet | Aprobada |
 | Próxima revisión | Validar estilo exacto de botones y formato de chip de estado | Abierta |
 | Próxima revisión | Decidir las nuevas ideas UI-08 a UI-20 | Abierta |
 
