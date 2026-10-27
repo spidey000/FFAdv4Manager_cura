@@ -20,6 +20,18 @@
     return item;
   };
   const isMobile = () => matchMedia("(max-width: 767px)").matches;
+  // The upstream viewer tab clips overflowing children. A fixed settings
+  // sheet inside it can be visually present but untouchable behind canvas.
+  // Portal the sheet to <body> on phones; restore it for desktop layout.
+  const sidebarParent = sidebarContainer.parentNode;
+  const sidebarNext = sidebarContainer.nextSibling;
+  function placeSettingsSheet() {
+    if (isMobile() && sidebarContainer.parentNode !== document.body)
+      document.body.append(sidebarContainer);
+    else if (!isMobile() && sidebarContainer.parentNode !== sidebarParent)
+      sidebarParent.insertBefore(sidebarContainer, sidebarNext);
+  }
+  placeSettingsSheet();
   const scrim = node("button", "ad4-sheet-scrim");
   scrim.type = "button";
   scrim.setAttribute("aria-label", "Close print settings");
@@ -58,6 +70,7 @@
     }
   });
   window.addEventListener("resize", () => {
+    placeSettingsSheet();
     if (!isMobile()) document.body.classList.remove("ad4-sheet-open");
     sidebarContainer.setAttribute("aria-hidden",
       String(isMobile() && !document.body.classList.contains("ad4-sheet-open")));
