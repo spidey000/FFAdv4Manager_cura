@@ -80,7 +80,8 @@ function refreshState(){
  const newPreview=$("ad4-v3-preview-status");
  if(newPreview)newPreview.textContent=sliced?"Real G-code ready":"Slice a model to preview layers";
  const navSlice=$("ad4-v3-nav-slice");if(navSlice)navSlice.classList.toggle("ready",sliced);
- const start=$("ad4-v3-run-slice");if(start){start.hidden=!model||sliced;start.disabled=staticPreview||progress}
+ const slicingBusy=$("slice-progress-container")?.dataset.active==="true";
+ const start=$("ad4-v3-run-slice");if(start){start.hidden=!model||sliced;start.disabled=staticPreview||slicingBusy}
  const preview=$("ad4-v3-show-layers");if(preview)preview.hidden=!sliced;
  for(const name of ["ad4-v3-export","ad4-v3-send","ad4-v3-print"]){
   const b=$(name);if(b)b.disabled=!sliced||(staticPreview&&name!=="ad4-v3-export");
@@ -92,8 +93,8 @@ function refreshState(){
   layer.value=native.value||max;
   $("ad4-v3-layer-number").textContent=String(layer.value)+" / "+String(max);
  }
- const progress=$("ad4-v3-progress");
- if(progress)progress.hidden=!sliced;
+ const progressBadge=$("ad4-v3-progress");
+ if(progressBadge)progressBadge.hidden=!sliced;
 }
 function topActive(){
  for(const b of top.querySelectorAll("button"))b.setAttribute("aria-pressed",String(b.dataset.route===(current==="sliced"||current==="transform"?"preview":current)));
@@ -297,11 +298,8 @@ function renderTools(){
  }else if(current==="sliced"){
   action.append(previewLayers,exportGcode,upload,print);
  }
- if(current==="print"||current==="filament"){
-  action.append(actionButton("ad4-v3-save-profile","Save profile",()=>{
-    $("ad4-presets-toggle")?.click();notify("Choose a Process or Material name in Profiles & filters");
-  },true));
- }
+ // Profile save/update actions live inside "Profiles & filters". Do not duplicate
+ // them as a large green action that only toggles the panel (and can close it).
  const entries=current==="preview"||current==="sliced"||current==="transform"?["file","orient","slice"]:
  current==="print"?["orient","slice"]:current==="filament"?["file","slice"]:[];
  for(const b of bottom.querySelectorAll("button")){
