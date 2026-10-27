@@ -48,6 +48,8 @@ def build():
     pkg.write_text(json.dumps(data,indent=2)+"\n")
     with (DEST/"src/gui/index.mjs").open("a",encoding="utf-8") as stream:
         stream.write('\nexport * as slicer from "./slicer.mjs";\n')
+        # Safe read-only model scene visibility for 3D and upload smoke tests.
+        stream.write('\nexport * as model_viewer from "./viewer/model_viewer.mjs";\n')
     app_entry=DEST/"src/index.mjs"
     app_code=app_entry.read_text()
     app_code=app_code.replace('import * as resources from "./resources.mjs";',
