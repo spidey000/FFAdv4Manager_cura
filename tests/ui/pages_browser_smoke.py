@@ -20,6 +20,15 @@ with sync_playwright() as p:
         page.on("pageerror",lambda e: errors.append("PAGE ERROR: "+str(e)+"\n"+str(getattr(e,"stack",""))))
         page.on("console",lambda e: errors.append("CONSOLE: "+e.text) if e.type=="error" else None)
         page.on("requestfailed",lambda req: errors.append("REQUEST FAILED: "+req.url+" "+str(req.failure)))
+        page.add_init_script("""(() => {
+          const original=document.getElementById;
+          document.getElementById=function(id) {
+            const result=original.call(this,id);
+            if (!result && String(id).startsWith('ad4-'))
+              console.error('MISSING AD4 ELEMENT: '+id);
+            return result;
+          };
+        })()""")
         page.goto(url,wait_until="domcontentloaded",timeout=30000)
         try:
             page.wait_for_function("""() => {
@@ -39,15 +48,18 @@ with sync_playwright() as p:
         print(f"VIEWPORT {width}x{height} | loaded={loaded_style} | JS={js_state} | errors={len(errors)}",flush=True)
         for msg in errors:print(msg[:1000],flush=True)
         if page.evaluate("getComputedStyle(document.getElementById('loading')).display")!="none":failures.append(f"{width}: stuck loading")
+        startup_error=page.locator("#ad4-startup-error").count()>0
+        if startup_error:
+            failures.append(f"{width}: startup error: "+page.locator("#ad4-startup-error").inner_text()[:500])
         if not page.locator("#ad4-dock-model").count():failures.append(f"{width}: missing model button")
-        if page.locator("#ad4-dock-model").count() and width<500:
+        if page.locator("#ad4-dock-model").count() and width<500 and not startup_error:
             page.locator("#ad4-dock-settings").click()
             if not page.locator("body.ad4-sheet-open").count():failures.append("bottom sheet not working")
             else:
                 categories=page.locator("#ad4-categories button").count()
                 print("MOBILE CATEGORIES",categories,flush=True)
                 if categories<4:failures.append("Cura categories missing")
-            page.locator("#ad4-sheet-close").click()
+            page.locator("#ad4-sheet-close").click(timeout=3000)
         if width<500:
             screenshot.parent.mkdir(parents=True,exist_ok=True)
             page.screenshot(path=str(screenshot),full_page=True)
