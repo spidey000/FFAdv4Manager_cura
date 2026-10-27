@@ -75,7 +75,14 @@ with sync_playwright() as p:
             else:
                 categories=page.locator("#ad4-categories button").count()
                 print("MOBILE CATEGORIES",categories,flush=True)
-                if categories<4:failures.append("Cura categories missing")
+                if categories<5: failures.append("Cura categories missing")
+                visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
+                print("VISIBLE CURA QUALITY SETTINGS",visible,flush=True)
+                if visible<1: failures.append("Quality settings not rendered")
+                page.locator("#ad4-categories button[data-name='Speed']").click()
+                speed_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
+                print("VISIBLE CURA SPEED SETTINGS",speed_visible,flush=True)
+                if speed_visible<1: failures.append("Speed settings not rendered")
             page.locator("#ad4-sheet-close").click(timeout=3000)
         if errors:
             failures.append(f"{width}: browser console/runtime errors: "+" | ".join(errors[:8])[:1000])
