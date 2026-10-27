@@ -71,6 +71,15 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || true)"
           if [ -z "$CHROME_BIN" ]; then .venv/bin/python -m playwright install chromium; fi
           CHROME_BIN="$CHROME_BIN" .venv/bin/python tests/ui/pages_browser_smoke.py
+      - name: Upload UI screenshots from local preview
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ad4-pages-print-local-screenshots
+          path: |
+            /tmp/ad4-pages-print-*.png
+            /tmp/ad4-pages-print-scrolled-*.png
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -129,4 +138,13 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || true)"
           if [ -z "$CHROME_BIN" ]; then .preview-venv/bin/python -m playwright install chromium; fi
           CHROME_BIN="$CHROME_BIN" .preview-venv/bin/python tests/ui/pages_browser_smoke.py
+      - name: Upload real published Pages UI screenshots
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ad4-pages-print-live-screenshots
+          path: |
+            /tmp/ad4-pages-print-*.png
+            /tmp/ad4-pages-print-scrolled-*.png
+          if-no-files-found: warn
 
