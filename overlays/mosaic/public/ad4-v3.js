@@ -42,20 +42,31 @@ const navButton = (name,label,click) => {
  b.addEventListener("click",click);return b;
 };
 const TOP=[["cube","Preview","preview"],["wrench","Print","print"],["filament","Filament","filament"],["printer","Printer","printer"],["gear","App","app"]];
-let current="preview",tool="file",managerPane="camera",lastGcode=false;
+let current="preview",tool="file",managerPane="camera",lastGcode=false,previousModelCount=0;
+const modelCount=()=>Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length;
 const header=make("header","ad4-v3-header");header.id="ad4-v3-header";
 header.innerHTML='<div class="ad4-v3-brand"><span class="ad4-v3-logo">'+svg("cube")+'</span><span><strong>AD4 Studio</strong><small>FlashForge Adventurer 4</small></span></div>'+
-  '<button type="button" id="ad4-v3-status" aria-label="Open printer manager"><span class="ad4-v3-status-dot"></span><span id="ad4-v3-printer-status">Printer</span>'+svg("chevron")+'</button>';
+  '<button type="button" id="ad4-v3-status" aria-label="Printer status and navigation menu" aria-expanded="false" aria-controls="ad4-v3-status-menu"><span class="ad4-v3-status-dot"></span><span id="ad4-v3-printer-status">Printer</span>'+svg("chevron")+'</button>';
 const top=make("nav","ad4-v3-top");top.id="ad4-v3-top";top.setAttribute("aria-label","Main sections");
 root.append(header,top);
+const statusMenu=make("nav","ad4-v3-status-menu");statusMenu.id="ad4-v3-status-menu";statusMenu.hidden=true;
+statusMenu.setAttribute("aria-label","Printer and navigation shortcuts");
+statusMenu.innerHTML='<strong id="ad4-v3-menu-status">Printer status</strong><button type="button" data-open="printer">Printer controls</button><button type="button" data-open="preview">Prepare model</button><button type="button" data-open="sliced">Layer preview</button><a href="https://github.com/spidey000/FFAdv4Manager_cura" target="_blank" rel="noopener noreferrer">Source code · FFAdv4Manager_cura</a>';
+header.append(statusMenu);
+function closeStatusMenu(){statusMenu.hidden=true;$("ad4-v3-status").setAttribute("aria-expanded","false")}
+$("ad4-v3-status").addEventListener("click",()=>{const opening=statusMenu.hidden;statusMenu.hidden=!opening;$("ad4-v3-status").setAttribute("aria-expanded",String(opening))});
+statusMenu.addEventListener("click",e=>{const target=e.target.closest("[data-open]");if(target){closeStatusMenu();activate(target.dataset.open)}});
+document.addEventListener("pointerdown",e=>{if(!header.contains(e.target))closeStatusMenu()});
 const bottom=make("nav","ad4-v3-bottom");bottom.id="ad4-v3-bottom";bottom.setAttribute("aria-label","Editor tools");
 root.append(bottom);
 const action=make("section","ad4-v3-action-row");action.id="ad4-v3-action-row";root.append(action);
 const extra=make("section","ad4-v3-extra");extra.id="ad4-v3-extra";root.append(extra);
-const note=make("div","ad4-v3-toast");note.id="ad4-v3-toast";note.setAttribute("role","status");note.hidden=true;root.append(note);
+const note=make("div","ad4-v3-toast");note.id="ad4-v3-toast";note.setAttribute("role","status");note.hidden=true;
+note.innerHTML='<span id="ad4-v3-toast-message"></span><button type="button" aria-label="Dismiss notification">×</button>';
+note.querySelector("button").addEventListener("click",()=>{note.hidden=true});root.append(note);
 let noteHandle;
 function notify(message){
- note.textContent=message;note.hidden=false;clearTimeout(noteHandle);
+ $("ad4-v3-toast-message").textContent=message;note.hidden=false;clearTimeout(noteHandle);
  noteHandle=setTimeout(()=>note.hidden=true,4200);
 }
 function closeSheet(){
@@ -65,9 +76,11 @@ function ensureSheet(){
  if(innerWidth<=767&&!root.classList.contains("ad4-sheet-open"))$("ad4-dock-settings")?.click();
 }
 function sliceReady(){return $("slice-export-container")?.dataset.active==="true" && typeof globalThis.app?.gui?.slicer?.exported_gcode==="string";}
-function hasModel(){return Boolean(globalThis.app?.gui?.file?.stl_file_name);}
+function hasModel(){return Boolean(globalThis.app?.gui?.file?.stl_file_name) && modelCount()>0;}
 function refreshState(){
- const sliced=sliceReady(),model=hasModel();
+ const model=hasModel(),sliced=model&&sliceReady();
+ if(previousModelCount>0 && modelCount()===0){$("slice-export-container")?.setAttribute("data-active","false")}
+ previousModelCount=modelCount();
  root.classList.toggle("ad4-has-model",model);
  root.classList.toggle("ad4-v3-sliced",sliced);
  const name=globalThis.app?.gui?.file?.stl_file_name||"";
@@ -76,7 +89,7 @@ function refreshState(){
  const state=$("ad4-v3-file-detail");
  if(state)state.textContent=sliced?[$("gcode-time-estimate")?.textContent,$("material-estimate")?.textContent].filter(Boolean).join(" · "):model?"Ready for CuraEngine · server-side slicing":"STL or 3MF · FlashForge Adventurer 4";
  const slice=$("ad4-dock-slice");
- if(slice)slice.disabled=staticPreview || !model || slice.disabled && $("slice-progress-container")?.dataset.active==="true";
+ if(slice)slice.disabled=staticPreview || !model || $("slice-progress-container")?.dataset.active==="true";
  const newPreview=$("ad4-v3-preview-status");
  if(newPreview)newPreview.textContent=sliced?"Real G-code ready":"Slice a model to preview layers";
  const navSlice=$("ad4-v3-nav-slice");if(navSlice)navSlice.classList.toggle("ready",sliced);
@@ -100,21 +113,20 @@ function topActive(){
  for(const b of top.querySelectorAll("button"))b.setAttribute("aria-pressed",String(b.dataset.route===(current==="sliced"||current==="transform"?"preview":current)));
 }
 function activate(name){
- if(name==="printer"){openPrinter("camera");return}
- closeSheet();
+ closeStatusMenu();closeSheet();
  current=name;
  root.dataset.ad4Screen=name;
+ $("sidebar-container")?.setAttribute("aria-hidden",String(name!=="print"&&name!=="filament"));
  if(name==="print"||name==="filament"){
-  ensureSheet();
   const b=$("ad4-categories button[data-name='"+(name==="filament"?"Material":"Quality")+"']");
   b?.click();
  }
- if(name==="preview"||name==="transform")$("prepare-tab-button")?.click();
+ if(name==="preview"||name==="transform"||name==="slice-info")$("prepare-tab-button")?.click();
  if(name==="sliced"){
   if(!sliceReady()){notify("Slice a model on the server to view actual layers");current="preview";root.dataset.ad4Screen="preview";$("prepare-tab-button")?.click()}
   else $("preview-tab-button")?.click();
  }
- if(name==="app")closeSheet();
+ if(name==="app"||name==="printer"||name==="slice-info")closeSheet();
  if(name==="transform")setTransform("rotate");
  topActive();renderTools();refreshState();
  dispatchEvent(new Event("resize"));
@@ -122,6 +134,15 @@ function activate(name){
 for(const [symbol,label,route] of TOP){
  const b=navButton(symbol,label,()=>activate(route));b.dataset.route=route;top.append(b);
 }
+const printerPage=make("section","ad4-v3-info-page");printerPage.id="ad4-v3-printer-page";
+printerPage.innerHTML='<h2>Adventurer 4</h2><p id="ad4-v3-printer-page-state">Printer management uses your authenticated private Linux server.</p><div class="ad4-v3-info-card"><strong>Camera and printer controls</strong><p>Connect to the private server through Cloudflare Access to see the live camera, printer files, diagnostics and print controls. GitHub Pages is preview-only.</p><button type="button" id="ad4-v3-open-controls">Open printer controls</button></div>';
+root.append(printerPage);
+$("ad4-v3-open-controls").disabled=staticPreview;
+$("ad4-v3-open-controls").addEventListener("click",()=>openPrinter("control"));
+const sliceInfo=make("section","ad4-v3-info-page");sliceInfo.id="ad4-v3-slice-info";
+sliceInfo.innerHTML='<h2>Server-side slicing</h2><div class="ad4-v3-info-card"><strong>CuraEngine is not available on GitHub Pages</strong><p>The 3D model and Cura settings work in the public preview. To generate G-code or GX, open this application on your authenticated Linux server.</p><button type="button" id="ad4-v3-return-preview">Return to model</button></div>';
+root.append(sliceInfo);
+$("ad4-v3-return-preview").addEventListener("click",()=>activate("preview"));
 const intro=make("div","ad4-v3-workspace-card");intro.id="ad4-v3-workspace-card";
 intro.innerHTML='<div class="ad4-v3-file-symbol">'+svg("cube")+'</div><span><strong id="ad4-v3-file-label">No model loaded</strong><small id="ad4-v3-file-detail">STL or 3MF</small></span>';
 $("viewer")?.append(intro);
