@@ -112,7 +112,8 @@ function filterRows(){
   let shown=0;
   for(const row of section.querySelectorAll(".setting[data-setting_id]")){
    const id=row.dataset.setting_id;
-   const included=native||(search?allCategories.has(id):GROUPS[selected].includes(id))&&(
+   const category=row.closest(".section")?.dataset.category_id;
+    const included=native||(search?allCategories.has(category):GROUPS[selected].includes(category))&&(
     tier==="All"||(TIERS[id]??3)<LEVELS.indexOf(tier));
    const label=row.querySelector(".setting-name")?.textContent?.toLowerCase()||"";
    const show=included&&(!search||label.includes(search)||id.includes(search));
