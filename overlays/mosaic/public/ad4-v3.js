@@ -118,7 +118,7 @@ function activate(name){
  root.dataset.ad4Screen=name;
  $("sidebar-container")?.setAttribute("aria-hidden",String(name!=="print"&&name!=="filament"));
  if(name==="print"||name==="filament"){
-  const b=$("ad4-categories button[data-name='"+(name==="filament"?"Material":"Quality")+"']");
+  const b=document.querySelector("#ad4-categories button[data-name='"+(name==="filament"?"Material":"Quality")+"']");
   b?.click();
  }
  if(name==="preview"||name==="transform"||name==="slice-info")$("prepare-tab-button")?.click();
