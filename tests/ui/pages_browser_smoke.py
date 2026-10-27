@@ -67,7 +67,13 @@ with sync_playwright() as p:
                 assert page.locator("#slice-button").is_disabled()
                 assert page.locator("#ad4-dock-slice").is_disabled()
                 if width<500:
-                    page.locator("#stl-file").set_input_files("frontend/dist/demo-cube-20mm.stl")
+                    sample=page.request.get(url.rstrip("/")+"/demo-cube-20mm.stl")
+                    assert sample.ok, "Demo STL was not served"
+                    page.locator("#stl-file").set_input_files({
+                        "name":"user_imported_cube.stl",
+                        "mimeType":"model/stl",
+                        "buffer":sample.body()
+                    })
                     page.wait_for_function("() => Object.keys(app.gui.model_viewer.models).length>=2",timeout=8000)
                     print("USER FILE UPLOAD LOADED AS 3D MODEL",flush=True)
             except Exception as error:
