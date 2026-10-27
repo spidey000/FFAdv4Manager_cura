@@ -150,8 +150,11 @@ with sync_playwright() as p:
                 if dims["total"] <= dims["client"] + 30:
                     failures.append(f"{width}: Expanded profiles and Cura settings are not scrollable together: {dims}")
                 else:
-                    scroller.hover()
+                    # Wheel over the sidebar gutter, not the expanded
+                    # Profiles & filters editor (which has its own scroller).
                     scroller.evaluate("(el) => {el.scrollTop=0}")
+                    bounds=scroller.bounding_box()
+                    page.mouse.move(bounds["x"] + 3, bounds["y"] + bounds["height"] - 40)
                     page.mouse.wheel(0,950)
                     page.wait_for_timeout(250)
                     scrolled=scroller.evaluate("(el) => el.scrollTop")
