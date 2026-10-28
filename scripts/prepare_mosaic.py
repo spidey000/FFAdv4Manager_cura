@@ -35,6 +35,7 @@ def build():
     shutil.copy2(OV/"public/ad4-v3.js",DEST/"public/ad4-v3.js")
     shutil.copy2(OV/"public/ad4-printer-dashboard.js",DEST/"public/ad4-printer-dashboard.js")
     shutil.copy2(OV/"public/ad4-v3.css",DEST/"public/ad4-v3.css")
+    shutil.copy2(OV/"public/ad4-slide-ruler.js",DEST/"public/ad4-slide-ruler.js")
     shutil.copy2(OV/"public/demo-cube-20mm.stl",DEST/"public/demo-cube-20mm.stl")
     shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
     shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
@@ -282,11 +283,11 @@ main().catch(error => {
     <pre id="ad4-diagnostic-result"></pre>
   </details>
 </dialog>
-<script type="module" src="ad4-manager.js"></script>\n<script type="module" src="ad4-studio.js"></script>\n<script type="module" src="ad4-v3.js"></script>\n<script type="module" src="ad4-printer-dashboard.js"></script>
+<script type="module" src="ad4-manager.js"></script>\n<script type="module" src="ad4-studio.js"></script>\n<script src="ad4-slide-ruler.js"></script><script type="module" src="ad4-v3.js"></script>\n<script type="module" src="ad4-printer-dashboard.js"></script>
 """
     html.write_text(source.replace("</body>",dialog+"</body>"))
     built=html.read_text()
-    for required in ("ad4-settings.css", "ad4-studio.css", "ad4-studio.js", "ad4-v3.js", "ad4-v3.css", "ad4-manager.js", "ad4-printer-dashboard.js"):
+    for required in ("ad4-settings.css", "ad4-studio.css", "ad4-studio.js", "ad4-v3.js", "ad4-v3.css", "ad4-slide-ruler.js", "ad4-manager.js", "ad4-printer-dashboard.js"):
         if required not in built:
             raise RuntimeError("Required AD4 overlay missing: "+required)
     print("AD4 Studio generated with native preset controls; slicing remains server-only")

@@ -373,3 +373,34 @@ body[data-ad4-screen=app] #ad4-v3-app{padding-bottom:max(30px,env(safe-area-inse
  #ad4-v3-printer-page .ad4-printer-card{padding:14px;gap:8px}
  #ad4-v3-printer-page .ad4-printer-overview h2{font-size:19px}
 }
+
+/* One ruler per axis, central marker fixed; never a range slider below it. */
+body[data-ad4-screen=transform]{--ad4-transform-height:350px}
+body[data-ad4-screen=transform] #ad4-v3-transform{height:var(--ad4-transform-height)!important;max-height:min(67dvh,620px)!important;
+ bottom:var(--v3-bottom)!important;overflow-y:auto!important;padding:6px 12px 14px!important}
+body[data-ad4-screen=transform] #viewer{height:calc(100dvh - var(--v3-head) - var(--v3-tabs) - var(--v3-bottom) - var(--ad4-transform-height))!important}
+#ad4-v3-sheet-handle{display:grid;place-items:center;width:100%;min-height:23px;background:transparent;border:0;touch-action:none;cursor:ns-resize}
+#ad4-v3-sheet-handle span{display:block;width:54px;height:5px;background:#697c73;border-radius:999px}
+.ad4-v3-axis-list{display:grid;gap:7px}
+.ad4-v3-axis{display:block;min-height:98px;background:#1e2624;border-radius:11px;padding:5px 9px}
+.ad4-v3-axis-top{display:flex;align-items:center;gap:8px}
+.ad4-v3-axis-top>b{font-size:15px;flex:1}
+.ad4-v3-axis[data-axis=x] .ad4-v3-axis-top>b{color:#f45650}
+.ad4-v3-axis[data-axis=y] .ad4-v3-axis-top>b{color:#2dec79}
+.ad4-v3-axis[data-axis=z] .ad4-v3-axis-top>b{color:#597bff}
+.ad4-v3-axis-value{width:68px!important;max-width:68px!important;min-width:58px;padding:5px 4px;background:#1a3027;color:#fff;border:1px solid #587367;border-radius:7px;text-align:center;font-size:13px}
+.ad4-v3-axis-unit{font-size:11px;color:#b3c6bf;min-width:32px}
+.ad4-v3-axis-ruler{position:relative;height:65px!important;overflow:hidden;touch-action:pan-x;cursor:ew-resize;outline-offset:3px}
+.ad4-v3-axis-ruler canvas{max-width:100%;display:block;touch-action:pan-x}
+.ad4-v3-ruler-needle{position:absolute;left:50%;top:2px;bottom:3px;width:3px;background:var(--v3-green);pointer-events:none;z-index:1;border-radius:3px}
+.ad4-v3-axis-ruler:focus-visible{outline:2px solid var(--v3-green)}
+.ad4-v3-axis-step{display:flex;gap:3px}
+.ad4-v3-axis-step[hidden]{display:none!important}
+.ad4-v3-axis-step button{min-height:32px;border-radius:7px;background:#293d34;color:#d8f6e1;border:1px solid #456b53;font-size:10px;padding:4px}
+.ad4-v3-axis .ad4-v3-axis-slider{display:none!important}
+.ad4-v3-transform-top{padding:0 0 5px}
+.ad4-v3-transform-actions{position:sticky;bottom:0;background:#131819;z-index:5;padding:7px 0}
+.ad4-v3-snap input[type=checkbox]{appearance:none;width:38px;height:22px;border-radius:20px;background:#54615c;position:relative;vertical-align:middle}
+.ad4-v3-snap input[type=checkbox]:checked{background:var(--v3-green)}
+.ad4-v3-snap input[type=checkbox]::after{content:"";position:absolute;width:18px;height:18px;left:2px;top:2px;border-radius:50%;background:#fff;transition:transform .1s}
+.ad4-v3-snap input[type=checkbox]:checked::after{transform:translateX(16px)}
