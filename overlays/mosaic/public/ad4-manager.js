@@ -127,6 +127,7 @@ async function refresh(){
  const [state,remote,recording]=responses;
  const available=state.status==="fulfilled"&&printerIsAvailable(state.value);
  if(available)updateState(state.value);
+ setHardwareAvailability(available);
  if(remote.status==="fulfilled"&&available)files=Array.isArray(remote.value)?remote.value:[];
  else files=[];
  renderFiles();
