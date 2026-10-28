@@ -74,7 +74,7 @@ function dialogHelp(id){
  $("ad4-help-heading").textContent=setting.label||id;
  $("ad4-help-description").textContent=setting.description||setting.tooltip||"This option controls CuraEngine toolpath generation.";
  $("ad4-help-id").textContent=id+(setting.unit?" · "+setting.unit:"");
- dialog.showModal();
+ if(dialog.open)dialog.close();else dialog.showModal();
 }
 function decorateRows(){
  for(const row of sections.querySelectorAll(".setting[data-setting_id]")){
@@ -93,6 +93,17 @@ function decorateRows(){
     for(const input of row.querySelectorAll("input,select,textarea")){
       if(!input.getAttribute("aria-label")&&!input.getAttribute("aria-labelledby"))
         input.setAttribute("aria-label",(name.textContent||id).trim());
+      if(input.matches('input[type="number"]')){
+       input.classList.add("ad4-compact-number");
+       input.inputMode="decimal";
+       input.setAttribute("size","5");
+      }
+      if(input.matches('input[type="checkbox"]')){
+       input.classList.add("ad4-toggle-input");
+       input.setAttribute("role","switch");
+       input.setAttribute("aria-checked",String(input.checked));
+       input.addEventListener("change",()=>input.setAttribute("aria-checked",String(input.checked)));
+      }
     }
   }
  }
@@ -119,7 +130,7 @@ function groupContains(section,group){
 function populateNativeCategories(){
  const menu=$("ad4-native-category");if(!menu)return;
  const old=menu.value;
- menu.replaceChildren(element("option",{value:""},"Browse native Cura categories…"));
+ menu.replaceChildren(element("option",{value:"all"},"All Cura categories"));
  for(const section of nativeSections()){
   const id=section.dataset.category_id;
   const quantity=section.querySelectorAll(".setting[data-setting_id]").length;
@@ -132,7 +143,7 @@ function chooseFamily(group){
  const menu=$("ad4-native-category");if(menu)menu.value="";
  for(const button of $("ad4-categories").querySelectorAll("button"))
   button.setAttribute("aria-pressed",String(button.dataset.name===group));
- $("ad4-all-cura").setAttribute("aria-pressed",String(group==="All Cura"));
+ // Full Cura access is via the single native category dropdown.
  filterRows();
 }
 function filterRows(){
@@ -170,8 +181,7 @@ function filterRows(){
   section.classList.toggle("ad4-single-setting",shown===1);
   if(shown){
    visibleCount+=shown;
-   section.style.height="auto";section.style.maxHeight="none";
-   if(section.dataset.ad4ManuallyClosed!=="true")section.dataset.closed="false";
+   section.style.removeProperty("height");section.style.removeProperty("max-height");
   }
  }
  const summary=$("ad4-catalog-count");
@@ -197,7 +207,7 @@ export function install_ad4_features(){
  library=readLibrary(storage());
  for(const key of new Set([...allowed("process"),...allowed("material")]))original[key]=value(key);
  const root=element("div",{id:"ad4-tuning-controls"});
- const toggle=element("button",{id:"ad4-presets-toggle",type:"button","aria-expanded":"false"},"Profiles & filters · Artillery PLA Basic ⌄");
+ const toggle=element("button",{id:"ad4-presets-toggle",type:"button","aria-expanded":"false","aria-controls":"ad4-presets-panel"},"Profiles & filters · Artillery PLA Basic ⌄");
  root.append(toggle);
  const panel=element("div",{id:"ad4-presets-panel"});panel.hidden=true;
  const printerName=element("div",{class:"ad4-printer-fixed"},"Printer: FlashForge Adventurer 4");panel.append(printerName);
@@ -217,15 +227,16 @@ export function install_ad4_features(){
  // Display the whole native Cura catalog without hiding an advanced toggle
  // inside profile management.
  const catalogBar=element("div",{id:"ad4-native-catalog-nav"});
- const allCura=element("button",{id:"ad4-all-cura",type:"button","aria-pressed":"false"},"All Cura settings");
- const nativeMenu=element("select",{id:"ad4-native-category","aria-label":"Browse native Cura category"});
- catalogBar.append(allCura,nativeMenu);
+ const nativeMenu=element("select",{id:"ad4-native-category","aria-label":"Browse all native Cura categories"});
+ catalogBar.append(nativeMenu);
  root.append(panel,element("nav",{id:"ad4-categories","aria-label":"Quick Cura filters"}),
   catalogBar,element("nav",{id:"ad4-complexity","aria-label":"Slicing complexity"}),
   element("p",{id:"ad4-catalog-count",role:"status"},"Loading Cura settings…"),
   element("p",{id:"ad4-tuning-empty"},"No parameters for this filter"),
   element("p",{id:"ad4-preset-note",role:"status"}));
  const sidebar=$("sidebar");sidebar.insertBefore(root,$("profile-selector-div"));
+ const legacy=$("profile-selector-div");
+ if(legacy){legacy.hidden=true;legacy.setAttribute("aria-hidden","true")}
  $("profile-selector")?.setAttribute("aria-label","Process profile");
  const searchInput=$("setting-search");searchInput.setAttribute("aria-label","Search all Cura settings");
  const clearSearch=element("button",{id:"ad4-search-clear",type:"button","aria-label":"Clear settings search"},"×");
@@ -233,19 +244,32 @@ export function install_ad4_features(){
  clearSearch.addEventListener("click",()=>{searchInput.value="";filterRows();searchInput.focus()});
  tab("ad4-categories",categories,"category",chooseFamily);
  tab("ad4-complexity",LEVELS,"level",name=>tier=name);
- allCura.addEventListener("click",()=>chooseFamily("All Cura"));
  nativeMenu.addEventListener("change",()=>{
-  if(!nativeMenu.value){chooseFamily("All Cura");return}
+  if(nativeMenu.value==="all"){chooseFamily("All Cura");nativeMenu.value="all";return}
   nativeCategory=nativeMenu.value;selected="All Cura";
   for(const b of $("ad4-categories").querySelectorAll("button"))b.setAttribute("aria-pressed","false");
-  allCura.setAttribute("aria-pressed","false");filterRows();
+  filterRows();
  });
  populateNativeCategories();
+ function closeAllGroups(){
+  for(const section of nativeSections()){
+   section.dataset.closed="true";
+   section.style.removeProperty("height");section.style.removeProperty("max-height");
+   const header=section.querySelector(".section-title-container");
+   if(header){header.setAttribute("role","button");header.tabIndex=0;header.setAttribute("aria-expanded","false")}
+  }
+ }
+ document.addEventListener("ad4:enter-settings",()=>{closeAllGroups();filterRows()});
+ sections.addEventListener("keydown",event=>{
+  const title=event.target.closest(".section-title-container");
+  if(title&&(event.key==="Enter"||event.key===" ")){event.preventDefault();title.click()}
+ });
+ closeAllGroups();
  sections.addEventListener("click",event=>{
   const header=event.target.closest(".section-title-container");
   if(!header)return;
   const section=header.closest(".section");
-  if(section)section.dataset.ad4ManuallyClosed=String(section.dataset.closed!=="true");
+  if(section)queueMicrotask(()=>header.setAttribute("aria-expanded",String(section.dataset.closed!=="true")));
  });
  toggle.addEventListener("click",()=>{panel.hidden=!panel.hidden;toggle.setAttribute("aria-expanded",String(!panel.hidden));
   toggle.textContent=panel.hidden?"Profiles & filters · Artillery PLA Basic ⌄":"Profiles & filters · Expanded ⌃"});
