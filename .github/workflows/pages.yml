@@ -43,6 +43,13 @@ jobs:
           assert (root/"ad4-studio.css").is_file()
           assert (root/"ad4-v3.js").is_file() and (root/"ad4-v3.css").is_file()
           assert (root/"demo-cube-20mm.stl").is_file()
+          import json
+          guide=json.loads((root/"settings-guide/index.json").read_text())
+          assert guide["article_count"]>=600
+          assert guide["articles"]["layer_height"]=="resolution/layer_height.md"
+          assert (root/"settings-guide/articles/resolution/layer_height.md").is_file()
+          assert (root/"settings-guide/articles/images/layer_height_0.1.png").is_file()
+          assert (root/"settings-guide/LICENSE.md").is_file()
           assert (root/"resources/cura_data.tar.gz").is_file()
           assert not (root/"js/worker.js").exists(), "CuraEngine must not run in the browser"
           # The editor (model loading, orbiting and settings) remains interactive.
@@ -114,7 +121,7 @@ jobs:
                       html=response.read().decode("utf-8")
                   assert "__AD4_STATIC_PREVIEW__=true" in html
                   assert "ad4-studio.js" in html
-                  for asset in ("ad4-studio.css","ad4-studio.js","ad4-v3.css","ad4-v3.js","demo-cube-20mm.stl","js/app.mjs","resources/cura_data.tar.gz"):
+                  for asset in ("ad4-studio.css","ad4-studio.js","ad4-v3.css","ad4-v3.js","demo-cube-20mm.stl","js/app.mjs","resources/cura_data.tar.gz","settings-guide/index.json","settings-guide/articles/resolution/layer_height.md","settings-guide/articles/images/layer_height_0.1.png"):
                       with urllib.request.urlopen(site+asset,timeout=30) as response:
                           assert response.status==200,asset
                   print("Verified live mobile AD4 Studio public preview",site)

@@ -4,6 +4,7 @@ import {sections} from "./sidebar.mjs";
 import {update_all} from "./actions.mjs";
 import {models} from "./viewer/model_viewer.mjs";
 import {cura_engine} from "./slicer.mjs";
+import {installSettingHelp,openSettingHelp,helpIcon} from "./ad4-setting-help.mjs";
 import {KEY,GROUPS,LEVELS,TIERS,allowed,readLibrary,savePreset,configureCatalog,validate} from "./ad4-presets.mjs";
 
 const $=id=>document.getElementById(id);
@@ -68,21 +69,33 @@ function choose(type,name){
  applyOverrides(values);
  notice(item?"Applied "+name+"; re-slice before uploading.":"Restored default "+type+" values.");
 }
-function dialogHelp(id){
- const setting=meta(id),dialog=$("ad4-setting-help");
- if(!setting||!dialog)return;
- $("ad4-help-heading").textContent=setting.label||id;
- $("ad4-help-description").textContent=setting.description||setting.tooltip||"This option controls CuraEngine toolpath generation.";
- $("ad4-help-id").textContent=id+(setting.unit?" · "+setting.unit:"");
- if(dialog.open)dialog.close();else dialog.showModal();
+function dialogHelp(id,trigger){
+ const setting=meta(id);
+ if(!setting)return;
+ openSettingHelp(id,setting,trigger);
 }
 function decorateRows(){
  for(const row of sections.querySelectorAll(".setting[data-setting_id]")){
   const id=row.dataset.setting_id,name=row.querySelector(".setting-name"),bar=row.querySelector(".setting-bar");
   if(!name||name.dataset.helpAttached)continue;
   name.dataset.helpAttached="1";name.tabIndex=0;name.setAttribute("role","button");name.title="Explain "+name.textContent;
-  name.addEventListener("click",()=>dialogHelp(id));
-  name.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();dialogHelp(id)}});
+  name.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();dialogHelp(id,name)});
+  name.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();e.stopPropagation();dialogHelp(id,name)}});
+  if(bar && !bar.querySelector(".ad4-setting-label-wrap")){
+    const wrap=element("span",{class:"ad4-setting-label-wrap"});
+    name.before(wrap);wrap.append(name);
+    const helpButton=element("button",{
+      type:"button",class:"ad4-setting-help-trigger",
+      "aria-label":"Read help for "+name.textContent.trim(),
+      title:"Read detailed SettingsGuide explanation",
+      "data-tooltip":"Read setting guide"
+    });
+    helpIcon(helpButton);
+    helpButton.addEventListener("click",event=>{
+      event.preventDefault();event.stopPropagation();dialogHelp(id,helpButton);
+    });
+    wrap.append(helpButton);
+  }
   if(bar){
    const reset=element("button",{type:"button",class:"ad4-setting-reset","aria-label":"Reset "+name.textContent},"↺");
    reset.addEventListener("click",()=>{
@@ -293,11 +306,7 @@ export function install_ad4_features(){
   try{persist();drawPresets();$("ad4-"+type+"-preset").value="";notice("Deleted "+name)}
   catch(e){notice(e.message)}
  });
- const help=element("dialog",{id:"ad4-setting-help","aria-labelledby":"ad4-help-heading"});
- const inside=element("div",{class:"ad4-help-content"});
- const close=element("button",{type:"button","aria-label":"Close explanation"},"×");close.addEventListener("click",()=>help.close());
- inside.append(close,element("h3",{id:"ad4-help-heading"}),element("p",{id:"ad4-help-description"}),element("small",{id:"ad4-help-id"}));
- help.append(inside);help.addEventListener("click",e=>{if(e.target===help)help.close()});document.body.append(help);
+ installSettingHelp();
  const auto=element("label",{id:"ad4-auto-slice-label"},"Auto slice ");
  auto.append(element("input",{id:"ad4-auto-slice",type:"checkbox",tabindex:"-1"}));
  auto.hidden=true;auto.setAttribute("aria-hidden","true");

@@ -105,3 +105,88 @@ body[data-ad4-screen=filament] #sidebar .section[data-is_enabled="true"]:not([hi
 #sidebar input.ad4-toggle-input[type=checkbox]:checked::after{transform:translateX(17px);background:#102718}
 #sidebar .section-title-container:focus-visible,#sidebar input[type=checkbox]:focus-visible{outline:2px solid #2dec79;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){#sidebar input[type=checkbox]::after{transition:none!important}}
+
+
+/* SettingsGuide: compact Lucide affordance next to every Cura setting name. */
+#sidebar .ad4-setting-label-wrap{display:inline-flex;align-items:center;min-width:0;max-width:100%;gap:3px;flex:1 1 auto}
+#sidebar .ad4-setting-label-wrap > .setting-name{flex:0 1 auto;min-width:0;cursor:pointer;overflow-wrap:anywhere}
+#sidebar .ad4-setting-label-wrap > .setting-name:focus-visible{outline:2px solid #a3e635;outline-offset:2px;border-radius:3px}
+#sidebar .ad4-setting-help-trigger{
+  appearance:none;position:relative;display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 28px;width:28px;height:30px;padding:0;margin:0;border:0;border-radius:7px;
+  background:transparent;color:#a6cb92;cursor:pointer;touch-action:manipulation
+}
+#sidebar .ad4-setting-help-trigger svg{width:15px;height:15px;flex:none;stroke-width:2.1}
+#sidebar .ad4-setting-help-trigger:hover,
+#sidebar .ad4-setting-help-trigger:focus-visible{background:#35523d;color:#dcfda7}
+#sidebar .ad4-setting-help-trigger:focus-visible{outline:2px solid #a3e635;outline-offset:1px}
+#sidebar .ad4-setting-help-trigger[data-tooltip]:is(:hover,:focus-visible)::after{
+  content:attr(data-tooltip);position:absolute;bottom:calc(100% + 5px);left:0;
+  z-index:80;white-space:nowrap;max-width:180px;border:1px solid #6b9179;
+  border-radius:7px;padding:6px 8px;background:#122622;color:#e7f8eb;
+  box-shadow:0 5px 14px #0007;pointer-events:none;font:12px/1.2 sans-serif
+}
+/* The header and footer remain fixed; only the article body scrolls. */
+#ad4-setting-help.ad4-setting-guide{
+  box-sizing:border-box;width:min(740px,calc(100vw - 24px));max-width:740px;
+  height:min(830px,calc(100dvh - 24px));max-height:calc(100dvh - 24px);
+  margin:auto;padding:0;overflow:hidden;border-radius:16px;
+  border:1px solid #739d83;background:#192a2c;color:#edf6ef
+}
+#ad4-setting-help.ad4-setting-guide::backdrop{background:#071012d9}
+#ad4-setting-help .ad4-help-content{
+  box-sizing:border-box;display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+  padding:0!important;height:100%;max-height:100%;overflow:hidden
+}
+#ad4-setting-help .ad4-help-header{
+  display:flex;align-items:center;gap:10px;min-height:72px;padding:12px 14px;
+  background:#243b36;border-bottom:1px solid #436058
+}
+#ad4-setting-help .ad4-help-titles{flex:1;min-width:0}
+#ad4-setting-help .ad4-help-eyebrow{font-size:10px;letter-spacing:.11em;color:#a6cdb1}
+#ad4-setting-help #ad4-help-heading{margin:3px 0 0;font-size:19px;line-height:1.25;overflow-wrap:anywhere}
+#ad4-setting-help .ad4-help-header button{float:none;display:inline-flex;align-items:center;justify-content:center;
+  width:44px;height:44px;min-height:44px;flex:0 0 44px;border-radius:11px;
+  background:#344c42;color:#f0fff0;border:1px solid #5b7a68}
+#ad4-setting-help .ad4-help-header button svg{width:19px;height:19px}
+#ad4-setting-help .ad4-help-header .ad4-help-back[hidden]{display:none}
+#ad4-setting-help .ad4-help-scroll{
+  min-width:0;min-height:0;max-height:100%;overflow-y:auto;overflow-x:hidden;
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  padding:12px 20px 24px;scrollbar-gutter:stable
+}
+#ad4-setting-help #ad4-help-summary{color:#b6d1c2;margin:0 0 16px;line-height:1.55;font-size:12px}
+#ad4-setting-help .ad4-help-article{font-size:14px;line-height:1.65;color:#e5eee8;overflow-wrap:anywhere}
+#ad4-setting-help .ad4-help-article :is(h1,h2,h3,h4){color:#f3fff1;line-height:1.3;margin:20px 0 9px}
+#ad4-setting-help .ad4-help-article :is(h1,h2):first-child{margin-top:0}
+#ad4-setting-help .ad4-help-article h1{font-size:21px}
+#ad4-setting-help .ad4-help-article h2{font-size:18px}
+#ad4-setting-help .ad4-help-article h3{font-size:16px}
+#ad4-setting-help .ad4-help-article p{line-height:1.65;margin:10px 0}
+#ad4-setting-help .ad4-help-article img{
+  display:block;width:auto;height:auto;max-width:100%;max-height:55dvh;object-fit:contain;
+  margin:15px auto;border-radius:8px;background:#30413e
+}
+#ad4-setting-help .ad4-help-article a{color:#b4eb81;text-decoration:underline;text-underline-offset:2px}
+#ad4-setting-help .ad4-help-article a:focus-visible{outline:2px solid #a3e635}
+#ad4-setting-help .ad4-help-article :is(ul,ol){padding-left:22px;margin:10px 0}
+#ad4-setting-help .ad4-help-article li{margin:5px 0}
+#ad4-setting-help .ad4-help-article pre{max-width:100%;overflow-x:auto;padding:12px;background:#101e1d;border-radius:8px}
+#ad4-setting-help .ad4-help-article code{overflow-wrap:anywhere}
+#ad4-setting-help .ad4-help-article table{max-width:100%;display:block;overflow-x:auto;border-collapse:collapse}
+#ad4-setting-help .ad4-help-article :is(td,th){padding:7px;border:1px solid #506c61}
+#ad4-setting-help .ad4-help-unavailable{color:#f6cf8b}
+#ad4-setting-help .ad4-help-footer{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:11px 18px;border-top:1px solid #436058;background:#213831
+}
+#ad4-setting-help .ad4-help-footer a{color:#b5dcb4;font-size:11px}
+@media(max-width:500px){
+  #ad4-setting-help.ad4-setting-guide{width:calc(100vw - 12px);max-width:none;
+    height:calc(100dvh - 12px);max-height:calc(100dvh - 12px);border-radius:12px}
+  #ad4-setting-help .ad4-help-header{min-height:64px;padding:8px 10px}
+  #ad4-setting-help #ad4-help-heading{font-size:17px}
+  #ad4-setting-help .ad4-help-scroll{padding:12px 14px 22px;scrollbar-gutter:auto}
+  #ad4-setting-help .ad4-help-article{font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){#ad4-setting-help *{scroll-behavior:auto!important}}

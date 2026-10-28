@@ -37,6 +37,30 @@ def build():
     shutil.copy2(OV/"public/demo-cube-20mm.stl",DEST/"public/demo-cube-20mm.stl")
     shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
     shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
+    shutil.copy2(OV/"src/gui/ad4-setting-help.mjs",DEST/"src/gui/ad4-setting-help.mjs")
+    # Offline SettingsGuide content, pinned as a git submodule for reproducible builds.
+    guide=ROOT/"vendor/settings-guide"
+    if not (guide/"resources/articles/resolution/layer_height.md").is_file():
+        raise RuntimeError("Missing SettingsGuide submodule; run git submodule update --init vendor/settings-guide")
+    guide_dest=DEST/"public/settings-guide"
+    guide_dest.mkdir(parents=True,exist_ok=True)
+    shutil.copytree(guide/"resources/articles",guide_dest/"articles")
+    shutil.copy2(guide/"LICENSE.md",guide_dest/"LICENSE.md")
+    guide_articles={}
+    for article in sorted((guide_dest/"articles").glob("*/*.md")):
+        key=article.stem
+        if key in guide_articles:
+            raise RuntimeError("Duplicate SettingsGuide article id: "+key)
+        guide_articles[key]=article.relative_to(guide_dest/"articles").as_posix()
+    if len(guide_articles)<600:
+        raise RuntimeError("SettingsGuide content unexpectedly incomplete")
+    (guide_dest/"index.json").write_text(json.dumps({
+        "source":"Ghostkeeper/SettingsGuide",
+        "revision":"d7d700427b45743845f0eac8dceec575bee19332",
+        "license":"AGPL-3.0",
+        "article_count":len(guide_articles),
+        "articles":guide_articles
+    },sort_keys=True,separators=(",",":"))+"\\n",encoding="utf-8")
     shutil.copy2(OV/"src/gui/ad4-icon-pack.mjs",DEST/"src/gui/ad4-icon-pack.mjs")
     webpack=DEST/"webpack.config.js"
     cfg=webpack.read_text()
@@ -48,6 +72,8 @@ def build():
     data=json.loads(pkg.read_text())
     data["name"]="ffadv4manager-mosaic"
     data["dependencies"].pop("@mosaicslicer/curaengine",None)
+    data["dependencies"]["lucide"]="1.61.0"
+    data["dependencies"]["markdown-it"]="14.1.0"
     data["dependencies"]["lucide"]="1.62.0"
     pkg.write_text(json.dumps(data,indent=2)+"\n")
     with (DEST/"src/gui/index.mjs").open("a",encoding="utf-8") as stream:

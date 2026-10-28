@@ -43,3 +43,8 @@ For each mobile width, save: Print default, Print after scrolling / expanded nat
 ## Remaining physical checks before a production claim
 
 On Android/iOS hardware, repeat 320-like narrow device and 390px device checks with touch, software keyboard, safe-area insets, focus order and screen reader. On protected Linux host, independently verify camera frames, server CuraEngine G-code/GX, printer storage and printing; **do not** run those tests against GitHub Pages.
+
+| R24 | Settings help icon | Every native row has a small Lucide circle-help button next to its label, with accessible name and tooltip |
+| R25 | SettingsGuide modal | Label/icon open real bundled Markdown; images load; scroll and sticky X work; Back follows cross-article links |
+| R26 | Modal dismissal | X, Escape and backdrop close; no setting changes, accordion collapse, or parent scroll loss |
+| R27 | Missing guide | Native Cura description shown when an article is not available; no remote fetch |

@@ -47,6 +47,11 @@ jobs:
           node --check overlays/mosaic/public/ad4-manager.js
           node --check overlays/mosaic/src/gui/ad4-settings.mjs
           node --check overlays/mosaic/src/gui/ad4-presets.mjs
+          node --check overlays/mosaic/src/gui/ad4-setting-help.mjs
+          test -f frontend/dist/settings-guide/index.json
+          test -f frontend/dist/settings-guide/articles/resolution/layer_height.md
+          test -f frontend/dist/settings-guide/articles/images/layer_height_0.1.png
+          test -f frontend/dist/settings-guide/LICENSE.md
           grep -q ad4-settings.css frontend/dist/index.html
       - name: Browser test the actual GitHub Pages editor (mobile and desktop)
         run: |

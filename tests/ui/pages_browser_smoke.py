@@ -95,6 +95,31 @@ with sync_playwright() as p:
                 print("PRINT QUALITY SETTINGS VISIBLE",visible,flush=True)
                 print("CURA DOM CATEGORIES",page.evaluate("""() => Array.from(document.querySelectorAll("#sections .section")).slice(0,16).map(el=>({category:el.dataset.category_id,title:el.querySelector(".section-title-container")?.textContent?.trim(),count:el.querySelectorAll(".setting[data-setting_id]").length,visible:Array.from(el.querySelectorAll(".setting[data-setting_id]")).filter(n=>!n.hidden).slice(0,8).map(n=>n.dataset.setting_id)}))"""),flush=True)
                 if visible<10:failures.append(f"{width}: expected full Cura Quality catalog, got {visible}")
+                # Each setting label and its Lucide help icon open the bundled guide.
+                try:
+                    help_row=page.locator('#sidebar .setting[data-setting_id="layer_height"]:visible').first
+                    help_icon=help_row.locator('.ad4-setting-help-trigger').first
+                    assert help_icon.count()==1, "Missing question-mark icon"
+                    assert help_icon.locator("svg.lucide, svg").count()==1, "Lucide SVG missing"
+                    assert help_icon.get_attribute("aria-label").startswith("Read help for ")
+                    help_icon.click()
+                    modal=page.locator("#ad4-setting-help")
+                    assert modal.is_visible() and modal.evaluate("(el)=>el.open")
+                    assert page.locator("#ad4-help-heading").inner_text()=="Layer Height"
+                    page.wait_for_function('document.querySelector("#ad4-setting-help .ad4-help-article img") !== null',timeout=8000)
+                    article=page.locator("#ad4-setting-help .ad4-help-article")
+                    assert "The 3D printer" in article.inner_text()
+                    page.locator("#ad4-setting-help .ad4-help-scroll").evaluate("(el)=>el.scrollTop=el.scrollHeight")
+                    assert page.locator("#ad4-setting-help .ad4-help-close").is_visible()
+                    page.screenshot(path=f"/tmp/ad4-pages-guide-{width}.png",full_page=False)
+                    page.locator("#ad4-setting-help .ad4-help-close").click()
+                    assert not modal.is_visible()
+                    help_row.locator('.setting-name').first.click()
+                    assert modal.is_visible(), "Setting label must open the same guide"
+                    page.keyboard.press("Escape")
+                    assert not modal.is_visible(), "Escape must close the guide"
+                except Exception as error:
+                    failures.append(f"{width}: SettingsGuide modal regression: {error}")
                 # Capture the real Print screen from the deployed bundle before scrolling.
                 print_shot=Path(f"/tmp/ad4-pages-print-{width}.png")
                 page.screenshot(path=str(print_shot),full_page=False)

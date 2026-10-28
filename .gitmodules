@@ -1,3 +1,7 @@
 [submodule "vendor/mosaic-slicer"]
 	path = vendor/mosaic-slicer
 	url = https://github.com/ading2210/MosaicSlicer.git
+
+[submodule "vendor/settings-guide"]
+	path = vendor/settings-guide
+	url = https://github.com/Ghostkeeper/SettingsGuide.git

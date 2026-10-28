@@ -6,7 +6,7 @@ cd "$ROOT"
 command -v git >/dev/null
 command -v npm >/dev/null
 command -v python3 >/dev/null
-git submodule update --init vendor/mosaic-slicer
+git submodule update --init vendor/mosaic-slicer vendor/settings-guide
 git -C vendor/mosaic-slicer submodule update --init third_party/Cura third_party/fdm_materials
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip

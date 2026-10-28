@@ -336,3 +336,12 @@ Cada petición nueva puede añadirse como \`UI-21\`, \`UI-22\`, etc., con descri
 \`Idea → Definida → Aprobada → En PR → Probada → Fusionada\`.
 
 **Próximo paso sugerido:** cerrar el estilo definitivo de los botones de modelo y del indicador de impresora, y reproducir el fallo de Print sin tocar todavía el diseño de las demás pantallas.
+
+### UI-31 — SettingsGuide modal (implemented)
+
+- Click setting label **or** its trailing 15px Lucide `circle-help` icon to open a scrollable help dialog.
+- Icon has an accessible 28×30 target, a short hover/focus tooltip and a readable screen-reader label.
+- Native Cura metadata stays in the summary; detailed article Markdown, images, GIFs, and cross-article links load on demand from bundled offline resources. Links to another guide article open in the same modal with a Back control; external links open safely in a new tab.
+- Header and Lucide X stay fixed; Escape and backdrop close the dialog. Preserve input/profile values, scroll and accordion state.
+- Content: pinned `vendor/settings-guide` git submodule (`d7d700427b45743845f0eac8dceec575bee19332`); all 633 source Markdown articles and images copied at build time, with AGPL-3.0 license and source credit.
+- No client-side CuraEngine; GitHub Pages uses the same bundled help.
