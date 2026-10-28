@@ -76,9 +76,8 @@ jobs:
         if: always()
         with:
           name: ad4-pages-print-local-screenshots
-          path: |
-            /tmp/ad4-pages-print-*.png
-            /tmp/ad4-pages-print-scrolled-*.png
+          path: /tmp/ad4-pages-*.png
+          retention-days: 14
           if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -143,8 +142,7 @@ jobs:
         if: always()
         with:
           name: ad4-pages-print-live-screenshots
-          path: |
-            /tmp/ad4-pages-print-*.png
-            /tmp/ad4-pages-print-scrolled-*.png
+          path: /tmp/ad4-pages-*.png
+          retention-days: 14
           if-no-files-found: warn
 
