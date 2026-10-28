@@ -160,6 +160,10 @@ function filterRows(){
    if(show)shown++;
   }
   section.hidden=!shown;
+  // Native section enablement can be stale after Cura resolves settings.
+  // Recompute from the real enabled children rather than hiding entire
+  // Speed/Travel groups that contain enabled parameters.
+  section.dataset.is_enabled=String(rows.some(row=>row.dataset.is_enabled==="true"));
   section.classList.toggle("ad4-single-setting",shown===1);
   if(shown){
    visibleCount+=shown;
