@@ -81,3 +81,27 @@ body[data-ad4-screen=filament] #sidebar .section[data-is_enabled="true"]:not([hi
  display:block!important;
 }
 #sidebar #ad4-native-catalog-nav button,#sidebar #ad4-native-category{min-height:44px!important}
+
+/* UI-06/08/28: one profile picker, accordion closed by default, tactile switches. */
+#sidebar #profile-selector-div{display:none!important}
+#sidebar #ad4-native-catalog-nav{grid-template-columns:minmax(0,1fr)!important}
+#sidebar #ad4-native-category{width:100%;min-height:44px!important}
+#sidebar .section[data-closed="true"]{min-height:0!important;height:auto!important;max-height:none!important}
+#sidebar .section[data-closed="true"]>.settings-group,
+#sidebar .section[data-closed="true"]>.section-content{display:none!important}
+#sidebar .section.ad4-single-setting .section-title-container{display:flex!important}
+#sidebar .section-title-container{min-height:48px!important;cursor:pointer}
+#sidebar .setting-bar{justify-content:space-between}
+#sidebar .setting-value{min-width:0;flex:0 1 auto!important;max-width:max-content}
+#sidebar .setting-value input[type=number],
+#sidebar .setting-value .ad4-compact-number{box-sizing:border-box!important;width:76px!important;min-width:60px!important;max-width:76px!important;min-height:38px!important;flex:0 0 76px!important;padding:6px 5px!important;text-align:right!important;font-size:13px!important;font-variant-numeric:tabular-nums}
+#sidebar .setting-value input[type=checkbox],
+#sidebar input.ad4-toggle-input[type=checkbox]{appearance:none!important;-webkit-appearance:none!important;position:relative!important;display:inline-block!important;vertical-align:middle!important;flex:0 0 42px!important;width:42px!important;min-width:42px!important;height:25px!important;min-height:25px!important;max-height:25px!important;border-radius:999px!important;border:1px solid #778d82!important;background:#3d4643!important;cursor:pointer!important;transition:background .15s ease}
+#sidebar .setting-value input[type=checkbox]::after,
+#sidebar input.ad4-toggle-input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:19px;height:19px;border-radius:50%;background:#f0f5f0;box-shadow:0 1px 3px #0008;transition:transform .15s ease}
+#sidebar .setting-value input[type=checkbox]:checked,
+#sidebar input.ad4-toggle-input[type=checkbox]:checked{background:#2dec79!important;border-color:#2dec79!important}
+#sidebar .setting-value input[type=checkbox]:checked::after,
+#sidebar input.ad4-toggle-input[type=checkbox]:checked::after{transform:translateX(17px);background:#102718}
+#sidebar .section-title-container:focus-visible,#sidebar input[type=checkbox]:focus-visible{outline:2px solid #2dec79;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){#sidebar input[type=checkbox]::after{transition:none!important}}
