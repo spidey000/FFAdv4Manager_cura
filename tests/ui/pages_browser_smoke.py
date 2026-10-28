@@ -85,7 +85,7 @@ with sync_playwright() as p:
                 page.wait_for_timeout(250)
                 categories=page.locator("#ad4-categories button").count()
                 print("V3 PRINT / CURA CATEGORIES",categories,flush=True)
-                if categories<5:failures.append("Print settings categories missing")
+                if categories!=6:failures.append(f"{width}: expected All + five Cura categories, got {categories}")
                 # Accordions MUST start collapsed when Print opens.
                 closed=page.locator('#sidebar #sections > .section:not([hidden])[data-closed="true"]').count()
                 print("COLLAPSED SETTINGS GROUPS",closed,flush=True)
@@ -145,9 +145,39 @@ with sync_playwright() as p:
                 # Ensure enough Cura settings exist for actual scrolling, then use a
                 # physical wheel gesture instead of assigning scrollTop directly.
                 page.locator("#ad4-presets-toggle").click()
-                picker=page.locator("#ad4-native-category")
-                if not picker.is_visible():failures.append(f"{width}: Cura category browser hidden")
-                picker.select_option("all")
+                # The flat All tab replaces the native-category dropdown but
+                # still exposes every Cura setting and keeps groups collapsed.
+                if page.locator("#ad4-profile-summary").count():
+                    failures.append(f"{width}: redundant profile overview still exists")
+                if page.locator("#ad4-native-category, #ad4-catalog-count").count():
+                    failures.append(f"{width}: redundant category dropdown or counter still exists")
+                if page.locator("#ad4-sheet-header:visible").count():
+                    failures.append(f"{width}: duplicate Print heading still displayed")
+                page.locator('#ad4-categories button[data-name="All"]').click()
+                tab_look=page.locator('#ad4-v3-top [data-route="print"]').evaluate("""(el) => ({
+                    border:getComputedStyle(el).borderWidth,
+                    background:getComputedStyle(el).backgroundColor
+                })""")
+                if tab_look["border"]!="0px" or tab_look["background"]!="rgba(0, 0, 0, 0)":
+                    failures.append(f"{width}: boxed top navigation remains: {tab_look}")
+                group_look=page.locator('#sections > .section:not([hidden])').first.evaluate("""(el) => ({
+                    radius:getComputedStyle(el).borderRadius,
+                    background:getComputedStyle(el).backgroundColor
+                })""")
+                if group_look["radius"]!="0px" or group_look["background"]!="rgba(0, 0, 0, 0)":
+                    failures.append(f"{width}: boxed Cura category remains: {group_look}")
+                switch_look=page.evaluate("""() => {
+                    const el=document.querySelector('#sidebar .setting-value input[type="checkbox"]');
+                    if(!el)return null;
+                    const before=el.checked;
+                    el.checked=true;
+                    const color=getComputedStyle(el).backgroundColor;
+                    const holder=getComputedStyle(el.closest('.setting-value'));
+                    el.checked=before;
+                    return {color,border:holder.borderWidth,background:holder.backgroundColor};
+                }""")
+                if switch_look and (switch_look["color"]!="rgb(45, 236, 121)" or switch_look["border"]!="0px"):
+                    failures.append(f"{width}: toggle still has outer box or wrong accent: {switch_look}")
                 native_stats=page.evaluate("""() => {
                     const rows=[...document.querySelectorAll('#sections .setting[data-setting_id]')];
                     const categories=[...document.querySelectorAll('#sections > .section[data-category_id]')];
@@ -163,8 +193,8 @@ with sync_playwright() as p:
                 if not page.locator('#sections > .section:not([hidden])[data-closed="true"]').count():
                     failures.append(f"{width}: All Cura categories were expanded unexpectedly")
                 if len(native_stats["groups"])<8:failures.append(f"{width}: native Cura categories missing")
-                if page.locator("#ad4-native-category option").count()<9:
-                    failures.append(f"{width}: native Cura browse categories absent")
+                if page.locator('#ad4-categories button[data-name="All"]').get_attribute("aria-pressed")!="true":
+                    failures.append(f"{width}: All Cura tab did not activate")
                 extra=page.locator('#sections .setting[data-setting_id="wall_line_width"] > .setting-bar input[type="number"]')
                 if extra.count()==1:
                     prior=float(extra.input_value())
