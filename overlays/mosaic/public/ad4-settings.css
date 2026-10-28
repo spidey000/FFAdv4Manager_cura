@@ -190,3 +190,14 @@ body[data-ad4-screen=filament] #sidebar .section[data-is_enabled="true"]:not([hi
   #ad4-setting-help .ad4-help-article{font-size:13px}
 }
 @media(prefers-reduced-motion:reduce){#ad4-setting-help *{scroll-behavior:auto!important}}
+
+/* Compact live Cura profile summary and sticky save/reset bar. */
+#sidebar #ad4-profile-summary{margin:4px 0;background:#1c2a23;border:1px solid #46614e;border-radius:12px}
+#sidebar #ad4-profile-summary summary{padding:10px 12px;font-weight:700;color:#ccf6d8;cursor:pointer;font-size:12px}
+#sidebar #ad4-profile-summary-content{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:10px;border-top:1px solid #3f5445}
+#sidebar #ad4-profile-summary-content span{min-width:0}
+#sidebar #ad4-profile-summary-content small{display:block;font-size:10px;color:#b1c7b7}
+#sidebar #ad4-profile-summary-content strong{display:block;margin-top:3px;font-size:12px;color:#effef0}
+#sidebar #ad4-settings-footer{position:sticky;bottom:0;z-index:25;background:#171e1b;padding:9px 5px;display:flex;gap:8px;border-top:1px solid #48634c}
+#sidebar #ad4-settings-footer button{min-height:44px;flex:1 1 0;border-radius:10px;border:1px solid #57735b;color:#edffed;background:#2a3930;font-size:12px;font-weight:750;cursor:pointer}
+#sidebar #ad4-settings-save{color:#10301a!important;background:#2dec79!important;border-color:#2dec79!important}
