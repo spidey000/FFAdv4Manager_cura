@@ -60,7 +60,7 @@ def build():
         "license":"AGPL-3.0",
         "article_count":len(guide_articles),
         "articles":guide_articles
-    },sort_keys=True,separators=(",",":"))+"\\n",encoding="utf-8")
+    },sort_keys=True,separators=(",",":"))+"\n",encoding="utf-8")
     shutil.copy2(OV/"src/gui/ad4-icon-pack.mjs",DEST/"src/gui/ad4-icon-pack.mjs")
     webpack=DEST/"webpack.config.js"
     cfg=webpack.read_text()
