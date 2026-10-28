@@ -148,6 +148,25 @@ main().catch(error => {
     # Adventurer 4 has no upstream Cura build-plate mesh. A missing
     # metadata.platform previously caused a 404 and undefined.endsWith().
     # Render a geometrically correct 220 x 200 mm build plate instead.
+    # Give the Studio two real G-code visibility bounds; no fake geometry.
+    gcode_file=DEST/"src/gui/viewer/gcode_viewer.mjs"
+    gcode_file.write_text(gcode_file.read_text()+"""
+// The ranges are 1-based inclusive and operate on parsed Cura G-code groups.
+globalThis.AD4GCodePreview = {
+  get count(){return layers.length},
+  setRange(from,to){
+    const a=Math.max(1,Math.min(layers.length,Math.round(Number(from)||1)));
+    const b=Math.max(a,Math.min(layers.length,Math.round(Number(to)||1)));
+    layers.forEach((mesh,index)=>{mesh.visible=index+1>=a&&index+1<=b});
+    layer_slider.value=String(b);
+    return {from:a,to:b,count:layers.length};
+  }
+};
+""")
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          "machine_settings.machine_width.default_value / 2\n  );\n  mesh.rotation",
+          "machine_settings.machine_depth.default_value / 2\n  );\n  mesh.rotation")
+
     patch("src/gui/viewer/viewer.mjs",
           '    let res = await fetch("resources/meshes/" + model_filename);',
           """    if (!model_filename) {

@@ -78,13 +78,8 @@ function refreshState(){
  for(const name of ["ad4-v3-export","ad4-v3-send","ad4-v3-print"]){
   const b=$(name);if(b)b.disabled=!sliced||(staticPreview&&name!=="ad4-v3-export");
  }
- const layer=$("ad4-v3-layer-input"),native=$("layer-number");
- if(layer&&native){
-  const max=Number(native.max)||1;
-  if(layer.max!==String(max))layer.max=String(max);
-  layer.value=native.value||max;
-  $("ad4-v3-layer-number").textContent=String(layer.value)+" / "+String(max);
- }
+ // Native G-code layers remain authoritative; the range controls act on actual mesh groups.
+ if(current==="sliced")requestAnimationFrame(initLayerRulers);
  const progressBadge=$("ad4-v3-progress");
  if(progressBadge)progressBadge.hidden=!sliced;
 }
@@ -129,14 +124,72 @@ $("viewer")?.append(intro);
 const layerUI=make("section","ad4-v3-layer-card");layerUI.id="ad4-v3-layer-card";
 layerUI.innerHTML='<div class="ad4-v3-card-title"><strong>Sliced preview</strong><span id="ad4-v3-preview-status">Slice a model to preview layers</span></div>'+
 '<div class="ad4-v3-legend"><span><i class="wall"></i>Walls</span><span><i class="skin"></i>Top/Bottom</span><span><i class="infill"></i>Infill</span><span><i class="travel"></i>Travel</span></div>'+
-'<div class="ad4-v3-layer-control"><label for="ad4-v3-layer-input">'+svg("layers")+' Layers</label><input id="ad4-v3-layer-input" type="range" min="1" max="1" value="1"><output id="ad4-v3-layer-number">1 / 1</output></div>'+
+'<div class="ad4-v3-layer-range" aria-label="Actual Cura G-code layer bounds"><div class="ad4-v3-layer-bound" data-bound="lower"><label for="ad4-v3-layer-from">From layer</label><input id="ad4-v3-layer-from" type="number" min="1" max="1" value="1" inputmode="numeric"><div class="ad4-v3-layer-ruler" data-bound="lower" role="slider" tabindex="0" aria-label="First visible layer" aria-valuemin="1" aria-valuenow="1"><span class="ad4-v3-ruler-needle"></span></div></div><div class="ad4-v3-layer-bound" data-bound="upper"><label for="ad4-v3-layer-to">To layer</label><input id="ad4-v3-layer-to" type="number" min="1" max="1" value="1" inputmode="numeric"><div class="ad4-v3-layer-ruler" data-bound="upper" role="slider" tabindex="0" aria-label="Last visible layer" aria-valuemin="1" aria-valuenow="1"><span class="ad4-v3-ruler-needle"></span></div></div><output id="ad4-v3-layer-number">Layers 1–1</output></div>'+
 '<div class="ad4-v3-estimates"><span>'+svg("clock")+' <b id="ad4-v3-time">—</b><small>Estimated time</small></span><span>'+svg("filament")+' <b id="ad4-v3-material">—</b><small>Filament</small></span></div>';
 root.append(layerUI);
-$("ad4-v3-layer-input").addEventListener("input",event=>{
- const original=$("layer-number");if(!original)return;
- original.value=event.target.value;original.dispatchEvent(new Event("input",{bubbles:true}));
- $("ad4-v3-layer-number").textContent=event.target.value+" / "+original.max;
-});
+const layerRulers=new Map();
+let layerFrom=1,layerTo=1,layerCount=0,layerSync=false;
+function commitLayerRange(bound,raw){
+ const api=globalThis.AD4GCodePreview;
+ const count=api?.count||0;if(!count)return;
+ const value=Math.max(1,Math.min(count,Math.round(Number(raw)||1)));
+ if(bound==="lower")layerFrom=Math.min(value,layerTo);
+ else layerTo=Math.max(value,layerFrom);
+ api.setRange(layerFrom,layerTo);
+ for(const kind of ["lower","upper"]){
+  const value=kind==="lower"?layerFrom:layerTo;
+  const field=$(kind==="lower"?"ad4-v3-layer-from":"ad4-v3-layer-to");
+  field.value=String(value);field.max=String(count);
+  const ruler=document.querySelector('.ad4-v3-layer-ruler[data-bound="'+kind+'"]');
+  ruler.setAttribute("aria-valuenow",String(value));ruler.setAttribute("aria-valuemax",String(count));
+  const inst=layerRulers.get(kind);
+  if(inst&&inst.options.currentValue!==value){
+   layerSync=true;inst.options.currentValue=value;
+   try{inst.dreawCanvas()}finally{layerSync=false}
+  }
+ }
+ $("ad4-v3-layer-number").textContent="Layers "+layerFrom+"–"+layerTo+" of "+count;
+}
+function initLayerRulers(){
+ const api=globalThis.AD4GCodePreview,count=api?.count||0;
+ if(!count||current!=="sliced")return;
+ const Class=globalThis.SlideRuler?.default||globalThis.SlideRuler;
+ if(count!==layerCount){layerFrom=1;layerTo=count;layerCount=count;layerRulers.clear();
+  for(const mount of layerUI.querySelectorAll(".ad4-v3-layer-ruler"))mount.querySelector("canvas")?.remove()}
+ for(const kind of ["lower","upper"]){
+  const mount=layerUI.querySelector('.ad4-v3-layer-ruler[data-bound="'+kind+'"]');
+  const width=Math.max(130,mount.clientWidth);
+  const prev=layerRulers.get(kind),old=prev?.options;
+  if(prev&&old.canvasWidth===width&&old.maxValue===count)continue;
+  mount.querySelector("canvas")?.remove();layerRulers.delete(kind);
+  if(typeof Class==="function"){
+   layerSync=true;
+   try{
+    const obj=new Class({el:mount,canvasWidth:width,canvasHeight:50,
+      minValue:1,maxValue:count,currentValue:kind==="lower"?layerFrom:layerTo,
+      precision:1,divide:13,fontSize:11,fontColor:"#b3c6bd",
+      colorDecimal:"#a4c5ad",colorDigit:"#5b7267",
+      heightDecimal:18,heightDigit:9,
+      handleValue:value=>{if(!layerSync)commitLayerRange(kind,value)}});
+    layerRulers.set(kind,obj);
+   }finally{layerSync=false}
+  }
+ }
+ commitLayerRange("upper",layerTo);
+}
+for(const kind of ["lower","upper"]){
+ const input=$(kind==="lower"?"ad4-v3-layer-from":"ad4-v3-layer-to");
+ input.addEventListener("change",()=>commitLayerRange(kind,input.value));
+ const mount=layerUI.querySelector('.ad4-v3-layer-ruler[data-bound="'+kind+'"]');
+ mount.addEventListener("keydown",event=>{
+  if(!["ArrowLeft","ArrowRight","Home","End"].includes(event.key))return;
+  event.preventDefault();const current=kind==="lower"?layerFrom:layerTo;
+  const next=event.key==="Home"?1:event.key==="End"?layerCount:
+    current+(event.key==="ArrowLeft"?-1:1);
+  commitLayerRange(kind,next);
+ });
+}
+
 const transform=make("section","ad4-v3-transform");transform.id="ad4-v3-transform";
 transform.innerHTML='<button type="button" class="ad4-v3-sheet-handle" id="ad4-v3-sheet-handle" aria-label="Drag to resize Transform panel"><span></span></button>'+
 '<div class="ad4-v3-transform-top"><strong>Transform</strong><small id="ad4-v3-transform-help">Select a model on the plate to transform it</small></div>'+
