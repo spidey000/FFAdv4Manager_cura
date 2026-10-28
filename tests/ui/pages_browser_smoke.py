@@ -296,6 +296,19 @@ with sync_playwright() as p:
                     numeric_x=page.locator('.ad4-v3-axis[data-axis="x"] .ad4-v3-axis-value')
                     numeric_x.fill("127")
                     numeric_x.press("Tab")
+                    try:
+                        page.wait_for_function("""() => ['x','y','z'].every(axis =>
+                            document.querySelector('.ad4-v3-axis[data-axis="'+axis+'"] .ad4-v3-axis-value')?.value==='125'
+                        )""", timeout=1400)
+                    except Exception:
+                        state=page.evaluate("""() => ({
+                            focused:app.gui.model_viewer.focused,
+                            native:['x','y','z'].map(a=>document.getElementById('scale-'+a+'-value')?.value),
+                            shown:['x','y','z'].map(a=>document.querySelector('.ad4-v3-axis[data-axis="'+a+'"] .ad4-v3-axis-value')?.value),
+                            mode:[...document.querySelectorAll('.ad4-v3-mode button')].find(b=>b.getAttribute('aria-pressed')==='true')?.dataset.mode,
+                            lock:document.getElementById('ad4-v3-resize-lock')?.checked
+                        })""")
+                        print("PROPORTIONAL SCALE DIAGNOSTIC",width,state,flush=True)
                     proportion_values=[page.locator(f'.ad4-v3-axis[data-axis="{axis}"] .ad4-v3-axis-value').input_value() for axis in ("x","y","z")]
                     if proportion_values!=["125","125","125"]:
                         failures.append(f"{width}: lock proportions failed: {proportion_values}")
