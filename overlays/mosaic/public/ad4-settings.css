@@ -13,20 +13,6 @@
 #sidebar #ad4-presets-panel .ad4-native-label{display:flex;flex-direction:row;gap:7px;align-items:center}
 #sidebar #ad4-presets-panel input[type=checkbox]{accent-color:#a3e635;width:17px;height:17px}
 
-/* Full original Cura catalog lives alongside the five quick filters.
- * The native category select prevents loss of Experimental/Mesh Fixes/etc. */
-#sidebar #ad4-native-catalog-nav{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.45fr);
-  align-items:center;gap:6px;min-width:0}
-#sidebar #ad4-native-catalog-nav button,#sidebar #ad4-native-category{
-  min-width:0;max-width:100%;min-height:39px;border-radius:9px;
-  font-size:11px;padding:8px;color:#d8e8dc;background:#222e2a;
-  border:1px solid #50665b}
-#sidebar #ad4-all-cura{cursor:pointer;font-weight:750}
-#sidebar #ad4-all-cura[aria-pressed=true]{
-  color:#142719;background:#a3e635;border-color:#a3e635}
-#sidebar #ad4-native-category{cursor:pointer;text-overflow:ellipsis}
-#sidebar #ad4-catalog-count{font-size:11px;color:#bbcabf;margin:0 4px 4px;
-  font-variant-numeric:tabular-nums}
 #sidebar #ad4-categories,#sidebar #ad4-complexity{display:grid;gap:3px;min-width:0;padding:3px;background:#25303a;border:1px solid #44535e;border-radius:10px}
 #sidebar #ad4-categories{grid-template-columns:repeat(5,minmax(0,1fr))}
 #sidebar #ad4-complexity{grid-template-columns:repeat(4,minmax(0,1fr))}
@@ -80,12 +66,9 @@ body[data-ad4-screen=print] #sidebar .section[data-is_enabled="true"]:not([hidde
 body[data-ad4-screen=filament] #sidebar .section[data-is_enabled="true"]:not([hidden]){
  display:block!important;
 }
-#sidebar #ad4-native-catalog-nav button,#sidebar #ad4-native-category{min-height:44px!important}
 
 /* UI-06/08/28: one profile picker, accordion closed by default, tactile switches. */
 #sidebar #profile-selector-div{display:none!important}
-#sidebar #ad4-native-catalog-nav{grid-template-columns:minmax(0,1fr)!important}
-#sidebar #ad4-native-category{width:100%;min-height:44px!important}
 #sidebar .section[data-closed="true"]{min-height:0!important;height:auto!important;max-height:none!important}
 #sidebar .section[data-closed="true"]>.settings-group,
 #sidebar .section[data-closed="true"]>.section-content{display:none!important}
@@ -192,12 +175,6 @@ body[data-ad4-screen=filament] #sidebar .section[data-is_enabled="true"]:not([hi
 @media(prefers-reduced-motion:reduce){#ad4-setting-help *{scroll-behavior:auto!important}}
 
 /* Compact live Cura profile summary and sticky save/reset bar. */
-#sidebar #ad4-profile-summary{margin:4px 0;background:#1c2a23;border:1px solid #46614e;border-radius:12px}
-#sidebar #ad4-profile-summary summary{padding:10px 12px;font-weight:700;color:#ccf6d8;cursor:pointer;font-size:12px}
-#sidebar #ad4-profile-summary-content{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:10px;border-top:1px solid #3f5445}
-#sidebar #ad4-profile-summary-content span{min-width:0}
-#sidebar #ad4-profile-summary-content small{display:block;font-size:10px;color:#b1c7b7}
-#sidebar #ad4-profile-summary-content strong{display:block;margin-top:3px;font-size:12px;color:#effef0}
 #sidebar #ad4-settings-footer{position:sticky;bottom:0;z-index:25;background:#171e1b;padding:9px 5px;display:flex;gap:8px;border-top:1px solid #48634c}
 #sidebar #ad4-settings-footer button{min-height:44px;flex:1 1 0;border-radius:10px;border:1px solid #57735b;color:#edffed;background:#2a3930;font-size:12px;font-weight:750;cursor:pointer}
 #sidebar #ad4-settings-save{color:#10301a!important;background:#2dec79!important;border-color:#2dec79!important}
