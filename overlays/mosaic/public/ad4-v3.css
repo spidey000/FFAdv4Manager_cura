@@ -445,3 +445,182 @@ body[data-ad4-screen=sliced] #layer-slider{display:none!important}
 .ad4-v3-selection-tr{top:0;right:0;border-width:2px 2px 0 0}
 .ad4-v3-selection-bl{bottom:0;left:0;border-width:0 0 2px 2px}
 .ad4-v3-selection-br{bottom:0;right:0;border-width:0 2px 2px 0}
+
+
+/* AD4 minimal UI: flat, borderless. This final layer overrides the legacy
+ * Mosaic and v3 card styles without replacing native Cura setting controls.
+ * Keep one accent and separators only where they improve scanning.
+ */
+:root{--ad4-clean-green:#2dec79;--ad4-clean-bg:#101314;--ad4-clean-field:#1b2420;--ad4-clean-divider:#2a322e}
+#ad4-v3-top{background:#0c0f10!important;border:0!important;box-shadow:none!important;gap:1px!important;padding:3px 6px 5px!important}
+#ad4-v3-top .ad4-v3-icon-button,
+#ad4-v3-top .ad4-v3-icon-button[aria-pressed=true]{
+ position:relative;min-width:0;min-height:48px;border:0!important;border-radius:0!important;
+ box-shadow:none!important;background:transparent!important;color:#9aa6a2!important;padding:5px 1px 8px!important
+}
+#ad4-v3-top .ad4-v3-icon-button[aria-pressed=true]{color:var(--ad4-clean-green)!important}
+#ad4-v3-top .ad4-v3-icon-button[aria-pressed=true]::after{
+ content:"";position:absolute;bottom:0;left:35%;right:35%;height:2px;
+ border-radius:2px;background:var(--ad4-clean-green)
+}
+#ad4-v3-top .ad4-v3-icon-button .ad4-lucide,
+#ad4-v3-top .ad4-v3-icon-button[aria-pressed=true] .ad4-lucide{
+ background:transparent!important;color:inherit!important;border:0!important;box-shadow:none!important;
+ border-radius:0!important;padding:0!important;margin:0!important
+}
+#ad4-v3-top .ad4-v3-icon-button svg,
+#ad4-v3-top .ad4-v3-icon-button[aria-pressed=true] svg,
+#ad4-v3-top .ad4-v3-icon-button[aria-pressed=true] .ad4-icon-svg{
+ background:transparent!important;color:inherit!important;border:0!important;
+ border-radius:0!important;padding:0!important;box-sizing:border-box!important
+}
+#ad4-v3-status{border:0!important;box-shadow:none!important}
+body:is([data-ad4-screen=print],[data-ad4-screen=filament]) #ad4-sheet-header{display:none!important}
+body:is([data-ad4-screen=print],[data-ad4-screen=filament]) #sidebar{
+ background:var(--ad4-clean-bg)!important;padding:12px 14px max(26px,env(safe-area-inset-bottom))!important;
+ gap:0!important;scrollbar-gutter:auto
+}
+body:is([data-ad4-screen=print],[data-ad4-screen=filament]) #sidebar>*{margin-bottom:0!important}
+#sidebar #ad4-tuning-controls{
+ display:grid;gap:9px;min-width:0;padding:0!important;margin:0!important;
+ background:transparent!important;border:0!important;box-shadow:none!important
+}
+#sidebar #ad4-presets-toggle{
+ background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;
+ color:#c8d9ce!important;text-align:left;font-size:12px!important;font-weight:600!important;
+ padding:10px 2px!important;min-height:44px
+}
+#sidebar #ad4-presets-toggle[aria-expanded=true]{color:var(--ad4-clean-green)!important;background:transparent!important}
+#sidebar #ad4-presets-panel{
+ background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important;
+ padding:4px 0 12px!important;gap:9px!important
+}
+#sidebar #ad4-presets-panel label{color:#c4d2ca}
+#sidebar #ad4-presets-panel select,#sidebar #ad4-presets-panel input:not([type=checkbox]){
+ background:var(--ad4-clean-field)!important;border:0!important;box-shadow:none!important;
+ border-radius:6px!important;color:#eaf4ec!important
+}
+#sidebar #ad4-presets-panel .ad4-preset-row button{
+ background:#26342b!important;border:0!important;border-radius:6px!important;box-shadow:none!important
+}
+#sidebar #ad4-presets-panel .ad4-preset-row button.ad4-danger-action{
+ background:#39292a!important;color:#ffd7d7!important
+}
+#sidebar #ad4-categories,#sidebar #ad4-complexity{
+ display:grid!important;background:transparent!important;border:0!important;
+ box-shadow:none!important;border-radius:0!important;gap:0!important;padding:0!important
+}
+#sidebar #ad4-categories{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+#sidebar #ad4-complexity{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+#sidebar #ad4-categories button,#sidebar #ad4-complexity button{
+ min-width:0;min-height:42px;border:0!important;border-bottom:2px solid transparent!important;
+ border-radius:0!important;box-shadow:none!important;background:transparent!important;
+ padding:8px 1px!important;font-size:clamp(9px,2.55vw,12px)!important;font-weight:600!important;
+ color:#aab9b1!important;white-space:nowrap!important;text-overflow:clip
+}
+#sidebar #ad4-categories button[aria-pressed=true],
+#sidebar #ad4-complexity button[aria-pressed=true]{
+ color:var(--ad4-clean-green)!important;background:transparent!important;
+ border-bottom-color:var(--ad4-clean-green)!important
+}
+#sidebar #searchbar{margin:3px 0 9px!important;background:transparent!important;border:0!important}
+#sidebar #setting-search{
+ min-height:42px!important;background:var(--ad4-clean-field)!important;
+ color:#eef5ef!important;border:0!important;box-shadow:none!important;
+ border-radius:6px!important;font-size:13px!important
+}
+#sidebar #ad4-search-clear{
+ background:transparent!important;border:0!important;box-shadow:none!important;
+ color:#b4c5b9!important;border-radius:0!important
+}
+body:is([data-ad4-screen=print],[data-ad4-screen=filament]) #sidebar #sections{
+ background:transparent!important;padding:3px 0 12px!important
+}
+body:is([data-ad4-screen=print],[data-ad4-screen=filament]) #sidebar .section{
+ background:transparent!important;border:0!important;border-bottom:1px solid var(--ad4-clean-divider)!important;
+ border-radius:0!important;box-shadow:none!important;overflow:visible!important;margin:0!important;padding:0!important
+}
+body:is([data-ad4-screen=print],[data-ad4-screen=filament]) #sidebar .section .section-title-container{
+ min-height:51px!important;padding:10px 2px!important;background:transparent!important;
+ border:0!important;border-radius:0!important;box-shadow:none!important;color:#ebf1ed!important
+}
+#sidebar .section .section-title-container .left{font-size:13px!important;font-weight:650!important}
+#sidebar .section .section-title-container .left cura-icon{color:#9bbb9e!important}
+body:is([data-ad4-screen=print],[data-ad4-screen=filament]) #sidebar .section .settings-group{
+ padding:0 0 5px!important;gap:0!important;background:transparent!important;border:0!important;box-shadow:none!important
+}
+#sidebar .section .setting{
+ min-height:54px!important;padding:10px 2px!important;background:transparent!important;
+ border:0!important;border-bottom:1px solid #252e28!important;border-radius:0!important;box-shadow:none!important
+}
+#sidebar .section .setting:last-child{border-bottom:0!important}
+#sidebar .setting-bar{gap:8px!important;min-width:0!important}
+#sidebar .setting-name{font-size:12px!important;font-weight:450!important;line-height:1.35!important;color:#e0e8e2}
+#sidebar .ad4-setting-label-wrap{gap:2px!important}
+#sidebar .ad4-setting-help-trigger{
+ border:0!important;box-shadow:none!important;background:transparent!important;
+ color:#89bc94!important;width:25px!important;flex:0 0 25px!important
+}
+#sidebar .setting-value{
+ flex:0 1 auto!important;width:auto!important;max-width:50%!important;min-width:0!important;
+ min-height:0!important;height:auto!important;margin:0!important;padding:0!important;
+ border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important
+}
+#sidebar .setting-value input:not([type=checkbox]),#sidebar .setting-value select{
+ background:var(--ad4-clean-field)!important;border:0!important;border-radius:6px!important;
+ color:#e9f3eb!important;box-shadow:none!important;min-height:39px!important
+}
+#sidebar .setting-value input[type=number],#sidebar .setting-value .ad4-compact-number{
+ width:76px!important;min-width:60px!important;max-width:76px!important;padding:6px 5px!important
+}
+#sidebar .setting-value input[type=checkbox],#sidebar input.ad4-toggle-input[type=checkbox]{
+ appearance:none!important;-webkit-appearance:none!important;box-sizing:border-box!important;
+ width:43px!important;min-width:43px!important;height:25px!important;min-height:25px!important;max-height:25px!important;
+ border:0!important;border-radius:999px!important;background:#48544c!important;box-shadow:none!important
+}
+#sidebar .setting-value input[type=checkbox]:checked,#sidebar input.ad4-toggle-input[type=checkbox]:checked{
+ border:0!important;background:var(--ad4-clean-green)!important;box-shadow:none!important
+}
+#sidebar .setting-value input[type=checkbox]::after,#sidebar input.ad4-toggle-input[type=checkbox]::after{
+ top:3px!important;left:3px!important;width:19px!important;height:19px!important;
+ background:#ecf3ec!important;box-shadow:none!important
+}
+#sidebar .setting-value input[type=checkbox]:checked::after,
+#sidebar input.ad4-toggle-input[type=checkbox]:checked::after{
+ background:#12321e!important;transform:translateX(18px)!important
+}
+#sidebar .setting-value input[type=checkbox]:focus-visible,
+#sidebar input.ad4-toggle-input[type=checkbox]:focus-visible{
+ outline:2px solid #e4f5e8!important;outline-offset:3px!important
+}
+#sidebar .ad4-setting-reset,#sidebar .ad4-setting-reset:disabled{
+ background:transparent!important;border:0!important;box-shadow:none!important;
+ border-radius:0!important;color:#65766b!important;min-height:40px!important;
+ width:35px!important;flex:0 0 35px!important;font-size:19px!important
+}
+#sidebar .ad4-setting-reset.changed{
+ color:var(--ad4-clean-green)!important;background:transparent!important;border:0!important
+}
+#sidebar #ad4-settings-footer{
+ position:static!important;bottom:auto!important;z-index:auto!important;
+ display:flex!important;justify-content:flex-end!important;gap:8px!important;
+ padding:12px 0 18px!important;margin:0!important;background:transparent!important;
+ border:0!important;box-shadow:none!important
+}
+#sidebar #ad4-settings-footer button,#sidebar #ad4-settings-save{
+ flex:0 1 auto!important;min-height:44px!important;padding:8px 12px!important;
+ border:0!important;border-radius:6px!important;box-shadow:none!important;
+ background:transparent!important;color:#adbdb2!important;font-size:12px!important;font-weight:600!important
+}
+#sidebar #ad4-settings-save{color:var(--ad4-clean-green)!important}
+#sidebar #ad4-settings-footer button:focus-visible{outline:2px solid var(--ad4-clean-green)!important;outline-offset:0}
+#ad4-v3-printer-page .ad4-printer-card,#ad4-manager .ad4-section,
+#ad4-v3-app .ad4-v3-app-card{border:0!important;box-shadow:none!important}
+#ad4-v3-printer-page .ad4-printer-card{background:#1d2722!important}
+#ad4-v3-app .ad4-v3-app-card{background:#1d2521!important}
+@media(max-width:390px){
+ body:is([data-ad4-screen=print],[data-ad4-screen=filament]) #sidebar{padding-inline:10px!important}
+ #sidebar #ad4-categories button{font-size:9px!important;letter-spacing:-.02em}
+ #sidebar .setting-name{font-size:11.5px!important}
+ #sidebar .ad4-setting-reset{width:31px!important;flex-basis:31px!important}
+}
