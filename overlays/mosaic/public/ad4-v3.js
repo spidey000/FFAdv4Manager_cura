@@ -120,6 +120,7 @@ function activate(name){
  if(name==="print"||name==="filament"){
   const b=document.querySelector("#ad4-categories button[data-name='"+(name==="filament"?"Material":"Quality")+"']");
   b?.click();
+  document.dispatchEvent(new CustomEvent("ad4:enter-settings",{detail:{screen:name}}));
  }
  if(name==="preview"||name==="transform"||name==="slice-info")$("prepare-tab-button")?.click();
  if(name==="sliced"){

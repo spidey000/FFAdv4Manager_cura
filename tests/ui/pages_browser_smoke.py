@@ -86,6 +86,11 @@ with sync_playwright() as p:
                 categories=page.locator("#ad4-categories button").count()
                 print("V3 PRINT / CURA CATEGORIES",categories,flush=True)
                 if categories<5:failures.append("Print settings categories missing")
+                # Accordions MUST start collapsed when Print opens.
+                closed=page.locator('#sidebar #sections > .section:not([hidden])[data-closed="true"]').count()
+                print("COLLAPSED SETTINGS GROUPS",closed,flush=True)
+                if closed<1:failures.append(f"{width}: expected Print accordion groups initially collapsed")
+                page.locator('#sidebar #sections > .section:not([hidden]) .section-title-container').first.click()
                 visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("PRINT QUALITY SETTINGS VISIBLE",visible,flush=True)
                 print("CURA DOM CATEGORIES",page.evaluate("""() => Array.from(document.querySelectorAll("#sections .section")).slice(0,16).map(el=>({category:el.dataset.category_id,title:el.querySelector(".section-title-container")?.textContent?.trim(),count:el.querySelectorAll(".setting[data-setting_id]").length,visible:Array.from(el.querySelectorAll(".setting[data-setting_id]")).filter(n=>!n.hidden).slice(0,8).map(n=>n.dataset.setting_id)}))"""),flush=True)
@@ -114,9 +119,9 @@ with sync_playwright() as p:
                 # Ensure enough Cura settings exist for actual scrolling, then use a
                 # physical wheel gesture instead of assigning scrollTop directly.
                 page.locator("#ad4-presets-toggle").click()
-                all_cura=page.locator("#ad4-all-cura")
-                if not all_cura.is_visible():failures.append(f"{width}: All Cura catalog selector hidden")
-                all_cura.click()
+                picker=page.locator("#ad4-native-category")
+                if not picker.is_visible():failures.append(f"{width}: Cura category browser hidden")
+                picker.select_option("all")
                 native_stats=page.evaluate("""() => {
                     const rows=[...document.querySelectorAll('#sections .setting[data-setting_id]')];
                     const categories=[...document.querySelectorAll('#sections > .section[data-category_id]')];
@@ -128,7 +133,9 @@ with sync_playwright() as p:
                 print("NATIVE CURA CATALOG",native_stats,flush=True)
                 if native_stats["total"]<100:failures.append(f"{width}: incomplete full Cura catalog")
                 if native_stats["visible"]!=native_stats["total"]:
-                    failures.append(f"{width}: native Cura rows hidden: {native_stats['visible']}/{native_stats['total']}")
+                    failures.append(f"{width}: native Cura rows not in catalog: {native_stats['visible']}/{native_stats['total']}")
+                if not page.locator('#sections > .section:not([hidden])[data-closed="true"]').count():
+                    failures.append(f"{width}: All Cura categories were expanded unexpectedly")
                 if len(native_stats["groups"])<8:failures.append(f"{width}: native Cura categories missing")
                 if page.locator("#ad4-native-category option").count()<9:
                     failures.append(f"{width}: native Cura browse categories absent")
@@ -184,18 +191,28 @@ with sync_playwright() as p:
                         if recovered < 20:
                             failures.append(f"{width}: Print sheet cannot scroll to its settings")
                 page.screenshot(path=f"/tmp/ad4-pages-print-scrolled-{width}.png",full_page=False)
+                # Search does not auto-expand groups, which is intentional.
                 page.locator("#setting-search").fill("temperature")
+                for category in page.locator("#sections > .section:not([hidden])").all():
+                    if category.get_attribute("data-closed")=="true":
+                        category.locator(".section-title-container").first.click()
                 page.wait_for_timeout(100)
                 if page.locator("#sidebar .setting[data-setting_id]:visible").count()<1:failures.append(f"{width}: global settings search cannot find temperature")
                 page.locator("#ad4-search-clear").click()
                 if page.locator("#setting-search").input_value():failures.append(f"{width}: clear-search failed")
                 page.locator("#ad4-categories button[data-name='Speed']").click()
+                for category in page.locator("#sections > .section:not([hidden])").all():
+                    if category.get_attribute("data-closed")=="true":
+                        category.locator(".section-title-container").first.click()
                 speed_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("SPEED DOM",page.evaluate("""() => ({search:document.querySelector("#setting-search")?.value,pressed:[...document.querySelectorAll("#ad4-categories button")].filter(b=>b.getAttribute("aria-pressed")==="true").map(b=>b.dataset.name),sections:[...document.querySelectorAll("#sections > .section")].filter(s=>["speed","travel","cooling","material"].includes(s.dataset.category_id)).map(s=>({id:s.dataset.category_id,hidden:s.hidden,closed:s.dataset.closed,rows:s.querySelectorAll(".setting[data-setting_id]").length,unhidden:[...s.querySelectorAll(".setting[data-setting_id]")].filter(r=>!r.hidden).length,height:s.getBoundingClientRect().height}))})"""),flush=True)
                 print("SPEED SETTING ENABLED",page.evaluate("""() => Object.fromEntries(["speed_print","speed_wall","speed_travel","speed_infill","acceleration_print","cool_fan_enabled","material_print_temperature","material_bed_temperature"].map(id=>{const row=[...document.querySelectorAll("#sections .setting[data-setting_id]")].find(x=>x.dataset.setting_id===id);return [id,row?{enabled:row.dataset.is_enabled,hidden:row.hidden,display:getComputedStyle(row).display,parent_section:row.closest(".section")?.dataset.category_id,section_display:getComputedStyle(row.closest(".section")).display,value:row.querySelector("input")?.value}:null]}))"""),flush=True)
                 if speed_visible<10:failures.append(f"{width}: incomplete Cura Speed values: {speed_visible}")
                 page.locator('#ad4-v3-top [data-route="filament"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='filament'",timeout=4000)
+                for category in page.locator("#sections > .section:not([hidden])").all():
+                    if category.get_attribute("data-closed")=="true":
+                        category.locator(".section-title-container").first.click()
                 material_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("V3 MATERIAL SETTINGS",material_visible,flush=True)
                 print("MATERIAL DOM",page.evaluate("""() => ({search:document.querySelector("#setting-search")?.value,pressed:[...document.querySelectorAll("#ad4-categories button")].filter(b=>b.getAttribute("aria-pressed")==="true").map(b=>b.dataset.name),sections:[...document.querySelectorAll("#sections > .section")].filter(s=>["material","speed","cooling"].includes(s.dataset.category_id)).map(s=>({id:s.dataset.category_id,hidden:s.hidden,closed:s.dataset.closed,rows:s.querySelectorAll(".setting[data-setting_id]").length,unhidden:[...s.querySelectorAll(".setting[data-setting_id]")].filter(r=>!r.hidden).length,height:s.getBoundingClientRect().height}))})"""),flush=True)
