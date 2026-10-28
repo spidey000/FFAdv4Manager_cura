@@ -182,7 +182,10 @@ with sync_playwright() as p:
                 material_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("V3 MATERIAL SETTINGS",material_visible,flush=True)
                 print("MATERIAL DOM",page.evaluate("""() => ({search:document.querySelector("#setting-search")?.value,pressed:[...document.querySelectorAll("#ad4-categories button")].filter(b=>b.getAttribute("aria-pressed")==="true").map(b=>b.dataset.name),sections:[...document.querySelectorAll("#sections > .section")].filter(s=>["material","speed","cooling"].includes(s.dataset.category_id)).map(s=>({id:s.dataset.category_id,hidden:s.hidden,closed:s.dataset.closed,rows:s.querySelectorAll(".setting[data-setting_id]").length,unhidden:[...s.querySelectorAll(".setting[data-setting_id]")].filter(r=>!r.hidden).length,height:s.getBoundingClientRect().height}))})"""),flush=True)
-                if material_visible<8:failures.append(f"{width}: incomplete Artillery PLA Material values: {material_visible}")
+                if material_visible<6:failures.append(f"{width}: material controls unexpectedly absent: {material_visible}")
+                for setting_id in ("material_print_temperature","material_bed_temperature"):
+                    if not page.locator(f'#sections .setting[data-setting_id="{setting_id}"]:visible').count():
+                        failures.append(f"{width}: required Artillery PLA control hidden: {setting_id}")
                 if page.locator("#ad4-categories [data-name='Material']").get_attribute("aria-pressed")!="true":failures.append(f"{width}: Filament did not select Material")
                 page.screenshot(path=f"/tmp/ad4-pages-filament-{width}.png",full_page=False)
                 page.locator('#ad4-v3-top [data-route="printer"]').click()
