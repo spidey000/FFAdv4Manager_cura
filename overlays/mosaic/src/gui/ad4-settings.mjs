@@ -157,9 +157,12 @@ function filterRows(){
    const visibleChild=[...row.querySelectorAll(".setting[data-setting_id]")].some(child=>!child.hidden);
    const show=Boolean(inGroup)&&((matches&&allowedAtLevel)||visibleChild);
    row.hidden=!show;
+    // Replace Mosaic's separate native visibility flag with our active category filter.
+    row.dataset.should_show=String(show);
    if(show)shown++;
   }
   section.hidden=!shown;
+  section.dataset.should_show=String(shown>0);
   // Native section enablement can be stale after Cura resolves settings.
   // Recompute from the real enabled children rather than hiding entire
   // Speed/Travel groups that contain enabled parameters.
