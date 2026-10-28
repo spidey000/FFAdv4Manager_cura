@@ -121,6 +121,49 @@ $("ad4-v3-return-preview").addEventListener("click",()=>activate("preview"));
 const intro=make("div","ad4-v3-workspace-card");intro.id="ad4-v3-workspace-card";
 intro.innerHTML='<div class="ad4-v3-file-symbol">'+svg("cube")+'</div><span><strong id="ad4-v3-file-label">No model loaded</strong><small id="ad4-v3-file-detail">STL or 3MF</small></span>';
 $("viewer")?.append(intro);
+/* Decorative selection brackets track the *real* selected Three.js geometry.
+ * Do not intercept canvas gestures; no fake selection state is created.
+ */
+const frame=make("div","ad4-v3-selection-brackets");
+frame.id="ad4-v3-selection-brackets";
+frame.setAttribute("aria-hidden","true");
+for(const pos of ["tl","tr","bl","br"]){
+ const corner=make("i","ad4-v3-selection-"+pos);frame.append(corner);
+}
+frame.hidden=true;$("viewer")?.append(frame);
+function refreshSelectionBrackets(){
+ if(!["preview","transform"].includes(current)){frame.hidden=true;return}
+ const mv=globalThis.app?.gui?.model_viewer;
+ const selection=mv?.focused?mv?.models?.[mv.focused]?.mesh:null;
+ const camera=globalThis.app?.gui?.renderer?.camera;
+ const canvas=$("stl-viewer");
+ if(!selection||!camera||!canvas){frame.hidden=true;return}
+ selection.geometry?.computeBoundingBox?.();
+ const bounding=selection.geometry?.boundingBox;
+ if(!bounding){frame.hidden=true;return}
+ const points=[];
+ for(const x of [bounding.min.x,bounding.max.x])
+ for(const y of [bounding.min.y,bounding.max.y])
+ for(const z of [bounding.min.z,bounding.max.z]){
+  const p=selection.position.clone().set(x,y,z);
+  selection.localToWorld(p);
+  p.project(camera);
+  if(Number.isFinite(p.x)&&Number.isFinite(p.y)&&p.z>=-1&&p.z<=1)
+   points.push({x:(p.x+1)*canvas.clientWidth*.5,y:(1-p.y)*canvas.clientHeight*.5});
+ }
+ if(!points.length){frame.hidden=true;return}
+ const x0=Math.min(...points.map(p=>p.x)),x1=Math.max(...points.map(p=>p.x));
+ const y0=Math.min(...points.map(p=>p.y)),y1=Math.max(...points.map(p=>p.y));
+ const w=canvas.clientWidth,h=canvas.clientHeight;
+ const pad=9,left=Math.max(0,x0-pad),top=Math.max(0,y0-pad);
+ const width=Math.min(w-left,Math.max(36,x1-x0+pad*2));
+ const height=Math.min(h-top,Math.max(36,y1-y0+pad*2));
+ Object.assign(frame.style,{left:left+"px",top:top+"px",width:width+"px",height:height+"px"});
+ frame.hidden=false;
+}
+setInterval(refreshSelectionBrackets,120);
+
+
 const layerUI=make("section","ad4-v3-layer-card");layerUI.id="ad4-v3-layer-card";
 layerUI.innerHTML='<div class="ad4-v3-card-title"><strong>Sliced preview</strong><span id="ad4-v3-preview-status">Slice a model to preview layers</span></div>'+
 '<div class="ad4-v3-legend"><span><i class="wall"></i>Walls</span><span><i class="skin"></i>Top/Bottom</span><span><i class="infill"></i>Infill</span><span><i class="travel"></i>Travel</span></div>'+

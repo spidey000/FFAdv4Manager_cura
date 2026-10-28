@@ -435,3 +435,13 @@ body[data-ad4-screen=sliced] #layer-slider{display:none!important}
 .ad4-v3-camera-toolbar button:focus-visible{outline:2px solid #2dec79;outline-offset:2px}
 .ad4-v3-mode{touch-action:pan-y}
 @media(max-width:340px){.ad4-v3-camera-toolbar button{font-size:10px}}
+
+/* Actual mesh projected selection brackets: purely decorative viewport furniture. */
+#viewer{position:relative}
+#ad4-v3-selection-brackets{position:absolute;z-index:24;pointer-events:none;border:0;box-sizing:border-box}
+#ad4-v3-selection-brackets[hidden]{display:none!important}
+#ad4-v3-selection-brackets i{position:absolute;display:block;width:19px;height:19px;border-color:#d1ffde;border-style:solid}
+.ad4-v3-selection-tl{top:0;left:0;border-width:2px 0 0 2px}
+.ad4-v3-selection-tr{top:0;right:0;border-width:2px 2px 0 0}
+.ad4-v3-selection-bl{bottom:0;left:0;border-width:0 0 2px 2px}
+.ad4-v3-selection-br{bottom:0;right:0;border-width:0 2px 2px 0}
