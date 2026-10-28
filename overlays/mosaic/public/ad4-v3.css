@@ -338,3 +338,38 @@ body[data-ad4-screen=app] #ad4-v3-app{padding-bottom:max(30px,env(safe-area-inse
 #viewer #controls,#viewer .transform-controls,#viewer #model-controls,
 #viewer #movement-controls,#viewer #rotation-controls{display:none!important}
 @media(max-width:390px){#ad4-v3-status{max-width:112px!important}#ad4-v3-action-row .ad4-v3-action{font-size:10px}}
+
+/* Printer: data-absent cards are first-class screens, never conditional panels. */
+#ad4-v3-printer-page{padding:16px clamp(12px,3.2vw,30px) max(42px,env(safe-area-inset-bottom))!important}
+#ad4-v3-printer-page .ad4-printer-overview{display:flex;justify-content:space-between;align-items:start;gap:14px;
+ max-width:1140px;margin:auto auto 12px}
+#ad4-v3-printer-page .ad4-printer-overview h2{margin:0 0 6px;font-size:21px}
+#ad4-v3-printer-page .ad4-printer-overview p{margin:0;color:#c6d8cb;font-size:12px;line-height:1.45}
+#ad4-printer-refresh{border:1px solid #527862;background:#244231;color:#e6f7ed;
+ border-radius:10px;min-height:44px;padding:8px 15px;font-size:12px;flex:none}
+#ad4-printer-refresh:disabled{opacity:.5;cursor:not-allowed}
+#ad4-v3-printer-page .ad4-printer-note{max-width:1140px;margin:0 auto 14px;font-size:12px;
+ color:#b3c4b9;line-height:1.45}
+#ad4-v3-printer-page .ad4-printer-dashboard{max-width:1140px;margin:0 auto;
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch}
+#ad4-v3-printer-page .ad4-printer-card{display:flex!important;flex-direction:column;min-width:0;
+ gap:9px;background:#202b28;border:1px solid #3b584b;border-radius:15px;
+ padding:16px;overflow:visible;visibility:visible!important}
+#ad4-v3-printer-page .ad4-printer-card h3{margin:0;color:#eef8f1;font-size:15px;line-height:1.3}
+#ad4-v3-printer-page .ad4-printer-label{color:#a9c9b8;font-size:12px;line-height:1.35}
+#ad4-v3-printer-page .ad4-printer-value{font-size:16px;line-height:1.35;overflow-wrap:anywhere;
+ color:#f2fff5;min-height:22px;font-weight:750}
+#ad4-v3-printer-page .ad4-printer-detail{color:#a6bdb0;font-size:12px;line-height:1.45;margin:0 0 6px;
+ min-height:32px;overflow-wrap:anywhere}
+#ad4-v3-printer-page .ad4-printer-card button{margin-top:auto;min-height:44px;min-width:0;
+ border:1px solid #5e9170;border-radius:9px;background:#294935;color:#ecfff0;
+ padding:8px 12px;font-size:12px;text-align:center;font-weight:650}
+#ad4-v3-printer-page .ad4-printer-card button:disabled{background:#2c3631;color:#9fb2a5;
+ border-color:#495a50;opacity:.8;cursor:not-allowed}
+#ad4-v3-printer-page .ad4-printer-card button:focus-visible,#ad4-printer-refresh:focus-visible{
+ outline:2px solid #a3e635;outline-offset:3px}
+@media(max-width:620px){
+ #ad4-v3-printer-page .ad4-printer-dashboard{grid-template-columns:minmax(0,1fr);gap:10px}
+ #ad4-v3-printer-page .ad4-printer-card{padding:14px;gap:8px}
+ #ad4-v3-printer-page .ad4-printer-overview h2{font-size:19px}
+}
