@@ -282,7 +282,7 @@ with sync_playwright() as p:
                     failures.append(f"{width}: obsolete Orient control remained")
                 page.locator("#ad4-v3-nav-move").click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='transform'",timeout=4000)
-                if page.locator(".ad4-v3-axis-slider:visible").count()!=3:
+                if page.locator(".ad4-v3-axis-ruler:visible").count()!=3:
                     failures.append("Three-axis transform missing")
                 if page.locator(".ad4-v3-axis-value:visible").count()!=3:failures.append(f"{width}: labeled numeric axis inputs missing")
                 if page.locator("#ad4-v3-snap").count()!=1 or page.locator("#ad4-v3-resize-lock").count()!=1:failures.append(f"{width}: transform snap/lock missing")

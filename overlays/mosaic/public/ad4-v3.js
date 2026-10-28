@@ -138,7 +138,8 @@ $("ad4-v3-layer-input").addEventListener("input",event=>{
  $("ad4-v3-layer-number").textContent=event.target.value+" / "+original.max;
 });
 const transform=make("section","ad4-v3-transform");transform.id="ad4-v3-transform";
-transform.innerHTML='<div class="ad4-v3-transform-top"><strong>Orientation / Transform</strong><small id="ad4-v3-transform-help">Select a model on the plate to transform it</small></div>'+
+transform.innerHTML='<button type="button" class="ad4-v3-sheet-handle" id="ad4-v3-sheet-handle" aria-label="Drag to resize Transform panel"><span></span></button>'+
+'<div class="ad4-v3-transform-top"><strong>Transform</strong><small id="ad4-v3-transform-help">Select a model on the plate to transform it</small></div>'+
 '<nav class="ad4-v3-mode"><button type="button" data-mode="translate">'+svg("move")+'Move</button><button type="button" data-mode="rotate">'+svg("rotate")+'Rotate</button><button type="button" data-mode="scale">'+svg("scale")+'Scale</button></nav>'+
 '<div class="ad4-v3-snap"><label><input id="ad4-v3-snap" type="checkbox" checked> Snap 5 units</label><label id="ad4-v3-lock-wrap"><input id="ad4-v3-resize-lock" type="checkbox" checked> Lock proportions</label></div>'+
  '<div class="ad4-v3-axis-list"></div>'+
@@ -146,73 +147,180 @@ transform.innerHTML='<div class="ad4-v3-transform-top"><strong>Orientation / Tra
 root.append(transform);
 const axisList=transform.querySelector(".ad4-v3-axis-list");
 let mode="rotate";
+const rulers=new Map();
+let synchronizing=false;
+const limits={translate:[-110,110],rotate:[-180,180],scale:[10,250]};
+const units={translate:" mm",rotate:"°",scale:"%"};
+const axisRows={};
 for(const axis of ["x","y","z"]){
- const row=make("label","ad4-v3-axis");row.dataset.axis=axis;
- row.innerHTML='<b>'+axis.toUpperCase()+'</b><input class="ad4-v3-axis-slider" type="range" min="-180" max="180" step="5" value="0" aria-label="'+axis.toUpperCase()+' axis slider"><input class="ad4-v3-axis-value" type="number" step="5" value="0" aria-label="'+axis.toUpperCase()+' axis value"><output>0°</output>';
- axisList.append(row);
- row.querySelector(".ad4-v3-axis-slider").addEventListener("input",e=>setAxis(axis,Number(e.target.value)));
- row.querySelector(".ad4-v3-axis-value").addEventListener("change",e=>setAxis(axis,Number(e.target.value)));
+ const row=make("section","ad4-v3-axis");row.dataset.axis=axis;
+ row.innerHTML='<div class="ad4-v3-axis-top"><b>'+axis.toUpperCase()+'</b>'+
+ '<input class="ad4-v3-axis-value" type="number" step="1" value="0" aria-label="'+axis.toUpperCase()+' exact value">'+
+ '<span class="ad4-v3-axis-unit">°</span>'+
+ '<div class="ad4-v3-axis-step"><button type="button" data-offset="-45">−45°</button><button type="button" data-offset="45">+45°</button></div></div>'+
+ '<div class="ad4-v3-axis-ruler" role="slider" tabindex="0" aria-label="'+axis.toUpperCase()+' ruler" aria-valuemin="-180" aria-valuemax="180" aria-valuenow="0">'+
+ '<span class="ad4-v3-ruler-needle" aria-hidden="true"></span></div>';
+ axisList.append(row);axisRows[axis]=row;
+ const numeric=row.querySelector(".ad4-v3-axis-value");
+ numeric.addEventListener("change",()=>setAxis(axis,Number(numeric.value)));
+ numeric.addEventListener("blur",()=>setAxis(axis,Number(numeric.value)));
+ numeric.addEventListener("keydown",e=>{if(e.key==="Enter")numeric.blur()});
+ row.querySelectorAll("[data-offset]").forEach(b=>b.addEventListener("click",()=>{
+   if(mode!=="rotate")return;
+   const old=Number(sourceAxis(axis)?.value)||0;
+   setAxis(axis,((old+Number(b.dataset.offset)+540)%360)-180,{exact:true});
+ }));
+ const holder=row.querySelector(".ad4-v3-axis-ruler");
+ holder.addEventListener("keydown",e=>{
+   if(!["ArrowLeft","ArrowRight","Home","End"].includes(e.key))return;
+   e.preventDefault();
+   const [min,max]=limits[mode],snap=$("ad4-v3-snap").checked;
+   const step=snap?5:1;
+   const current=Number(sourceAxis(axis)?.value)||0;
+   const val=e.key==="Home"?min:e.key==="End"?max:current+(e.key==="ArrowRight"?step:-step);
+   setAxis(axis,val);
+ });
 }
 function sourceAxis(axis){
  const prefix=mode==="rotate"?"rotation":mode==="translate"?"movement":"scale";
  return $(prefix+"-"+axis+"-value");
 }
-function setAxis(axis,raw){
- const focused=globalThis.app?.gui?.model_viewer?.focused;
- if(!focused){notify("Select the model on the plate to transform it");return}
+function hasSelection(){return Boolean(globalThis.app?.gui?.model_viewer?.focused)}
+function normalized(mode,value,snap,exact){
+ const [low,high]=limits[mode];
+ if(!Number.isFinite(value))return null;
+ const rounded=snap&&!exact?Math.round(value/5)*5:value;
+ return Math.max(low,Math.min(high,rounded));
+}
+function renderAxis(axis,current){
+ const row=axisRows[axis],input=row.querySelector(".ad4-v3-axis-value");
+ input.value=String(Number(current.toFixed(3)));
+ const holder=row.querySelector(".ad4-v3-axis-ruler"),number=Number(input.value);
+ row.querySelector(".ad4-v3-axis-unit").textContent=units[mode];
+ holder.setAttribute("aria-valuenow",String(number));
+ holder.setAttribute("aria-valuetext",number+units[mode]);
+ holder.setAttribute("aria-valuemin",String(limits[mode][0]));
+ holder.setAttribute("aria-valuemax",String(limits[mode][1]));
+ const inst=rulers.get(axis);
+ if(inst&&inst.options.currentValue!==number){
+   synchronizing=true;
+   inst.options.currentValue=number;
+   try{inst.dreawCanvas()}finally{synchronizing=false}
+ }
+}
+function refreshAxis(){
+ for(const axis of ["x","y","z"]){
+   const read=Number(sourceAxis(axis)?.value),number=Number.isFinite(read)?read:mode==="scale"?100:0;
+   renderAxis(axis,number);
+ }
+}
+function setAxis(axis,raw,{exact=false}={}){
+ if(!hasSelection()){notify("Tap a model to select it before transforming");return}
  const snap=$("ad4-v3-snap").checked;
- const value=snap?Math.round(raw/5)*5:raw;
- const targets=mode==="scale" && $("ad4-v3-resize-lock").checked?["x","y","z"]:[axis];
- for(const key of targets){
-  const source=sourceAxis(key);
-  if(!source)continue;
-  source.value=String(value);
+ const value=normalized(mode,raw,snap,exact);
+ if(value===null){notify("Enter a valid numeric value");return}
+ const old=Number(sourceAxis(axis)?.value)|| (mode==="scale"?100:0);
+ const locked=mode==="scale"&&$("ad4-v3-resize-lock").checked;
+ const factor=locked&&old!==0?value/old:1;
+ for(const key of locked?["x","y","z"]:[axis]){
+  const source=sourceAxis(key);if(!source)continue;
+  const prior=Number(source.value);
+  const target=key===axis?value:Math.min(250,Math.max(10,Number((prior*factor).toFixed(5))));
+  source.value=String(target);
   source.dispatchEvent(new Event("input",{bubbles:true}));
-  const row=axisList.querySelector('[data-axis="'+key+'"]');
-  row.querySelector(".ad4-v3-axis-slider").value=String(value);
-  row.querySelector(".ad4-v3-axis-value").value=String(value);
-  row.querySelector("output").textContent=String(value)+(mode==="rotate"?"°":mode==="scale"?"%":" mm");
  }
  $("slice-export-container")?.setAttribute("data-active","false");
+ refreshAxis();
+}
+function initRulers(){
+ const Slider=globalThis.SlideRuler?.default||globalThis.SlideRuler;
+ for(const axis of ["x","y","z"]){
+  const row=axisRows[axis],holder=row.querySelector(".ad4-v3-axis-ruler");
+  const [min,max]=limits[mode],value=Number(sourceAxis(axis)?.value)|| (mode==="scale"?100:0);
+  const width=Math.max(150,holder.clientWidth),existing=rulers.get(axis);
+  if(existing&&existing.options.canvasWidth===width&&existing.options.minValue===min&&existing.options.maxValue===max)continue;
+  holder.querySelector("canvas")?.remove();rulers.delete(axis);
+  if(typeof Slider==="function"){
+   synchronizing=true;
+   try{
+    const createdMode=mode;
+    const ruler=new Slider({el:holder,canvasWidth:width,canvasHeight:63,minValue:min,maxValue:max,
+     currentValue:value,precision:$("ad4-v3-snap").checked?5:1,divide:11,
+     colorDecimal:"#a0b3ab",colorDigit:"#697e78",fontColor:"#bfd3ca",
+     fontSize:12,heightDecimal:24,heightDigit:12,handleValue:next=>{
+      // A ruler can finish a swipe after the user switches Scale -> Rotate.
+      // Never apply an old scale value to a different transform mode.
+      if(synchronizing||mode!==createdMode||!holder.isConnected)return;
+      setAxis(axis,next);
+     }});
+    rulers.set(axis,ruler);
+   }finally{synchronizing=false}
+  }else{
+   // Explicit unavailable state, rather than a fake nonfunctional slider.
+   holder.setAttribute("aria-disabled","true");
+   holder.title="Ruler library unavailable; numeric editor remains functional";
+  }
+ }
+ refreshAxis();
 }
 function setTransform(next){
  mode=next;
  for(const b of transform.querySelectorAll("[data-mode]"))b.setAttribute("aria-pressed",String(b.dataset.mode===next));
- const focused=globalThis.app?.gui?.model_viewer?.focused;
- const controls=globalThis.app?.gui?.model_viewer?.model_controls;
+ const focused=globalThis.app?.gui?.model_viewer?.focused,controls=globalThis.app?.gui?.model_viewer?.model_controls;
  if(focused&&controls?.mode!==next){
   const btn=$(next==="translate"?"movement-button":next==="rotate"?"rotate-button":"scale-button");
   btn?.firstElementChild?.click();
  }
- for(const axis of ["x","y","z"]){
-  const row=axisList.querySelector('[data-axis="'+axis+'"]');
-  const input=row.querySelector(".ad4-v3-axis-slider"),source=sourceAxis(axis);
-  const value=Number(source?.value);
-  input.min=next==="rotate"?"-180":next==="scale"?"10":"-110";
-  input.max=next==="rotate"?"180":next==="scale"?"250":"110";
-  input.step=$("ad4-v3-snap").checked?"5":"1";
-  input.value=String(Number.isFinite(value)?value:next==="scale"?100:0);
-  row.querySelector(".ad4-v3-axis-value").min=input.min;
-  row.querySelector(".ad4-v3-axis-value").max=input.max;
-  row.querySelector(".ad4-v3-axis-value").step=input.step;
-  row.querySelector(".ad4-v3-axis-value").value=input.value;
-  input.setAttribute("aria-label",axis.toUpperCase()+" "+next+" slider");
-  row.querySelector("output").textContent=input.value+(next==="rotate"?"°":next==="scale"?"%":" mm");
- }
  $("ad4-v3-rotate90").hidden=next!=="rotate";
  $("ad4-v3-lock-wrap").hidden=next!=="scale";
- $("ad4-v3-transform-help").textContent=focused?"Drag a slider or the colored axes above":"Tap the model on the bed to select it";
+ for(const axis of ["x","y","z"]){
+  const row=axisRows[axis],input=row.querySelector(".ad4-v3-axis-value");
+  input.min=String(limits[next][0]);input.max=String(limits[next][1]);
+  input.step=$("ad4-v3-snap").checked?"5":"1";
+  row.querySelector(".ad4-v3-axis-step").hidden=next!=="rotate";
+ }
+ rulers.clear();
+ for(const row of Object.values(axisRows))row.querySelector("canvas")?.remove();
+ $("ad4-v3-transform-help").textContent=focused?"Swipe the ruler or edit a value":"Tap the model on the bed to select it";
+ // Reflect the newly selected native mode immediately; never show Scale % as Rotate °.
+ refreshAxis();
+ requestAnimationFrame(initRulers);
 }
 for(const b of transform.querySelectorAll("[data-mode]"))b.addEventListener("click",()=>setTransform(b.dataset.mode));
 $("ad4-v3-snap").addEventListener("change",()=>setTransform(mode));
+$("ad4-v3-resize-lock").addEventListener("change",()=>refreshAxis());
 $("ad4-v3-rotate90").addEventListener("click",()=>{
  if(mode!=="rotate")return;
  const value=Number(sourceAxis("z")?.value)||0;
- setAxis("z",((value+225)%360)-180);
- setTransform("rotate");
+ setAxis("z",((value+225)%360)-180,{exact:true});
 });
-$("ad4-v3-transform-reset").addEventListener("click",()=>{for(const axis of ["x","y","z"])setAxis(axis,mode==="scale"?100:0);setTransform(mode)});
+$("ad4-v3-transform-reset").addEventListener("click",()=>{
+ for(const axis of ["x","y","z"]){
+  if(!hasSelection())break;
+  // Reset the selected transform only, leaving the other modes untouched.
+  setAxis(axis,mode==="scale"?100:0,{exact:true});
+ }
+});
 $("ad4-v3-transform-apply").addEventListener("click",()=>activate("preview"));
+const handle=$("ad4-v3-sheet-handle");
+let dragAt=null;
+handle?.addEventListener("pointerdown",e=>{
+ dragAt={y:e.clientY,height:transform.getBoundingClientRect().height};
+ handle.setPointerCapture(e.pointerId);
+});
+handle?.addEventListener("pointermove",e=>{
+ if(!dragAt)return;
+ const height=Math.max(220,Math.min(innerHeight*.67,dragAt.height+dragAt.y-e.clientY));
+ root.style.setProperty("--ad4-transform-height",height+"px");
+});
+handle?.addEventListener("pointerup",e=>{
+ if(!dragAt)return;
+ dragAt=null;
+ const height=transform.getBoundingClientRect().height;
+ const target=height<270?225:height<440?350:Math.round(innerHeight*.65);
+ root.style.setProperty("--ad4-transform-height",target+"px");
+ dispatchEvent(new Event("resize"));requestAnimationFrame(initRulers);
+});
 const app=make("section","ad4-v3-app");app.id="ad4-v3-app";
 app.innerHTML='<h2>App settings</h2><p>AD4 Studio · FlashForge Adventurer 4</p>'+
 '<div class="ad4-v3-app-card"><strong>Slicing engine</strong><span>CuraEngine · Linux server only</span><small>GitHub Pages is a visual-only preview. Real slice, print and camera require your authenticated server.</small></div>'+
