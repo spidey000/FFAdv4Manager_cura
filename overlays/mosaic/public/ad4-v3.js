@@ -12,30 +12,9 @@ const make = (tag,klass,text) => {
   if(text!==undefined) el.textContent=text;
   return el;
 };
-const icon = name => ({
-  cube:'<path d="m12 2 9 5-9 5-9-5 9-5Zm-9 5v10l9 5 9-5V7M12 12v10"/>',
-  layers:'<path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 17l9 5 9-5"/>',
-  wrench:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4L14 13l-3-3 3.7-3.7Z"/>',
-  filament:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 8V3M15.5 14l4.3 2.5M8.5 14l-4.3 2.5"/>',
-  printer:'<path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6zM17 12h2"/>',
-  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l-2.8 2.8a1.7 1.7 0 0 0-1.9-.3l-1.2.5-.6 2h-4l-.6-2-1.2-.5a1.7 1.7 0 0 0-1.9.3l-2.8-2.8A1.7 1.7 0 0 0 3 15l-.5-1.2-2-.6v-4l2-.6L3 7.4a1.7 1.7 0 0 0-.3-1.9l2.8-2.8a1.7 1.7 0 0 0 1.9.3L8.6 2.5l.6-2h4l.6 2 1.2.5a1.7 1.7 0 0 0 1.9-.3l2.8 2.8a1.7 1.7 0 0 0-.3 1.9l.5 1.2 2 .6v4l-2 .6z" transform="translate(1 1) scale(.9)"/>',
-  file:'<path d="M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
-  camera:'<path d="M4 7h4l2-3h4l2 3h4a2 2 0 0 1 2 2v10H2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="4"/>',
-  orient:'<path d="M12 2v20M2 12h20M12 2l-3 3m3-3 3 3M22 12l-3-3m3 3-3 3"/>',
-  move:'<path d="M12 3v18M3 12h18M12 3l-3 3m3-3 3 3M3 12l3-3m-3 3 3 3M21 12l-3-3m3 3-3 3M12 21l-3-3m3 3 3-3"/>',
-  rotate:'<path d="M4 12a8 8 0 1 1 3 6M4 19v-6h6"/>',
-  scale:'<path d="M4 9V4h5M20 15v5h-5M4 4l7 7m9 9-7-7"/>',
-  plus:'<path d="M12 5v14M5 12h14"/>',
-  arrow:'<path d="M5 12h14m-6-6 6 6-6 6"/>',
-  back:'<path d="m15 18-6-6 6-6"/>',
-  chevron:'<path d="m6 9 6 6 6-6"/>',
-  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  upload:'<path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/>',
-  send:'<path d="m22 2-7 20-4-9-9-4zM22 2 11 13"/>',
-  sliders:'<path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="2"/><circle cx="16" cy="17" r="2"/>',
-  trash:'<path d="M3 6h18M8 6V4h8v2M5 6l1 15h12l1-15M10 10v7m4-7v7"/>'
-})[name] || '<circle cx="12" cy="12" r="8"/>';
-const svg = name => '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+icon(name)+'</svg>';
+// Icons come from the bundled Lucide package, not independent handcrafted SVG paths.
+const svg=name=>'<span class="ad4-lucide" data-ad4-icon="'+name+'"></span>';
+document.addEventListener("ad4:icons-ready",()=>globalThis.AD4Icons?.hydrate());
 const navButton = (name,label,click) => {
  const b=make("button","ad4-v3-icon-button");
  b.type="button";b.dataset.tab=name;b.innerHTML=svg(name)+"<span>"+label+"</span>";
@@ -312,14 +291,13 @@ const editorButtons={
 bottom.append(
  toolBtn("file","File",editorButtons.file,"ad4-v3-nav-file"),
  toolBtn("camera","Camera",editorButtons.camera,"ad4-v3-nav-camera"),
- toolBtn("orient","Orient",editorButtons.orient,"ad4-v3-nav-orient"),
  toolBtn("move","Transform",editorButtons.move,"ad4-v3-nav-move"),
  toolBtn("layers","Slice",editorButtons.slice,"ad4-v3-nav-slice")
 );
 function actionButton(id,label,click,primary=false){
  const b=make("button","ad4-v3-action"+(primary?" primary":""),label);b.id=id;b.type="button";b.addEventListener("click",click);return b;
 }
-const openModel=actionButton("ad4-v3-open-model","＋ Open model",()=>$("ad4-dock-model")?.click());
+const openModel=actionButton("ad4-v3-open-model","Open model",()=>$("ad4-dock-model")?.click());
 const removeModel=actionButton("ad4-v3-remove-model","Remove model",()=>{
  const focused=globalThis.app?.gui?.model_viewer?.focused;
  if(!focused){notify("Select a model on the plate to remove it");return}
@@ -327,8 +305,8 @@ const removeModel=actionButton("ad4-v3-remove-model","Remove model",()=>{
  $("context-delete")?.click();
   setTimeout(()=>{refreshState();renderTools()},150);
 });
-const demoModel=actionButton("ad4-v3-demo","◈ Demo STL",()=>$("ad4-dock-demo")?.click());
-const previewLayers=actionButton("ad4-v3-show-layers","◫ Layers",()=>activate("sliced"));
+const demoModel=actionButton("ad4-v3-demo","Demo STL",()=>$("ad4-dock-demo")?.click());
+const previewLayers=actionButton("ad4-v3-show-layers","Layers",()=>activate("sliced"));
 const exportGcode=actionButton("ad4-v3-export","Export G-code",()=>$("export-gcode-button")?.click());
 const upload=actionButton("ad4-v3-send","Send to printer",()=>{if(!staticPreview)openPrinter("files");$("ad4-upload")?.click()});
 const print=actionButton("ad4-v3-print","Print now",()=>{if(!staticPreview)openPrinter("files");$("ad4-send-print")?.click()},true);
@@ -343,6 +321,7 @@ function renderTools(){
  // Profile save/update actions live inside "Profiles & filters". Do not duplicate
  // them as a large green action that only toggles the panel (and can close it).
 
+ globalThis.AD4Icons?.hydrate(action);
  for(const b of bottom.querySelectorAll("button")){
   b.setAttribute("aria-pressed",String(
    current==="transform"?b.id==="ad4-v3-nav-move":
@@ -389,4 +368,5 @@ addEventListener("keydown",e=>{
  if(current!=="preview" && !manager?.open)activate("preview");
 });
 activate("preview");
+queueMicrotask(()=>globalThis.AD4Icons?.hydrate());
 })();
