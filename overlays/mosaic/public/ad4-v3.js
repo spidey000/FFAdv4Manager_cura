@@ -265,10 +265,13 @@ if(manager){
 function setManagerPane(pane){
  managerPane=pane;
  for(const b of manageTab.querySelectorAll("button"))b.setAttribute("aria-pressed",String(b.dataset.pane===pane));
- for(const section of manager.querySelectorAll(".ad4-section")){
-  const h=section.querySelector("h3")?.textContent||"";
-  const allowed=sectionMap[pane]||[];
-  section.hidden=!allowed.some(title=>h.includes(title))&&!(pane==="control"&&section.tagName==="DETAILS");
+ // Tabs are jump links: no information sections may disappear offline.
+ for(const section of manager.querySelectorAll(".ad4-section"))section.hidden=false;
+ const label={camera:"Camera",timelapse:"Timelapses",files:"Printer files",control:"Print controls"}[pane];
+ if(manager.open&&label){
+  const target=[...manager.querySelectorAll(".ad4-section")].find(section=>
+   (section.querySelector("h3")?.textContent||"").includes(label));
+  target?.scrollIntoView({block:"start",behavior:"instant"});
  }
 }
 function openPrinter(pane){
@@ -342,7 +345,7 @@ function checkStatus(){
   $("ad4-v3-printer-status").textContent=state;
   $("ad4-v3-menu-status").textContent=staticPreview?"Demo · Private server not connected":state;
   $("ad4-v3-status").setAttribute("aria-label","Printer status: "+state+". Open navigation menu");
-  $("ad4-v3-printer-page-state").textContent=staticPreview?"Preview mode · connect to the authenticated server to manage the printer":state;
+  // The persistent printer dashboard owns its connection message.
 }
 $("ad4-v3-file-label")?.addEventListener("click",()=>$("ad4-dock-model")?.click());
 $("stl-file")?.addEventListener("change",()=>{activate("preview");setTimeout(refreshState,500)});
