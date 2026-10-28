@@ -253,6 +253,22 @@ with sync_playwright() as p:
                 page.locator('#ad4-v3-top [data-route="printer"]').click()
                 if page.evaluate("document.body.dataset.ad4Screen")!="printer":failures.append(f"{width}: Printer tab does not navigate")
                 if not page.locator("#ad4-v3-printer-page:visible").count():failures.append(f"{width}: Printer page empty")
+                dashboard=page.locator('#ad4-v3-printer-page [data-printer-card]')
+                expected={"status","temperatures","progress","job","camera","files","timelapse","controls","connection","diagnostics"}
+                actual=set(dashboard.evaluate_all("(nodes)=>nodes.map(el=>el.dataset.printerCard)"))
+                print("PRINTER OFFLINE CARDS",width,sorted(actual),flush=True)
+                if actual!=expected:failures.append(f"{width}: missing offline printer cards: {expected-actual}")
+                for card_id in expected:
+                    card=page.locator(f'#ad4-v3-printer-page [data-printer-card="{card_id}"]')
+                    if not card.is_visible():failures.append(f"{width}: offline card {card_id} hidden")
+                    if not card.locator(".ad4-printer-value").inner_text().strip():
+                        failures.append(f"{width}: offline card {card_id} has no placeholder")
+                    if not card.locator("button").is_disabled():
+                        failures.append(f"{width}: public preview exposed hardware action {card_id}")
+                if not page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollHeight>el.clientHeight"):
+                    failures.append(f"{width}: printer dashboard has no scroll to reach lower cards")
+                page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollTop=el.scrollHeight")
+                page.screenshot(path=f"/tmp/ad4-pages-printer-bottom-{width}.png",full_page=False)
                 page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
                 page.locator('#ad4-v3-top [data-route="app"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='app'",timeout=4000)
