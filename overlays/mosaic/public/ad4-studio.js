@@ -38,9 +38,9 @@
   document.body.append(scrim);
 
   const sheetHeader = node("div", "ad4-sheet-header");
-  sheetHeader.innerHTML = '<span class="ad4-handle" aria-hidden="true"></span>' +
-    '<span class="ad4-heading"><small>ADVENTURER 4 · ARTILLERY PLA BASIC</small>' +
-    '<strong>Print settings</strong></span>';
+  // Keep only the drag handle for the standalone mobile drawer.
+  // Print/Filament v3 uses its top-level tab as the sole heading.
+  sheetHeader.innerHTML = '<span class="ad4-handle" aria-hidden="true"></span>';
   const closeSheet = node("button", "ad4-sheet-close", "", "×");
   closeSheet.type = "button";
   closeSheet.setAttribute("aria-label", "Close print settings");
