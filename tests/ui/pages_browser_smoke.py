@@ -89,7 +89,7 @@ with sync_playwright() as p:
                 visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("PRINT QUALITY SETTINGS VISIBLE",visible,flush=True)
                 print("CURA DOM CATEGORIES",page.evaluate("""() => Array.from(document.querySelectorAll("#sections .section")).slice(0,16).map(el=>({category:el.dataset.category_id,title:el.querySelector(".section-title-container")?.textContent?.trim(),count:el.querySelectorAll(".setting[data-setting_id]").length,visible:Array.from(el.querySelectorAll(".setting[data-setting_id]")).filter(n=>!n.hidden).slice(0,8).map(n=>n.dataset.setting_id)}))"""),flush=True)
-                if visible<1:failures.append("Print settings not visible")
+                if visible<10:failures.append(f"{width}: expected full Cura Quality catalog, got {visible}")
                 # Capture the real Print screen from the deployed bundle before scrolling.
                 print_shot=Path(f"/tmp/ad4-pages-print-{width}.png")
                 page.screenshot(path=str(print_shot),full_page=False)
@@ -114,7 +114,41 @@ with sync_playwright() as p:
                 # Ensure enough Cura settings exist for actual scrolling, then use a
                 # physical wheel gesture instead of assigning scrollTop directly.
                 page.locator("#ad4-presets-toggle").click()
-                page.locator("#ad4-native-toggle").check()
+                all_cura=page.locator("#ad4-all-cura")
+                if not all_cura.is_visible():failures.append(f"{width}: All Cura catalog selector hidden")
+                all_cura.click()
+                native_stats=page.evaluate("""() => {
+                    const rows=[...document.querySelectorAll('#sections .setting[data-setting_id]')];
+                    const categories=[...document.querySelectorAll('#sections > .section[data-category_id]')];
+                    return {total:rows.length,visible:rows.filter(x=>!x.hidden).length,
+                      groups:categories.map(s=>({id:s.dataset.category_id,
+                        total:s.querySelectorAll('.setting[data-setting_id]').length,
+                        visible:[...s.querySelectorAll('.setting[data-setting_id]')].filter(x=>!x.hidden).length}))};
+                }""")
+                print("NATIVE CURA CATALOG",native_stats,flush=True)
+                if native_stats["total"]<100:failures.append(f"{width}: incomplete full Cura catalog")
+                if native_stats["visible"]!=native_stats["total"]:
+                    failures.append(f"{width}: native Cura rows hidden: {native_stats['visible']}/{native_stats['total']}")
+                if len(native_stats["groups"])<8:failures.append(f"{width}: native Cura categories missing")
+                if page.locator("#ad4-native-category option").count()<9:
+                    failures.append(f"{width}: native Cura browse categories absent")
+                extra=page.locator('#sections .setting[data-setting_id="wall_line_width"] > .setting-bar input[type="number"]')
+                if extra.count()==1:
+                    prior=float(extra.input_value())
+                    extra.fill(str(round(prior+0.03,4)))
+                    extra.dispatch_event("change")
+                    page.wait_for_timeout(650)
+                    page.locator("#ad4-preset-type").select_option("process")
+                    page.locator("#ad4-preset-name").fill("Full Cura Catalog Test")
+                    page.locator("#ad4-save-preset").click()
+                    stored=page.evaluate("""() => {
+                      const data=JSON.parse(localStorage.getItem("ffadv4-mosaic-custom-presets-v1")||"{}");
+                      return data.process?.find(p=>p.name==="Full Cura Catalog Test")?.values?.wall_line_width;
+                    }""")
+                    print("NATIVE WALL SETTING STORED IN PROFILE",stored,flush=True)
+                    if stored is None or abs(stored-(prior+0.03))>0.001:
+                        failures.append(f"{width}: profile omitted advanced Cura wall_line_width")
+                else:failures.append(f"{width}: advanced Cura wall_line_width missing")
                 page.wait_for_timeout(250)
                 scroller=page.locator("#sidebar")
                 dims=page.evaluate("""() => {
@@ -140,12 +174,12 @@ with sync_playwright() as p:
                 if page.locator("#setting-search").input_value():failures.append(f"{width}: clear-search failed")
                 page.locator("#ad4-categories button[data-name='Speed']").click()
                 speed_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
-                if speed_visible<1:failures.append("Cura Speed values missing")
+                if speed_visible<10:failures.append(f"{width}: incomplete Cura Speed values: {speed_visible}")
                 page.locator('#ad4-v3-top [data-route="filament"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='filament'",timeout=4000)
                 material_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("V3 MATERIAL SETTINGS",material_visible,flush=True)
-                if material_visible<1:failures.append("Artillery PLA parameters missing")
+                if material_visible<8:failures.append(f"{width}: incomplete Artillery PLA Material values: {material_visible}")
                 if page.locator("#ad4-categories [data-name='Material']").get_attribute("aria-pressed")!="true":failures.append(f"{width}: Filament did not select Material")
                 page.screenshot(path=f"/tmp/ad4-pages-filament-{width}.png",full_page=False)
                 page.locator('#ad4-v3-top [data-route="printer"]').click()
