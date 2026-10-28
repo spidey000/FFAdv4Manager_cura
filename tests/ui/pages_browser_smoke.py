@@ -118,6 +118,7 @@ with sync_playwright() as p:
                     assert modal.is_visible(), "Setting label must open the same guide"
                     page.keyboard.press("Escape")
                     assert not modal.is_visible(), "Escape must close the guide"
+                    assert page.evaluate("document.body.dataset.ad4Screen")=="print", "Escape changed the Print route"
                 except Exception as error:
                     failures.append(f"{width}: SettingsGuide modal regression: {error}")
                 # Capture the real Print screen from the deployed bundle before scrolling.
