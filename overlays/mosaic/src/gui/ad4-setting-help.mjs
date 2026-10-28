@@ -105,6 +105,14 @@ function makeViewer() {
   const state={dialog,header,heading,summary,body,scroll,back,close,currentId:null,currentPath:null,defaultDescription:"",stack:[],request:0};
   const dismiss=()=>dialog.close();
   close.addEventListener("click",dismiss);
+  // Prevent the application's global Escape shortcut from navigating away
+  // from Print when the user only wants to dismiss the guide.
+  dialog.addEventListener("keydown",event=>{
+    if(event.key==="Escape"){
+      event.preventDefault();event.stopPropagation();dismiss();
+    }
+  });
+  dialog.addEventListener("cancel",event=>{event.preventDefault();dismiss();});
   dialog.addEventListener("click",event=>{if(event.target===dialog)dismiss();});
   dialog.addEventListener("close",()=>{state.request++;state.stack=[];state.currentPath=null;});
   back.addEventListener("click",()=>{
