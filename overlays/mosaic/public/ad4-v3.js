@@ -194,6 +194,7 @@ const transform=make("section","ad4-v3-transform");transform.id="ad4-v3-transfor
 transform.innerHTML='<button type="button" class="ad4-v3-sheet-handle" id="ad4-v3-sheet-handle" aria-label="Drag to resize Transform panel"><span></span></button>'+
 '<div class="ad4-v3-transform-top"><strong>Transform</strong><small id="ad4-v3-transform-help">Select a model on the plate to transform it</small></div>'+
 '<nav class="ad4-v3-mode"><button type="button" data-mode="translate">'+svg("move")+'Move</button><button type="button" data-mode="rotate">'+svg("rotate")+'Rotate</button><button type="button" data-mode="scale">'+svg("scale")+'Scale</button></nav>'+
+'<div class="ad4-v3-camera-toolbar" aria-label="3D camera views"><button id="ad4-v3-view-fit" type="button">Fit model</button><button id="ad4-v3-view-top" type="button">Top view</button><button id="ad4-v3-view-iso" type="button">Isometric</button></div>'+
 '<div class="ad4-v3-snap"><label><input id="ad4-v3-snap" type="checkbox" checked> Snap 5 units</label><label id="ad4-v3-lock-wrap"><input id="ad4-v3-resize-lock" type="checkbox" checked> Lock proportions</label></div>'+
  '<div class="ad4-v3-axis-list"></div>'+
 '<div class="ad4-v3-transform-actions"><button type="button" id="ad4-v3-rotate90">Rotate Z +45°</button><button type="button" id="ad4-v3-transform-reset">Reset selected axis</button><button type="button" id="ad4-v3-transform-apply">Apply</button></div>';
@@ -339,6 +340,60 @@ function setTransform(next){
  refreshAxis();
  requestAnimationFrame(initRulers);
 }
+/* Actual three.js camera, no fake screenshots or alternative model renderer. */
+function cameraView(preset){
+ const renderer=globalThis.app?.gui?.renderer;
+ const camera=renderer?.camera,orbit=renderer?.controls;
+ if(!camera||!orbit){notify("3D camera is not ready");return}
+ const objects=Object.values(globalThis.app?.gui?.model_viewer?.models||{});
+ const selected=globalThis.app?.gui?.model_viewer?.focused;
+ const target=selected&&objects.find(o=>o?.mesh?.uuid===selected);
+ const objs=target?[target]:objects;
+ if(!objs.length){notify("Load a model first");return}
+ const centers=[],radii=[];
+ for(const obj of objs){
+  const mesh=obj.mesh;if(!mesh)continue;
+  mesh.geometry?.computeBoundingBox?.();
+  const bounds=mesh.geometry?.boundingBox;
+  const scale=mesh.scale||{x:1,y:1,z:1};
+  const half=bounds?Math.max(
+    (bounds.max.x-bounds.min.x)*Math.abs(scale.x),
+    (bounds.max.y-bounds.min.y)*Math.abs(scale.y),
+    (bounds.max.z-bounds.min.z)*Math.abs(scale.z))/2:15;
+  centers.push({x:mesh.position.x,y:mesh.position.y,z:mesh.position.z});
+  radii.push(half);
+ }
+ if(!centers.length)return;
+ const center={x:centers.reduce((n,c)=>n+c.x,0)/centers.length,
+ y:centers.reduce((n,c)=>n+c.y,0)/centers.length,
+ z:centers.reduce((n,c)=>n+c.z,0)/centers.length};
+ const radius=Math.max(22,...radii);
+ const distance=preset==="fit"?Math.max(95,radius*4.2):Math.max(125,radius*4);
+ orbit.target.set(center.x,center.y,center.z);
+ if(preset==="top")camera.position.set(center.x,center.y+distance,center.z+.01);
+ else camera.position.set(center.x+distance*.65,center.y+distance*.72,center.z+distance*.65);
+ camera.lookAt(center.x,center.y,center.z);orbit.update();
+ notify(preset==="top"?"Top view":preset==="fit"?"Model fitted":"Isometric view");
+}
+for(const [preset,id] of [["fit","ad4-v3-view-fit"],["top","ad4-v3-view-top"],["iso","ad4-v3-view-iso"]]){
+ $(id)?.addEventListener("click",()=>cameraView(preset));
+}
+/* Swipe the segmented mode control, never the ruler or the STL canvas. */
+const transformModes=["translate","rotate","scale"];
+const modeBar=transform.querySelector(".ad4-v3-mode");
+let swipeStart=null;
+modeBar?.addEventListener("pointerdown",event=>{swipeStart={x:event.clientX,y:event.clientY};});
+modeBar?.addEventListener("pointerup",event=>{
+ if(!swipeStart)return;
+ const dx=event.clientX-swipeStart.x,dy=event.clientY-swipeStart.y;
+ swipeStart=null;
+ if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.3)return;
+ const idx=transformModes.indexOf(mode),next=Math.max(0,Math.min(2,idx+(dx<0?1:-1)));
+ if(next!==idx)setTransform(transformModes[next]);
+});
+
+
+
 for(const b of transform.querySelectorAll("[data-mode]"))b.addEventListener("click",()=>setTransform(b.dataset.mode));
 $("ad4-v3-snap").addEventListener("change",()=>setTransform(mode));
 $("ad4-v3-resize-lock").addEventListener("change",()=>refreshAxis());

@@ -82,6 +82,7 @@ def build():
         stream.write('\nexport * as slicer from "./slicer.mjs";\n')
         # Safe read-only model scene visibility for 3D and upload smoke tests.
         stream.write('\nexport * as model_viewer from "./viewer/model_viewer.mjs";\n')
+        stream.write('\nexport * as renderer from "./viewer/renderer.mjs";\n')
     app_entry=DEST/"src/index.mjs"
     app_code=app_entry.read_text()
     app_code=app_code.replace('import * as resources from "./resources.mjs";',
