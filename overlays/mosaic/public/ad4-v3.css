@@ -418,3 +418,13 @@ body[data-ad4-screen=sliced] #layer-slider{display:none!important}
 .ad4-v3-ruler-needle{position:absolute;top:0;bottom:0;left:50%;width:2px;pointer-events:none;background:#2dec79;z-index:2}
 #ad4-v3-layer-number{grid-column:span 2;text-align:center;color:#c0efd0;font-size:12px}
 @media(max-width:360px){.ad4-v3-layer-bound label{font-size:10px}.ad4-v3-layer-bound input[type=number]{width:45px}}
+
+/* Accessible preflight summarizes known data, no invented temperatures or thumbnails. */
+.ad4-print-confirm{max-width:min(450px,94vw);padding:18px;background:#19221f;color:#f1fff4;border:1px solid #55765e;border-radius:17px}
+.ad4-print-confirm::backdrop{background:#070b08cf}
+.ad4-print-confirm h3{font-size:18px;margin:0 0 13px}
+.ad4-print-confirm dl{display:grid;grid-template-columns:120px 1fr;gap:10px 8px;font-size:12px}
+.ad4-print-confirm dt{color:#b0c4b4}.ad4-print-confirm dd{margin:0;overflow-wrap:anywhere}
+.ad4-confirm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.ad4-confirm-actions button{border:1px solid #628366;border-radius:11px;padding:10px 17px;background:#2e4035;color:#fff;min-height:44px;font-weight:700;cursor:pointer}
+.ad4-confirm-actions .ad4-primary{background:#2dec79!important;color:#0f2816!important;border-color:#2dec79!important}

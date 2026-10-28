@@ -77,7 +77,7 @@ function renderFiles(){
   small.textContent=[duration(file.estimated_seconds),file.hotend!=null?file.hotend+"°C / "+fmt(file.bed,"°C"):"",date(file.uploaded_at)].filter(x=>x&&x!=="—").join(" · ")||"Stored on printer";
   meta.append(title,small);
   const start=document.createElement("button");start.textContent="Print";start.disabled=busy||!hardwareConnected;
-  start.addEventListener("click",()=>{if(confirm("Start real print of "+file.name+"?")) task("Starting stored print",()=>post("/actions",{
+  start.addEventListener("click",async()=>{if(await confirmPrint({filename:file.name,time:duration(file.estimated_seconds),start:true})) task("Starting stored print",()=>post("/actions",{
    action:"print",file:file.path,timelapse:el("ad4-auto-timelapse").checked,timelapse_mode:el("ad4-capture-mode").value
   }))});
   line.append(meta,start);holder.append(line);
@@ -189,13 +189,41 @@ el("ad4-camera").addEventListener("error",()=>{if(isLive){closeVideo();say("Live
 el("ad4-gallery-refresh").addEventListener("click",()=>loadGallery().catch(e=>say(e.message,true)));
 el("ad4-timelapse-start").addEventListener("click",()=>task("Starting timelapse",()=>post("/timelapse",{action:"start",mode:el("ad4-capture-mode").value})));
 el("ad4-timelapse-stop").addEventListener("click",()=>task("Finalizing MP4",async()=>{const result=await post("/timelapse",{action:"stop"});await loadGallery();return result}));
+async function confirmPrint({filename,material="Artillery PLA Basic",nozzle="Unknown",bed="Unknown",time="Unknown",start=true}){
+ const dlg=document.createElement("dialog");dlg.className="ad4-print-confirm";
+ const heading=document.createElement("h3");heading.textContent=start?"Confirm real print":"Confirm printer upload";
+ const details=document.createElement("dl");
+ for(const [key,text] of [["File",filename],["Material",material],["Nozzle",nozzle],["Bed",bed],["Estimated time",time],["Thumbnail","Unavailable"]]){
+  const dt=document.createElement("dt");dt.textContent=key;
+  const dd=document.createElement("dd");dd.textContent=String(text||"Unknown");
+  details.append(dt,dd);
+ }
+ const actions=document.createElement("div");actions.className="ad4-confirm-actions";
+ const cancel=document.createElement("button");cancel.textContent="Cancel";cancel.type="button";
+ const accept=document.createElement("button");accept.textContent=start?"Send & print":"Send only";accept.type="button";accept.className="ad4-primary";
+ actions.append(cancel,accept);dlg.append(heading,details,actions);document.body.append(dlg);
+ return new Promise(resolve=>{
+  let done=false;
+  const finish=approved=>{if(done)return;done=true;dlg.close();dlg.remove();resolve(approved)};
+  cancel.onclick=()=>finish(false);accept.onclick=()=>finish(true);
+  dlg.addEventListener("cancel",e=>{e.preventDefault();finish(false)});
+  dlg.showModal();
+ });
+}
 async function upload(start){
  const gcode=globalThis.app?.gui?.slicer?.exported_gcode;
  if(typeof gcode!=="string"||!gcode.trim())return say("Slice a model on the server first",true);
  const model=globalThis.app?.gui?.file?.stl_file_name||"MosaicSlicer.stl";
  const name=(model.replace(/\.[^.]+$/,"").replace(/[^A-Za-z0-9_. -]/g,"_").slice(0,85)||"model")+".gcode";
- if(!confirm(start?"Start a real print on Adventurer 4?":"Upload this G-code as GX to Adventurer 4?"))return;
  const settings=globalThis.app?.settings?.active_containers?.export_settings?.();
+ if(el("slice-export-container")?.dataset.active!=="true")
+  return say("G-code is stale: re-slice with current settings before sending",true);
+ const candidates=[settings?.global||{},settings?.["extruder.0"]||{}];
+ const setting=key=>candidates.map(x=>x[key]).find(x=>x!==undefined);
+ const allowed=await confirmPrint({filename:name,nozzle:setting("material_print_temperature")??"Unknown",
+  bed:setting("material_bed_temperature")??"Unknown",
+  time:el("gcode-time-estimate")?.textContent?.trim()||"Unknown",start});
+ if(!allowed)return;
  const layer=Number(settings?.global?.layer_height);
  const prefix=Number.isFinite(layer)&&layer>=0.06&&layer<=0.4?"; layer_height: "+layer+"\n":"";
  const params=new URLSearchParams({start:String(start),name,

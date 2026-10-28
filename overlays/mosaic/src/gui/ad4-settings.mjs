@@ -25,6 +25,23 @@ function persist(){
  store.setItem(KEY,JSON.stringify(library));
 }
 function notice(text){$("ad4-preset-note").textContent=text}
+function refreshSummary(){
+ const panel=$("ad4-profile-summary-content");if(!panel)return;
+ const fields=[
+  ["Layer height","layer_height","mm"],["Infill","infill_sparse_density","%"],
+  ["Supports","support_enable",""],["Print speed","speed_print","mm/s"],
+  ["Nozzle","material_print_temperature","°C"],["Bed","material_bed_temperature","°C"]
+ ];
+ panel.replaceChildren();
+ for(const [label,key,unit] of fields){
+  const cell=document.createElement("span");const raw=value(key);
+  const resolved=typeof raw==="boolean"?(raw?"On":"Off"):
+    typeof raw==="number"?raw+unit:"—";
+  const title=document.createElement("small");title.textContent=label;
+  const val=document.createElement("strong");val.textContent=resolved;
+  cell.append(title,val);panel.append(cell);
+ }
+}
 function reSlice(){
  if(!$("ad4-auto-slice")?.checked)return;
  clearTimeout(autoTimer);
@@ -40,6 +57,9 @@ function applyOverrides(values){
   target.active_profiles.user.values[key]=next;
  }
  update_all(printer());
+ $("slice-export-container")?.setAttribute("data-active","false");
+ document.dispatchEvent(new Event("ad4:gcode-stale"));
+ refreshSummary();
  setTimeout(()=>{decorateRows();filterRows()},350);
  reSlice();
 }
@@ -220,6 +240,11 @@ export function install_ad4_features(){
  library=readLibrary(storage());
  for(const key of new Set([...allowed("process"),...allowed("material")]))original[key]=value(key);
  const root=element("div",{id:"ad4-tuning-controls"});
+ const summary=element("details",{id:"ad4-profile-summary"});
+ const summaryTitle=element("summary",{},"Profile overview");
+ const summaryCells=element("div",{id:"ad4-profile-summary-content"});
+ summary.append(summaryTitle,summaryCells);
+ root.append(summary);
  const toggle=element("button",{id:"ad4-presets-toggle",type:"button","aria-expanded":"false","aria-controls":"ad4-presets-panel"},"Profiles & filters · Artillery PLA Basic ⌄");
  root.append(toggle);
  const panel=element("div",{id:"ad4-presets-panel"});panel.hidden=true;
@@ -248,6 +273,24 @@ export function install_ad4_features(){
   element("p",{id:"ad4-tuning-empty"},"No parameters for this filter"),
   element("p",{id:"ad4-preset-note",role:"status"}));
  const sidebar=$("sidebar");sidebar.insertBefore(root,$("profile-selector-div"));
+ const sticky=element("footer",{id:"ad4-settings-footer"});
+ const saveButton=element("button",{type:"button",id:"ad4-settings-save"},"Save profile");
+ const resetButton=element("button",{type:"button",id:"ad4-settings-reset"},"Reset defaults");
+ sticky.append(saveButton,resetButton);sidebar.append(sticky);
+ saveButton.addEventListener("click",()=>{
+  const type=document.body.dataset.ad4Screen==="filament"?"material":"process";
+  const name=prompt("Name this "+type+" profile:");
+  if(!name)return;
+  $("ad4-preset-type").value=type;
+  $("ad4-preset-name").value=name.trim();
+  $("ad4-save-preset").click();
+ });
+ resetButton.addEventListener("click",()=>{
+  const type=document.body.dataset.ad4Screen==="filament"?"material":"process";
+  if(!confirm("Restore the default "+type+" values?"))return;
+  choose(type,"");refreshSummary();
+ });
+ refreshSummary();
  const legacy=$("profile-selector-div");
  if(legacy){legacy.hidden=true;legacy.setAttribute("aria-hidden","true")}
  $("profile-selector")?.setAttribute("aria-label","Process profile");
@@ -272,7 +315,7 @@ export function install_ad4_features(){
    if(header){header.setAttribute("role","button");header.tabIndex=0;header.setAttribute("aria-expanded","false")}
   }
  }
- document.addEventListener("ad4:enter-settings",()=>{closeAllGroups();filterRows()});
+ document.addEventListener("ad4:enter-settings",()=>{closeAllGroups();filterRows();refreshSummary()});
  sections.addEventListener("keydown",event=>{
   const title=event.target.closest(".section-title-container");
   if(title&&(event.key==="Enter"||event.key===" ")){event.preventDefault();title.click()}
@@ -312,7 +355,12 @@ export function install_ad4_features(){
  auto.hidden=true;auto.setAttribute("aria-hidden","true");
  const actions=$("slice-button-container");actions?.parentNode?.insertBefore(auto,actions);
  $("setting-search").addEventListener("input",filterRows);
- sections.addEventListener("change",()=>{setTimeout(()=>{decorateRows();filterRows()},360);reSlice()});
+ sections.addEventListener("change",()=>{
+  $("slice-export-container")?.setAttribute("data-active","false");
+  document.dispatchEvent(new Event("ad4:gcode-stale"));
+  refreshSummary();
+  setTimeout(()=>{decorateRows();filterRows()},360);reSlice()
+ });
  $("stl-file")?.addEventListener("change",()=>setTimeout(reSlice,900));
  const observer=new MutationObserver(()=>{populateNativeCategories();decorateRows();filterRows()});observer.observe(sections,{childList:true});
  decorateRows();filterRows();
