@@ -48,3 +48,36 @@
 @media(max-width:720px){#sidebar #ad4-tuning-controls{padding:6px}
 #sidebar #ad4-categories button{font-size:9px}
 #sidebar #ad4-complexity button{font-size:10px}}
+
+/* Audit fixes: one document scroll region, accessible controls, concise categories. */
+#sidebar #ad4-presets-panel{max-height:none!important;overflow:visible!important;background:#304a38;border-color:#62876a}
+#sidebar #ad4-presets-panel .ad4-native-label{min-height:44px;align-items:center;cursor:pointer;gap:12px}
+#sidebar #ad4-presets-panel input[type=checkbox]{width:22px;height:22px;flex:none}
+#sidebar #ad4-presets-panel .ad4-danger-action{background:#48282c;border:1px solid #be656b;color:#ffdce0}
+#sidebar #ad4-presets-panel .ad4-danger-action:hover{background:#64323a}
+#sidebar #ad4-presets-panel button{min-height:44px}
+#sidebar #searchbar{display:flex;align-items:center;gap:6px}
+#sidebar #setting-search{min-width:0;flex:1}
+#sidebar #ad4-search-clear{width:44px;height:44px;flex:none;border-radius:10px;background:#2b3637;color:#fff;border:1px solid #516461;font-size:20px}
+#sidebar #ad4-search-clear[hidden]{display:none}
+#sidebar .ad4-setting-reset{flex:0 0 44px!important;width:44px;min-height:44px!important}
+#sidebar .setting-value input,#sidebar .setting-value select{min-height:40px}
+#sidebar .setting-value input[type=checkbox]{min-height:22px;min-width:22px;cursor:pointer}
+#sidebar .section[data-closed=false]{height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important}
+#sidebar .section[data-closed=false] .settings-group{height:auto!important;max-height:none!important;overflow:visible!important}
+#sidebar .section.ad4-single-setting .section-title-container{display:none!important}
+#sidebar .section.ad4-single-setting{padding-top:3px}
+#sidebar .section .setting{min-height:48px}
+#sidebar .setting-name{font-size:12px!important;line-height:1.4}
+#sidebar #ad4-tuning-empty{padding:10px 2px}
+#ad4-setting-help button{width:44px;height:44px;min-height:44px}
+#ad4-auto-slice-label[hidden]{display:none!important}
+#sidebar #ad4-categories button,#sidebar #ad4-complexity button{min-height:44px;padding:5px 1px;white-space:normal!important;overflow-wrap:anywhere;line-height:1.15}
+
+/* A Cura category with live, enabled parameters must never disappear simply
+ * because an older native or overlay style still marks the group closed. */
+body[data-ad4-screen=print] #sidebar .section[data-is_enabled="true"]:not([hidden]),
+body[data-ad4-screen=filament] #sidebar .section[data-is_enabled="true"]:not([hidden]){
+ display:block!important;
+}
+#sidebar #ad4-native-catalog-nav button,#sidebar #ad4-native-category{min-height:44px!important}

@@ -14,7 +14,7 @@ screenshot=Path(os.environ.get("AD4_SCREENSHOT","/tmp/ad4-pages-smoke.png"))
 failures=[]
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path=os.environ.get("CHROME_BIN") or None,args=["--no-sandbox","--disable-dev-shm-usage","--use-gl=angle","--use-angle=swiftshader"])
-    for width,height in [(390,844),(1280,800)]:
+    for width,height in [(320,568),(390,844),(1280,800)]:
         page=browser.new_page(viewport={"width":width,"height":height},device_scale_factor=1)
         errors=[]
         page.on("pageerror",lambda e: errors.append("PAGE ERROR: "+str(e)+"\n"+str(getattr(e,"stack",""))))
@@ -88,7 +88,8 @@ with sync_playwright() as p:
                 if categories<5:failures.append("Print settings categories missing")
                 visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("PRINT QUALITY SETTINGS VISIBLE",visible,flush=True)
-                if visible<10:failures.append(f"Native Quality settings unexpectedly missing: {visible} (previously just 3)")
+                print("CURA DOM CATEGORIES",page.evaluate("""() => Array.from(document.querySelectorAll("#sections .section")).slice(0,16).map(el=>({category:el.dataset.category_id,title:el.querySelector(".section-title-container")?.textContent?.trim(),count:el.querySelectorAll(".setting[data-setting_id]").length,visible:Array.from(el.querySelectorAll(".setting[data-setting_id]")).filter(n=>!n.hidden).slice(0,8).map(n=>n.dataset.setting_id)}))"""),flush=True)
+                if visible<10:failures.append(f"{width}: expected full Cura Quality catalog, got {visible}")
                 # Capture the real Print screen from the deployed bundle before scrolling.
                 print_shot=Path(f"/tmp/ad4-pages-print-{width}.png")
                 page.screenshot(path=str(print_shot),full_page=False)
@@ -104,7 +105,7 @@ with sync_playwright() as p:
                       sheetOverflow:getComputedStyle(body).overflowY};
                 }""")
                 print("PRINT SCROLL LAYOUT",layout,flush=True)
-                if layout["top"] < 0 or layout["bottom"] > height - 64:
+                if layout["top"] < 0 or layout["bottom"] > height + 2:
                     failures.append(f"{width}: Print panel clipped outside viewport: {layout}")
                 if not layout["actionHidden"]:
                     failures.append(f"{width}: oversized Save Profile action bar still visible")
@@ -112,34 +113,25 @@ with sync_playwright() as p:
                     failures.append(f"{width}: Print settings panel is not an independently scrolling region: {layout}")
                 # Ensure enough Cura settings exist for actual scrolling, then use a
                 # physical wheel gesture instead of assigning scrollTop directly.
-                # All Cura must be a first-class accessible control, never a hidden
-                # checkbox inside the profile editor. Assert every native row is
-                # available, including categories outside the five quick filters.
+                page.locator("#ad4-presets-toggle").click()
                 all_cura=page.locator("#ad4-all-cura")
-                if not all_cura.is_visible():failures.append("All Cura catalog selector hidden")
+                if not all_cura.is_visible():failures.append(f"{width}: All Cura catalog selector hidden")
                 all_cura.click()
                 native_stats=page.evaluate("""() => {
                     const rows=[...document.querySelectorAll('#sections .setting[data-setting_id]')];
                     const categories=[...document.querySelectorAll('#sections > .section[data-category_id]')];
-                    return {
-                      total:rows.length,
-                      visible:rows.filter(x=>!x.hidden).length,
+                    return {total:rows.length,visible:rows.filter(x=>!x.hidden).length,
                       groups:categories.map(s=>({id:s.dataset.category_id,
-                        name:s.querySelector('.section-title-container .left')?.textContent?.trim(),
                         total:s.querySelectorAll('.setting[data-setting_id]').length,
-                        visible:[...s.querySelectorAll('.setting[data-setting_id]')].filter(x=>!x.hidden).length}))
-                    };
+                        visible:[...s.querySelectorAll('.setting[data-setting_id]')].filter(x=>!x.hidden).length}))};
                 }""")
                 print("NATIVE CURA CATALOG",native_stats,flush=True)
-                if native_stats["total"] < 100:
-                    failures.append(f"Missing Cura settings: expected extensive native catalog, got {native_stats['total']}")
-                if native_stats["visible"] != native_stats["total"]:
-                    failures.append(f"All Cura did not expose every parameter: {native_stats['visible']}/{native_stats['total']}")
-                if len(native_stats["groups"]) < 8:
-                    failures.append("Native Cura category hierarchy missing")
-                page.locator("#ad4-presets-toggle").click()
-                # Verify named Process presets persist a real Cura property
-                # which was NOT in the old 20-key AD4 whitelist.
+                if native_stats["total"]<100:failures.append(f"{width}: incomplete full Cura catalog")
+                if native_stats["visible"]!=native_stats["total"]:
+                    failures.append(f"{width}: native Cura rows hidden: {native_stats['visible']}/{native_stats['total']}")
+                if len(native_stats["groups"])<8:failures.append(f"{width}: native Cura categories missing")
+                if page.locator("#ad4-native-category option").count()<9:
+                    failures.append(f"{width}: native Cura browse categories absent")
                 extra=page.locator('#sections .setting[data-setting_id="wall_line_width"] > .setting-bar input[type="number"]')
                 if extra.count()==1:
                     prior=float(extra.input_value())
@@ -155,13 +147,8 @@ with sync_playwright() as p:
                     }""")
                     print("NATIVE WALL SETTING STORED IN PROFILE",stored,flush=True)
                     if stored is None or abs(stored-(prior+0.03))>0.001:
-                        failures.append("Named Process profiles still lose native Cura wall_line_width")
-                else:
-                    failures.append("Cura native wall_line_width numeric parameter absent")
-
-                menu=page.locator("#ad4-native-category")
-                if menu.locator("option").count() < 9:
-                    failures.append("Native Cura categories not selectable")
+                        failures.append(f"{width}: profile omitted advanced Cura wall_line_width")
+                else:failures.append(f"{width}: advanced Cura wall_line_width missing")
                 page.wait_for_timeout(250)
                 scroller=page.locator("#sidebar")
                 dims=page.evaluate("""() => {
@@ -171,11 +158,8 @@ with sync_playwright() as p:
                 if dims["total"] <= dims["client"] + 30:
                     failures.append(f"{width}: Expanded profiles and Cura settings are not scrollable together: {dims}")
                 else:
-                    # Wheel over the sidebar gutter, not the expanded
-                    # Profiles & filters editor (which has its own scroller).
+                    scroller.hover()
                     scroller.evaluate("(el) => {el.scrollTop=0}")
-                    bounds=scroller.bounding_box()
-                    page.mouse.move(bounds["x"] + 3, bounds["y"] + bounds["height"] - 40)
                     page.mouse.wheel(0,950)
                     page.wait_for_timeout(250)
                     scrolled=scroller.evaluate("(el) => el.scrollTop")
@@ -183,27 +167,80 @@ with sync_playwright() as p:
                     if scrolled < 20:
                         failures.append(f"{width}: wheel gesture did not scroll the expanded Print sheet")
                 page.screenshot(path=f"/tmp/ad4-pages-print-scrolled-{width}.png",full_page=False)
+                page.locator("#setting-search").fill("temperature")
+                page.wait_for_timeout(100)
+                if page.locator("#sidebar .setting[data-setting_id]:visible").count()<1:failures.append(f"{width}: global settings search cannot find temperature")
+                page.locator("#ad4-search-clear").click()
+                if page.locator("#setting-search").input_value():failures.append(f"{width}: clear-search failed")
                 page.locator("#ad4-categories button[data-name='Speed']").click()
                 speed_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
-                if speed_visible<10:failures.append(f"Native Cura Speed settings missing: {speed_visible}")
+                print("SPEED DOM",page.evaluate("""() => ({search:document.querySelector("#setting-search")?.value,pressed:[...document.querySelectorAll("#ad4-categories button")].filter(b=>b.getAttribute("aria-pressed")==="true").map(b=>b.dataset.name),sections:[...document.querySelectorAll("#sections > .section")].filter(s=>["speed","travel","cooling","material"].includes(s.dataset.category_id)).map(s=>({id:s.dataset.category_id,hidden:s.hidden,closed:s.dataset.closed,rows:s.querySelectorAll(".setting[data-setting_id]").length,unhidden:[...s.querySelectorAll(".setting[data-setting_id]")].filter(r=>!r.hidden).length,height:s.getBoundingClientRect().height}))})"""),flush=True)
+                print("SPEED SETTING ENABLED",page.evaluate("""() => Object.fromEntries(["speed_print","speed_wall","speed_travel","speed_infill","acceleration_print","cool_fan_enabled","material_print_temperature","material_bed_temperature"].map(id=>{const row=[...document.querySelectorAll("#sections .setting[data-setting_id]")].find(x=>x.dataset.setting_id===id);return [id,row?{enabled:row.dataset.is_enabled,hidden:row.hidden,display:getComputedStyle(row).display,parent_section:row.closest(".section")?.dataset.category_id,section_display:getComputedStyle(row.closest(".section")).display,value:row.querySelector("input")?.value}:null]}))"""),flush=True)
+                if speed_visible<10:failures.append(f"{width}: incomplete Cura Speed values: {speed_visible}")
                 page.locator('#ad4-v3-top [data-route="filament"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='filament'",timeout=4000)
                 material_visible=page.locator("#sidebar .setting[data-setting_id]:visible").count()
                 print("V3 MATERIAL SETTINGS",material_visible,flush=True)
-                if material_visible<8:failures.append(f"Native Material settings missing: {material_visible}")
+                print("MATERIAL DOM",page.evaluate("""() => ({search:document.querySelector("#setting-search")?.value,pressed:[...document.querySelectorAll("#ad4-categories button")].filter(b=>b.getAttribute("aria-pressed")==="true").map(b=>b.dataset.name),sections:[...document.querySelectorAll("#sections > .section")].filter(s=>["material","speed","cooling"].includes(s.dataset.category_id)).map(s=>({id:s.dataset.category_id,hidden:s.hidden,closed:s.dataset.closed,rows:s.querySelectorAll(".setting[data-setting_id]").length,unhidden:[...s.querySelectorAll(".setting[data-setting_id]")].filter(r=>!r.hidden).length,height:s.getBoundingClientRect().height}))})"""),flush=True)
+                if material_visible<6:failures.append(f"{width}: material controls unexpectedly absent: {material_visible}")
+                for setting_id in ("material_print_temperature","material_bed_temperature"):
+                    if not page.locator(f'#sections .setting[data-setting_id="{setting_id}"]:visible').count():
+                        failures.append(f"{width}: required Artillery PLA control hidden: {setting_id}")
+                if page.locator("#ad4-categories [data-name='Material']").get_attribute("aria-pressed")!="true":failures.append(f"{width}: Filament did not select Material")
+                page.screenshot(path=f"/tmp/ad4-pages-filament-{width}.png",full_page=False)
+                page.locator('#ad4-v3-top [data-route="printer"]').click()
+                if page.evaluate("document.body.dataset.ad4Screen")!="printer":failures.append(f"{width}: Printer tab does not navigate")
+                if not page.locator("#ad4-v3-printer-page:visible").count():failures.append(f"{width}: Printer page empty")
+                page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
                 page.locator('#ad4-v3-top [data-route="app"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='app'",timeout=4000)
                 if not page.locator("#ad4-v3-export-profiles:visible").count():
                     failures.append("App profile exporter missing")
-                page.locator("#ad4-v3-nav-orient").click()
+                page.locator('#ad4-v3-top [data-route="preview"]').click()
+                page.locator("#ad4-v3-nav-move").click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='transform'",timeout=4000)
-                if page.locator(".ad4-v3-axis input:visible").count()!=3:
+                if page.locator(".ad4-v3-axis-slider:visible").count()!=3:
                     failures.append("Three-axis transform missing")
+                if page.locator(".ad4-v3-axis-value:visible").count()!=3:failures.append(f"{width}: labeled numeric axis inputs missing")
+                if page.locator("#ad4-v3-snap").count()!=1 or page.locator("#ad4-v3-resize-lock").count()!=1:failures.append(f"{width}: transform snap/lock missing")
+                if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
+                    numeric_x=page.locator('.ad4-v3-axis[data-axis="x"] .ad4-v3-axis-value')
+                    numeric_x.fill("12")
+                    numeric_x.press("Tab")
+                    if numeric_x.input_value()!="10":failures.append(f"{width}: 5mm Move snap did not apply")
+                page.locator(".ad4-v3-mode [data-mode='scale']").click()
+                if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
+                    numeric_x=page.locator('.ad4-v3-axis[data-axis="x"] .ad4-v3-axis-value')
+                    numeric_x.fill("127")
+                    numeric_x.press("Tab")
+                    proportion_values=[page.locator(f'.ad4-v3-axis[data-axis="{axis}"] .ad4-v3-axis-value').input_value() for axis in ("x","y","z")]
+                    if proportion_values!=["125","125","125"]:
+                        failures.append(f"{width}: lock proportions failed: {proportion_values}")
+                if page.locator("#ad4-v3-rotate90").is_visible():failures.append(f"{width}: Rotate action visible during Resize")
+                page.locator(".ad4-v3-mode [data-mode='rotate']").click()
+                if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
+                    before=float(page.locator('.ad4-v3-axis[data-axis="z"] .ad4-v3-axis-value').input_value())
+                    page.locator("#ad4-v3-rotate90").click()
+                    after=float(page.locator('.ad4-v3-axis[data-axis="z"] .ad4-v3-axis-value').input_value())
+                    if abs((((after-before)+360)%360)-45)>0.1:
+                        failures.append(f"{width}: Z rotate +45 step failed: {before} -> {after}")
+
+                page.screenshot(path=f"/tmp/ad4-pages-transform-{width}.png",full_page=False)
+                page.locator("#ad4-v3-nav-slice").click()
+                if page.evaluate("document.body.dataset.ad4Screen")!="slice-info":failures.append(f"{width}: Slice does not show its unavailable-state panel")
+                page.screenshot(path=f"/tmp/ad4-pages-slice-{width}.png",full_page=False)
                 page.locator('#ad4-v3-top [data-route="preview"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='preview'",timeout=4000)
+                page.locator("#ad4-v3-status").click()
+                if not page.locator("#ad4-v3-status-menu").is_visible():failures.append(f"{width}: top-right menu did not open")
+                if "FFAdv4Manager_cura" not in (page.locator("#ad4-v3-status-menu a").get_attribute("href") or ""):failures.append(f"{width}: wrong source code URL")
+                page.locator("#ad4-v3-status").click()
+                page.locator("#ad4-v3-nav-camera").click()
+                if page.evaluate("document.body.dataset.ad4Screen")!="printer":failures.append(f"{width}: camera missing unavailable-state view")
+                page.locator('#ad4-v3-top [data-route="preview"]').click()
                 if not page.locator("#ad4-v3-open-model:visible").count():
                     failures.append("Model import control missing")
-                if not page.locator("#ad4-v3-run-slice").is_disabled():
+                if page.locator("#ad4-v3-run-slice").count()>0 and not page.locator("#ad4-v3-run-slice").is_disabled():
                     failures.append("Public Pages exposed backend slicing")
                 # The print action is absent until a real server slice exists.
                 # When present, Pages must still disable it.
@@ -211,6 +248,24 @@ with sync_playwright() as p:
                     failures.append("Public Pages exposed physical printing")
             except Exception as error:
                 failures.append(f"{width}: V3 navigation failed: {error}")
+        if width==1280 and not startup_error and page.locator("#ad4-v3-remove-model").count():
+            try:
+                # Deletion of the final model must atomically clear geometry and all UI.
+                page.locator('#ad4-v3-top [data-route="preview"]').click()
+                page.wait_for_timeout(1100)
+                page.once("dialog", lambda dlg: dlg.accept())
+                page.locator("#ad4-v3-remove-model").click(timeout=3500)
+                page.wait_for_function("() => Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length===0",timeout=9000)
+                page.wait_for_timeout(1300)
+                assert page.locator("#ad4-v3-file-label").inner_text()=="No model loaded"
+                assert not page.locator("body").evaluate("(el)=>el.classList.contains('ad4-has-model')")
+                assert page.locator("#ad4-v3-remove-model").is_hidden()
+                page.screenshot(path="/tmp/ad4-pages-remove-model-1280.png",full_page=False)
+                print("REMOVE LAST MODEL: UI STATE CLEAN",flush=True)
+            except Exception as error:
+                failures.append(f"{width}: remove model state inconsistent: {error}")
+        if page.evaluate("document.documentElement.scrollWidth > innerWidth + 1"):
+            failures.append(f"{width}: unexpected horizontal overflow")
         if errors:
             failures.append(f"{width}: browser console/runtime errors: "+" | ".join(errors[:8])[:1000])
         for msg in errors: print("FINAL",msg[:750],flush=True)

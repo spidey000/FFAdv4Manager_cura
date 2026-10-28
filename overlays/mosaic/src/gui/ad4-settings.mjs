@@ -90,6 +90,10 @@ function decorateRows(){
     applyOverrides({[id]:original[id]});
    });
    bar.append(reset);
+    for(const input of row.querySelectorAll("input,select,textarea")){
+      if(!input.getAttribute("aria-label")&&!input.getAttribute("aria-labelledby"))
+        input.setAttribute("aria-label",(name.textContent||id).trim());
+    }
   }
  }
  for(const row of sections.querySelectorAll(".setting[data-setting_id]")){
@@ -133,6 +137,7 @@ function chooseFamily(group){
 }
 function filterRows(){
  const search=($("setting-search")?.value||"").trim().toLowerCase();
+ const clear=$("ad4-search-clear");if(clear)clear.hidden=!search;
  let visibleCount=0,allCount=0;
  for(const section of nativeSections()){
   const inGroup=search||(!nativeCategory ?
@@ -152,17 +157,27 @@ function filterRows(){
    const visibleChild=[...row.querySelectorAll(".setting[data-setting_id]")].some(child=>!child.hidden);
    const show=Boolean(inGroup)&&((matches&&allowedAtLevel)||visibleChild);
    row.hidden=!show;
+    // Replace Mosaic's separate native visibility flag with our active category filter.
+    row.dataset.should_show=String(show);
    if(show)shown++;
   }
   section.hidden=!shown;
+  section.dataset.should_show=String(shown>0);
+  // Native section enablement can be stale after Cura resolves settings.
+  // Recompute from the real enabled children rather than hiding entire
+  // Speed/Travel groups that contain enabled parameters.
+  section.dataset.is_enabled=String(rows.some(row=>row.dataset.is_enabled==="true"));
+  section.classList.toggle("ad4-single-setting",shown===1);
   if(shown){
    visibleCount+=shown;
+   section.style.height="auto";section.style.maxHeight="none";
    if(section.dataset.ad4ManuallyClosed!=="true")section.dataset.closed="false";
   }
  }
  const summary=$("ad4-catalog-count");
  if(summary)summary.textContent="Showing "+visibleCount+" of "+allCount+" native Cura settings";
  $("ad4-tuning-empty").hidden=visibleCount>0;
+ $("ad4-tuning-empty").textContent=search?"No settings match your search":"No parameters available in this category";
  decorateRows();
 }
 function tab(parent,labels,key,handler){
@@ -198,7 +213,7 @@ export function install_ad4_features(){
  panel.append(saveRow);
  const tools=element("div",{class:"ad4-preset-row"});
  tools.append(element("button",{id:"ad4-update-preset",type:"button"},"Update selected"),
-   element("button",{id:"ad4-delete-preset",type:"button"},"Delete selected"));panel.append(tools);
+   element("button",{id:"ad4-delete-preset",type:"button",class:"ad4-danger-action"},"Delete selected"));panel.append(tools);
  // Display the whole native Cura catalog without hiding an advanced toggle
  // inside profile management.
  const catalogBar=element("div",{id:"ad4-native-catalog-nav"});
@@ -211,6 +226,11 @@ export function install_ad4_features(){
   element("p",{id:"ad4-tuning-empty"},"No parameters for this filter"),
   element("p",{id:"ad4-preset-note",role:"status"}));
  const sidebar=$("sidebar");sidebar.insertBefore(root,$("profile-selector-div"));
+ $("profile-selector")?.setAttribute("aria-label","Process profile");
+ const searchInput=$("setting-search");searchInput.setAttribute("aria-label","Search all Cura settings");
+ const clearSearch=element("button",{id:"ad4-search-clear",type:"button","aria-label":"Clear settings search"},"×");
+ clearSearch.hidden=true;searchInput.after(clearSearch);
+ clearSearch.addEventListener("click",()=>{searchInput.value="";filterRows();searchInput.focus()});
  tab("ad4-categories",categories,"category",chooseFamily);
  tab("ad4-complexity",LEVELS,"level",name=>tier=name);
  allCura.addEventListener("click",()=>chooseFamily("All Cura"));
@@ -255,7 +275,8 @@ export function install_ad4_features(){
  inside.append(close,element("h3",{id:"ad4-help-heading"}),element("p",{id:"ad4-help-description"}),element("small",{id:"ad4-help-id"}));
  help.append(inside);help.addEventListener("click",e=>{if(e.target===help)help.close()});document.body.append(help);
  const auto=element("label",{id:"ad4-auto-slice-label"},"Auto slice ");
- auto.append(element("input",{id:"ad4-auto-slice",type:"checkbox"}));
+ auto.append(element("input",{id:"ad4-auto-slice",type:"checkbox",tabindex:"-1"}));
+ auto.hidden=true;auto.setAttribute("aria-hidden","true");
  const actions=$("slice-button-container");actions?.parentNode?.insertBefore(auto,actions);
  $("setting-search").addEventListener("input",filterRows);
  sections.addEventListener("change",()=>{setTimeout(()=>{decorateRows();filterRows()},360);reSlice()});

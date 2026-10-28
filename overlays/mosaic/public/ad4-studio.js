@@ -208,8 +208,8 @@
     const modelName = app?.gui?.file?.stl_file_name;
     const progress = byId("slice-progress-container")?.dataset.active === "true";
     const hasGcode = typeof gcode === "string" && /^(?:G[01]\s|M10[49]\b)/m.test(gcode);
-    const hasModel = Boolean(modelName);
-    const exported = hasGcode && byId("slice-export-container")?.dataset.active === "true";
+    const hasModel = Boolean(modelName) && Object.keys(app?.gui?.model_viewer?.models || {}).length > 0;
+    const exported = hasModel && hasGcode && byId("slice-export-container")?.dataset.active === "true";
     document.body.classList.toggle("ad4-has-model", hasModel);
     const name = modelName ? String(modelName).split(/[\\/]/).pop() : "";
     if (progress) stateNode.textContent = "CuraEngine slicing on server…";
