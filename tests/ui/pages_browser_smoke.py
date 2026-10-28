@@ -169,11 +169,13 @@ with sync_playwright() as p:
                 switch_look=page.evaluate("""() => {
                     const el=document.querySelector('#sidebar .setting-value input[type="checkbox"]');
                     if(!el)return null;
-                    const before=el.checked;
+                    const before=el.checked,oldTransition=el.style.transition;
+                    el.style.transition='none';
                     el.checked=true;
                     const color=getComputedStyle(el).backgroundColor;
                     const holder=getComputedStyle(el.closest('.setting-value'));
                     el.checked=before;
+                    el.style.transition=oldTransition;
                     return {color,border:holder.borderWidth,background:holder.backgroundColor};
                 }""")
                 if switch_look and (switch_look["color"]!="rgb(45, 236, 121)" or switch_look["border"]!="0px"):
