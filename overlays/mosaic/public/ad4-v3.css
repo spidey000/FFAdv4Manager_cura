@@ -317,3 +317,24 @@ body[data-ad4-screen=app] #ad4-v3-app{padding-bottom:max(30px,env(safe-area-inse
  #ad4-v3-transform .ad4-v3-axis{grid-template-columns:17px minmax(0,1fr) 67px}
  #ad4-v3-transform .ad4-v3-axis-value{width:67px}
 }
+
+/* UI-01/02/03/04/05: one local Lucide family and quiet four-icon workspace. */
+.ad4-lucide{display:inline-grid;place-items:center;line-height:0;flex:none}
+.ad4-lucide .ad4-icon-svg{display:block;width:22px;height:22px}
+#ad4-v3-top .ad4-lucide .ad4-icon-svg{width:24px;height:24px}
+#ad4-v3-top .ad4-v3-icon-button[aria-pressed=true] .ad4-lucide,
+#ad4-v3-bottom .ad4-v3-icon-button[aria-pressed=true] .ad4-lucide{
+ padding:6px 15px;background:var(--v3-green);color:#102718;border-radius:13px}
+#ad4-v3-top .ad4-v3-icon-button[aria-pressed=true] .ad4-icon-svg,
+#ad4-v3-bottom .ad4-v3-icon-button[aria-pressed=true] .ad4-icon-svg{
+ background:transparent;padding:0}
+#ad4-v3-bottom{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+#ad4-v3-action-row .ad4-v3-action{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:52px;border-radius:14px;min-width:0;font-weight:700}
+#ad4-v3-action-row .ad4-v3-action.primary{flex:1.3 1 auto!important}
+#ad4-v3-action-row .ad4-action-icon .ad4-icon-svg{width:19px;height:19px}
+#ad4-v3-status{height:40px!important;border-radius:999px!important;min-width:0!important;max-width:135px!important;padding:7px 9px!important;gap:6px!important}
+#ad4-v3-printer-status{font-size:11px}
+#ad4-v3-header .ad4-lucide .ad4-icon-svg{width:17px;height:17px}
+#viewer #controls,#viewer .transform-controls,#viewer #model-controls,
+#viewer #movement-controls,#viewer #rotation-controls{display:none!important}
+@media(max-width:390px){#ad4-v3-status{max-width:112px!important}#ad4-v3-action-row .ad4-v3-action{font-size:10px}}

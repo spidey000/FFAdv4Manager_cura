@@ -37,6 +37,7 @@ def build():
     shutil.copy2(OV/"public/demo-cube-20mm.stl",DEST/"public/demo-cube-20mm.stl")
     shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
     shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
+    shutil.copy2(OV/"src/gui/ad4-icon-pack.mjs",DEST/"src/gui/ad4-icon-pack.mjs")
     webpack=DEST/"webpack.config.js"
     cfg=webpack.read_text()
     marker=',\n  {\n    name: "curaengine_worker"'
@@ -47,6 +48,7 @@ def build():
     data=json.loads(pkg.read_text())
     data["name"]="ffadv4manager-mosaic"
     data["dependencies"].pop("@mosaicslicer/curaengine",None)
+    data["dependencies"]["lucide"]="1.62.0"
     pkg.write_text(json.dumps(data,indent=2)+"\n")
     with (DEST/"src/gui/index.mjs").open("a",encoding="utf-8") as stream:
         stream.write('\nexport * as slicer from "./slicer.mjs";\n')
@@ -55,9 +57,10 @@ def build():
     app_entry=DEST/"src/index.mjs"
     app_code=app_entry.read_text()
     app_code=app_code.replace('import * as resources from "./resources.mjs";',
-      'import * as resources from "./resources.mjs";\\nimport {install_ad4_features} from "./gui/ad4-settings.mjs";'.replace('\\n','\n'))
+      'import * as resources from "./resources.mjs";\\nimport {install_ad4_features} from "./gui/ad4-settings.mjs";\\nimport {install_ad4_icon_pack} from "./gui/ad4-icon-pack.mjs";'.replace('\\n','\n'))
     app_code=app_code.replace('  console.log("Loaded GUI");',
       '  console.log("Loaded GUI");\\n  install_ad4_features();'.replace('\\n','\n'))
+    app_code=app_code.replace('main();','install_ad4_icon_pack();\\nmain();'.replace('\\n','\n'))
     # Prevent an exception in the loader from leaving users with an eternal spinner.
     app_code=app_code.replace('main();', '''
 main().catch(error => {
