@@ -14,12 +14,12 @@
 | --- | --- | --- |
 | R01 | Startup / demo mesh | No permanent Loading overlay; demo STL loads real 3D geometry; no JS errors |
 | R02 | Import STL | A second STL can be loaded into the viewer |
-| R03 | Remove model | Last mesh removal clears label, state, actions, and serialized view-state (pending focused-model scenario) |
+| R03 | Remove model | Last mesh removal clears model registry, filename, UI state and dependent actions; confirmed in Chromium |
 | R04 | Print at 320×568 | Header visible, content inside viewport, sidebar has one scrollable region, bottom rows reachable |
 | R05 | Print at 390×844 | No fixed Save profile over inputs; Quality values not clipped by their accordion |
 | R06 | Print at 1280×800 | Visible Quality controls, desktop spacing, no overflow |
-| R07 | Profiles & filters | Process and material selectors, checkbox not overlapped; pane fully scrolls with content |
-| R08 | Categories | Quality, Strength, Speed, Support, Material have native Cura content when present |
+| R07 | Profiles & filters | Process and material selectors, first-class All Cura button and native category picker; one continuous scroller |
+| R08 | Categories | Quick categories provide native Cura content; All Cura exposes the full 693-setting catalog including native category browser |
 | R09 | Global search | `temperature` from Quality returns material settings; X clears term |
 | R10 | Empty/single accordions | Empty groups hidden; single-setting category header not wasteful |
 | R11 | Filament route | Changes to Filament route and activates Material category with usable controls |
@@ -38,7 +38,7 @@
 
 ## Required screenshot states
 
-For each mobile width, save: Print default, Print after scrolling / expanded native catalog, Filament Material, Printer preview-mode, Transform Scale, Slice unavailable, final Preview. Desktop captures initial and Print where needed. Keep CI artifacts for 14 days.
+For each mobile width, save: Print default, Print after scrolling / expanded native catalog, Filament Material, Printer preview-mode, Transform Scale, Slice unavailable, final Preview. Capture desktop model deletion as well. Both CI and Pages deployment upload all `/tmp/ad4-pages-*.png` images to GitHub Actions artifacts retained for 14 days.
 
 ## Remaining physical checks before a production claim
 
