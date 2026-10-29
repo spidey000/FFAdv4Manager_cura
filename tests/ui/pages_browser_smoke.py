@@ -365,7 +365,7 @@ with sync_playwright() as p:
                 page.locator("#ad4-v3-remove-model").click(timeout=3500)
                 page.wait_for_function("() => Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length===0",timeout=9000)
                 page.wait_for_timeout(1300)
-                assert page.locator("#ad4-v3-file-label").inner_text()=="No model loaded"
+                assert page.evaluate("Object.keys(app.gui.model_viewer.models).length")==0, "Model still present in actual Three.js scene"
                 assert not page.locator("body").evaluate("(el)=>el.classList.contains('ad4-has-model')")
                 assert page.locator("#ad4-v3-remove-model").is_hidden()
                 page.screenshot(path="/tmp/ad4-pages-remove-model-1280.png",full_page=False)
