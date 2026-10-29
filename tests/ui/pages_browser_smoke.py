@@ -308,64 +308,44 @@ with sync_playwright() as p:
                 if not page.locator("#ad4-v3-export-profiles:visible").count():
                     failures.append("App profile exporter missing")
                 page.locator('#ad4-v3-top [data-route="preview"]').click()
-                if page.locator("#ad4-v3-bottom button").count()!=4:
-                    failures.append(f"{width}: expected four footer actions")
-                if page.locator("#ad4-v3-nav-orient").count():
-                    failures.append(f"{width}: obsolete Orient control remained")
-                page.locator("#ad4-v3-nav-move").click()
-                page.wait_for_function("document.body.dataset.ad4Screen==='transform'",timeout=4000)
-                if page.locator(".ad4-v3-axis-ruler:visible").count()!=3:
-                    failures.append("Three-axis transform missing")
-                if page.locator(".ad4-v3-axis-value:visible").count()!=3:failures.append(f"{width}: labeled numeric axis inputs missing")
-                if page.locator("#ad4-v3-snap").count()!=1 or page.locator("#ad4-v3-resize-lock").count()!=1:failures.append(f"{width}: transform snap/lock missing")
+                if page.locator("#ad4-v3-bottom button").count()!=2:
+                    failures.append(f"{width}: expected only File and Slice footer actions")
+                if page.locator("#ad4-v3-header:visible, #ad4-v3-status:visible").count():
+                    failures.append(f"{width}: redundant branded header or status button visible")
+                if page.locator("#ad4-v3-workspace-card").count():
+                    failures.append(f"{width}: redundant model overlay visible")
+                if page.locator("#ad4-v3-nav-camera, #ad4-v3-nav-move").count():
+                    failures.append(f"{width}: redundant Camera/Transform footer tools")
+                toolbar=page.locator("#ad4-viewer-transform")
+                if toolbar.locator("button").count()!=3:
+                    failures.append(f"{width}: three in-view model transform tools missing")
+                if page.locator("#ad4-viewer-snap").count()!=1:
+                    failures.append(f"{width}: snap switch missing inside viewer")
                 if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
-                    numeric_x=page.locator('.ad4-v3-axis[data-axis="x"] .ad4-v3-axis-value')
-                    numeric_x.fill("12")
-                    numeric_x.press("Tab")
-                    if numeric_x.input_value()!="10":failures.append(f"{width}: 5mm Move snap did not apply")
-                page.locator(".ad4-v3-mode [data-mode='scale']").click()
-                if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
-                    numeric_x=page.locator('.ad4-v3-axis[data-axis="x"] .ad4-v3-axis-value')
-                    numeric_x.fill("127")
-                    numeric_x.press("Tab")
-                    try:
-                        page.wait_for_function("""() => ['x','y','z'].every(axis =>
-                            document.querySelector('.ad4-v3-axis[data-axis="'+axis+'"] .ad4-v3-axis-value')?.value==='125'
-                        )""", timeout=1400)
-                    except Exception:
-                        state=page.evaluate("""() => ({
-                            focused:app.gui.model_viewer.focused,
-                            native:['x','y','z'].map(a=>document.getElementById('scale-'+a+'-value')?.value),
-                            shown:['x','y','z'].map(a=>document.querySelector('.ad4-v3-axis[data-axis="'+a+'"] .ad4-v3-axis-value')?.value),
-                            mode:[...document.querySelectorAll('.ad4-v3-mode button')].find(b=>b.getAttribute('aria-pressed')==='true')?.dataset.mode,
-                            lock:document.getElementById('ad4-v3-resize-lock')?.checked
-                        })""")
-                        print("PROPORTIONAL SCALE DIAGNOSTIC",width,state,flush=True)
-                    proportion_values=[page.locator(f'.ad4-v3-axis[data-axis="{axis}"] .ad4-v3-axis-value').input_value() for axis in ("x","y","z")]
-                    if proportion_values!=["125","125","125"]:
-                        failures.append(f"{width}: lock proportions failed: {proportion_values}")
-                if page.locator("#ad4-v3-rotate90").is_visible():failures.append(f"{width}: Rotate action visible during Resize")
-                page.locator(".ad4-v3-mode [data-mode='rotate']").click()
-                if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
-                    before=float(page.locator('.ad4-v3-axis[data-axis="z"] .ad4-v3-axis-value').input_value())
-                    page.locator("#ad4-v3-rotate90").click()
-                    after=float(page.locator('.ad4-v3-axis[data-axis="z"] .ad4-v3-axis-value').input_value())
-                    if abs((((after-before)+360)%360)-45)>0.1:
-                        failures.append(f"{width}: Z rotate +45 step failed: {before} -> {after}")
-
+                    toolbar.locator('[data-viewer-mode="translate"]').click()
+                    if toolbar.locator('[data-viewer-mode="translate"]').get_attribute("aria-pressed")!="true":
+                        failures.append(f"{width}: Move does not activate native transform")
+                    toolbar.locator('[data-viewer-mode="scale"]').click()
+                    if toolbar.locator('[data-viewer-mode="scale"]').get_attribute("aria-pressed")!="true":
+                        failures.append(f"{width}: Scale does not activate native transform")
+                    toolbar.locator('[data-viewer-mode="rotate"]').click()
+                    if toolbar.locator('[data-viewer-mode="rotate"]').get_attribute("aria-pressed")!="true":
+                        failures.append(f"{width}: Rotate does not activate native transform")
+                    page.locator("#ad4-viewer-snap").uncheck()
+                    if page.locator("#ad4-v3-snap").is_checked():
+                        failures.append(f"{width}: snap toolbar not linked to native control")
+                    page.locator("#ad4-viewer-snap").check()
+                dock_rect=page.locator("#ad4-v3-bottom").evaluate("""(el)=>{
+                    const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,viewport:innerHeight};
+                }""")
+                if dock_rect["bottom"]>height+2 or dock_rect["top"]<0:
+                    failures.append(f"{width}: footer clipped: {dock_rect}")
                 page.screenshot(path=f"/tmp/ad4-pages-transform-{width}.png",full_page=False)
                 page.locator("#ad4-v3-nav-slice").click()
                 if page.evaluate("document.body.dataset.ad4Screen")!="slice-info":failures.append(f"{width}: Slice does not show its unavailable-state panel")
                 page.screenshot(path=f"/tmp/ad4-pages-slice-{width}.png",full_page=False)
                 page.locator('#ad4-v3-top [data-route="preview"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='preview'",timeout=4000)
-                page.locator("#ad4-v3-status").click()
-                if not page.locator("#ad4-v3-status-menu").is_visible():failures.append(f"{width}: top-right menu did not open")
-                if "FFAdv4Manager_cura" not in (page.locator("#ad4-v3-status-menu a").get_attribute("href") or ""):failures.append(f"{width}: wrong source code URL")
-                page.locator("#ad4-v3-status").click()
-                page.locator("#ad4-v3-nav-camera").click()
-                if page.evaluate("document.body.dataset.ad4Screen")!="printer":failures.append(f"{width}: camera missing unavailable-state view")
-                page.locator('#ad4-v3-top [data-route="preview"]').click()
                 if not page.locator("#ad4-v3-open-model:visible").count():
                     failures.append("Model import control missing")
                 if page.locator("#ad4-v3-run-slice").count()>0 and not page.locator("#ad4-v3-run-slice").is_disabled():
