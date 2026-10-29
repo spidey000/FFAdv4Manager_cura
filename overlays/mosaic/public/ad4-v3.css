@@ -624,3 +624,75 @@ body:is([data-ad4-screen=print],[data-ad4-screen=filament]) #sidebar .section .s
  #sidebar .setting-name{font-size:11.5px!important}
  #sidebar .ad4-setting-reset{width:31px!important;flex-basis:31px!important}
 }
+
+
+/* Compact edge-to-edge mobile editor: browser toolbar is already the header. */
+:root{--v3-head:0px;--v3-tabs:65px;--v3-bottom:64px;--v3-actions:62px}
+#ad4-v3-header{display:none!important}
+#ad4-v3-top{top:0!important;height:var(--v3-tabs)!important;grid-template-columns:repeat(5,minmax(0,1fr));border:0!important}
+#tab-strip{height:0!important;min-height:0!important;flex-basis:0!important}
+#viewer{margin-top:var(--v3-tabs)!important;border:0!important;border-radius:0!important;
+ height:calc(100dvh - var(--v3-tabs) - var(--v3-actions) - var(--v3-bottom))!important}
+#ad4-v3-workspace-card{display:none!important}
+#ad4-v3-bottom{height:var(--v3-bottom)!important;bottom:0!important;
+ display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+ padding:2px 8px max(5px,env(safe-area-inset-bottom))!important;box-sizing:border-box;
+ border-top:1px solid #242b29!important;background:#0c0f10!important}
+#ad4-v3-bottom .ad4-v3-icon-button,
+#ad4-v3-bottom .ad4-v3-icon-button[aria-pressed=true]{
+ background:transparent!important;border:0!important;border-radius:0!important;
+ box-shadow:none!important;color:#9aa6a2!important;min-height:48px!important;
+ padding:3px 5px!important;font-size:11px!important
+}
+#ad4-v3-bottom .ad4-v3-icon-button[aria-pressed=true]{color:#2dec79!important}
+#ad4-v3-bottom .ad4-v3-icon-button .ad4-lucide,
+#ad4-v3-bottom .ad4-v3-icon-button[aria-pressed=true] .ad4-lucide{
+ background:transparent!important;color:inherit!important;border:0!important;
+ border-radius:0!important;box-shadow:none!important;padding:0!important
+}
+#ad4-v3-bottom .ad4-v3-icon-button[aria-pressed=true] svg{background:transparent!important;color:inherit!important}
+#ad4-v3-action-row{bottom:var(--v3-bottom)!important;height:var(--v3-actions)!important;
+ background:#0e1211!important;gap:1px!important;padding:3px 5px!important;border:0!important;box-sizing:border-box}
+#ad4-v3-action-row .ad4-v3-action{
+ background:transparent!important;border:0!important;box-shadow:none!important;
+ border-radius:0!important;color:#cbd6cf!important;font-size:11px!important;
+ font-weight:600!important;min-height:48px!important;padding:4px!important
+}
+#ad4-v3-action-row .ad4-v3-action.primary{background:transparent!important;color:#2dec79!important}
+#ad4-v3-action-row .ad4-v3-action .ad4-action-icon{background:transparent!important}
+#ad4-viewer-transform{position:absolute;top:12px;left:10px;z-index:35;
+ display:flex;flex-direction:column;gap:5px;align-items:flex-start;pointer-events:auto}
+#ad4-viewer-transform[hidden]{display:none!important}
+#ad4-viewer-transform .ad4-v3-icon-button{
+ display:flex;flex-direction:column;align-items:center;justify-content:center;
+ gap:3px;width:66px;min-height:60px;padding:6px 3px!important;
+ border:0!important;border-radius:8px!important;
+ box-shadow:none!important;background:#121918ce!important;color:#aab9b1!important;
+ font-size:11px!important;font-weight:600!important;cursor:pointer
+}
+#ad4-viewer-transform .ad4-v3-icon-button[aria-pressed=true]{
+ color:#2dec79!important;background:#193027db!important
+}
+#ad4-viewer-transform .ad4-lucide{color:inherit!important;background:transparent!important;padding:0!important}
+#ad4-viewer-transform .ad4-icon-svg{width:21px!important;height:21px!important}
+#ad4-viewer-transform .ad4-viewer-snap{display:flex;align-items:center;gap:6px;
+ background:#141c19e8;border:0;border-radius:7px;
+ padding:7px 8px;color:#cfdfd2;font-size:11px;font-weight:600;white-space:nowrap}
+#ad4-viewer-snap{width:18px;height:18px;accent-color:#2dec79}
+body[data-ad4-screen=print] #sidebar-container,
+body[data-ad4-screen=filament] #sidebar-container{
+ top:var(--v3-tabs)!important;inset:var(--v3-tabs) 0 0 0!important
+}
+.ad4-v3-info-page,body[data-ad4-screen=app] #ad4-v3-app{
+ top:var(--v3-tabs)!important
+}
+@media(max-width:767px){
+ :root{--v3-head:0px;--v3-tabs:63px;--v3-bottom:64px;--v3-actions:60px}
+ #ad4-v3-top{padding:2px 4px!important}
+ #viewer{height:calc(100dvh - var(--v3-tabs) - var(--v3-actions) - var(--v3-bottom))!important}
+}
+@media(max-height:620px){
+ :root{--v3-bottom:56px;--v3-actions:54px;--v3-tabs:56px}
+ #ad4-viewer-transform{top:5px;gap:2px}
+ #ad4-viewer-transform .ad4-v3-icon-button{min-height:42px}
+}
