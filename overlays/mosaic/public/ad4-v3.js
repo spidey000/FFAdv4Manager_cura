@@ -24,18 +24,10 @@ const TOP=[["cube","Preview","preview"],["wrench","Print","print"],["filament","
 let current="preview",tool="file",managerPane="camera",lastGcode=false,previousModelCount=0;
 const modelCount=()=>Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length;
 const header=make("header","ad4-v3-header");header.id="ad4-v3-header";
-header.innerHTML='<div class="ad4-v3-brand"><span class="ad4-v3-logo">'+svg("cube")+'</span><span><strong>AD4 Studio</strong><small>FlashForge Adventurer 4</small></span></div>'+
-  '<button type="button" id="ad4-v3-status" aria-label="Printer status and navigation menu" aria-expanded="false" aria-controls="ad4-v3-status-menu"><span class="ad4-v3-status-dot"></span><span id="ad4-v3-printer-status">Printer</span>'+svg("chevron")+'</button>';
+// Compact layout: no branded secondary header.
 const top=make("nav","ad4-v3-top");top.id="ad4-v3-top";top.setAttribute("aria-label","Main sections");
 root.append(header,top);
-const statusMenu=make("nav","ad4-v3-status-menu");statusMenu.id="ad4-v3-status-menu";statusMenu.hidden=true;
-statusMenu.setAttribute("aria-label","Printer and navigation shortcuts");
-statusMenu.innerHTML='<strong id="ad4-v3-menu-status">Printer status</strong><button type="button" data-open="printer">Printer controls</button><button type="button" data-open="preview">Prepare model</button><button type="button" data-open="sliced">Layer preview</button><a href="https://github.com/spidey000/FFAdv4Manager_cura" target="_blank" rel="noopener noreferrer">Source code · FFAdv4Manager_cura</a>';
-header.append(statusMenu);
-function closeStatusMenu(){statusMenu.hidden=true;$("ad4-v3-status").setAttribute("aria-expanded","false")}
-$("ad4-v3-status").addEventListener("click",()=>{const opening=statusMenu.hidden;statusMenu.hidden=!opening;$("ad4-v3-status").setAttribute("aria-expanded",String(opening))});
-statusMenu.addEventListener("click",e=>{const target=e.target.closest("[data-open]");if(target){closeStatusMenu();activate(target.dataset.open)}});
-document.addEventListener("pointerdown",e=>{if(!header.contains(e.target))closeStatusMenu()});
+function closeStatusMenu(){}
 const bottom=make("nav","ad4-v3-bottom");bottom.id="ad4-v3-bottom";bottom.setAttribute("aria-label","Editor tools");
 root.append(bottom);
 const action=make("section","ad4-v3-action-row");action.id="ad4-v3-action-row";root.append(action);
@@ -63,9 +55,9 @@ function refreshState(){
  root.classList.toggle("ad4-has-model",model);
  root.classList.toggle("ad4-v3-sliced",sliced);
  const name=globalThis.app?.gui?.file?.stl_file_name||"";
- const label=$("ad4-v3-file-label");
+ const label=null;
  if(label)label.textContent=model?name.split(/[\\/]/).pop():"No model loaded";
- const state=$("ad4-v3-file-detail");
+ const state=null;
  if(state)state.textContent=sliced?[$("gcode-time-estimate")?.textContent,$("material-estimate")?.textContent].filter(Boolean).join(" · "):model?"Ready for CuraEngine · server-side slicing":"STL or 3MF · FlashForge Adventurer 4";
  const slice=$("ad4-dock-slice");
  if(slice)slice.disabled=staticPreview || !model || $("slice-progress-container")?.dataset.active==="true";
@@ -80,6 +72,7 @@ function refreshState(){
  }
  // Native G-code layers remain authoritative; the range controls act on actual mesh groups.
  if(current==="sliced")requestAnimationFrame(initLayerRulers);
+ viewerTransform.hidden=!["preview","transform"].includes(current);
  const progressBadge=$("ad4-v3-progress");
  if(progressBadge)progressBadge.hidden=!sliced;
 }
@@ -118,9 +111,7 @@ const sliceInfo=make("section","ad4-v3-info-page");sliceInfo.id="ad4-v3-slice-in
 sliceInfo.innerHTML='<h2>Server-side slicing</h2><div class="ad4-v3-info-card"><strong>CuraEngine is not available on GitHub Pages</strong><p>The 3D model and Cura settings work in the public preview. To generate G-code or GX, open this application on your authenticated Linux server.</p><button type="button" id="ad4-v3-return-preview">Return to model</button></div>';
 root.append(sliceInfo);
 $("ad4-v3-return-preview").addEventListener("click",()=>activate("preview"));
-const intro=make("div","ad4-v3-workspace-card");intro.id="ad4-v3-workspace-card";
-intro.innerHTML='<div class="ad4-v3-file-symbol">'+svg("cube")+'</div><span><strong id="ad4-v3-file-label">No model loaded</strong><small id="ad4-v3-file-detail">STL or 3MF</small></span>';
-$("viewer")?.append(intro);
+// File overlay removed from viewport.
 /* Decorative selection brackets track the *real* selected Three.js geometry.
  * Do not intercept canvas gestures; no fake selection state is created.
  */
@@ -360,8 +351,22 @@ function initRulers(){
  }
  refreshAxis();
 }
+const viewerTransform=make("nav","ad4-viewer-transform");
+viewerTransform.id="ad4-viewer-transform";
+viewerTransform.setAttribute("aria-label","Model transforms");
+for(const [type,iconName,label] of [["translate","move","Move"],["rotate","rotate","Rotate"],["scale","scale","Scale"]]){
+ const btn=navButton(iconName,label,()=>{if(!hasSelection()){notify("Select a model on the plate");return}setTransform(type)});
+ btn.dataset.viewerMode=type;btn.setAttribute("aria-label",label+" selected model");
+ viewerTransform.append(btn);
+}
+const snapLabel=make("label","ad4-viewer-snap");
+snapLabel.innerHTML='<input id="ad4-viewer-snap" type="checkbox" checked><span>Snap 5</span>';
+viewerTransform.append(snapLabel);
+$("viewer")?.append(viewerTransform);
+snapLabel.querySelector("input").addEventListener("change",e=>{$("ad4-v3-snap").checked=e.target.checked;setTransform(mode)});
 function setTransform(next){
  mode=next;
+ for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed",String(b.dataset.viewerMode===next));
  for(const b of transform.querySelectorAll("[data-mode]"))b.setAttribute("aria-pressed",String(b.dataset.mode===next));
  const focused=globalThis.app?.gui?.model_viewer?.focused,controls=globalThis.app?.gui?.model_viewer?.model_controls;
  if(focused&&controls?.mode!==next){
@@ -552,8 +557,7 @@ const editorButtons={
 };
 bottom.append(
  toolBtn("file","File",editorButtons.file,"ad4-v3-nav-file"),
- toolBtn("camera","Camera",editorButtons.camera,"ad4-v3-nav-camera"),
- toolBtn("move","Transform",editorButtons.move,"ad4-v3-nav-move"),
+
  toolBtn("layers","Slice",editorButtons.slice,"ad4-v3-nav-slice")
 );
 function actionButton(id,label,click,primary=false){
@@ -598,14 +602,7 @@ function renderTools(){
  upload.disabled=staticPreview||!sliceReady();
  print.disabled=staticPreview||!sliceReady();
 }
-function checkStatus(){
- const original=$("ad4-open-manager")?.textContent||"";
- const state=staticPreview?"Demo":(original.replace("AD4 · ","")||"Offline");
-  $("ad4-v3-printer-status").textContent=state;
-  $("ad4-v3-menu-status").textContent=staticPreview?"Demo · Private server not connected":state;
-  $("ad4-v3-status").setAttribute("aria-label","Printer status: "+state+". Open navigation menu");
-  // The persistent printer dashboard owns its connection message.
-}
+function checkStatus(){}
 $("ad4-v3-file-label")?.addEventListener("click",()=>$("ad4-dock-model")?.click());
 $("stl-file")?.addEventListener("change",()=>{activate("preview");setTimeout(refreshState,500)});
 $("ad4-v3-layer-number").textContent="1 / 1";
@@ -626,7 +623,7 @@ setInterval(()=>{
 },1000);
 addEventListener("keydown",e=>{
  if(e.key!=="Escape")return;
-  if(!statusMenu.hidden){closeStatusMenu();return}
+  
  if(current!=="preview" && !manager?.open)activate("preview");
 });
 activate("preview");
