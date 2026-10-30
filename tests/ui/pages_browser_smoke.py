@@ -53,6 +53,17 @@ with sync_playwright() as p:
                 }""",timeout=18000)
                 count=page.evaluate("Object.keys(app.gui.model_viewer.models).length")
                 print("DEMO STL GEOMETRY LOADED",count,flush=True)
+                # The bundled demo must also load the REAL 3DBenchy G-code,
+                # not just a placeholder or generated illustrative cube.
+                page.wait_for_function(
+                    "() => app.gui.slicer.exported_gcode?.length > 100000",
+                    timeout=45000
+                )
+                assert page.evaluate(
+                    "app.gui.slicer.exported_gcode.includes(';LAYER_CHANGE') || "
+                    "app.gui.slicer.exported_gcode.includes(';LAYER:')"
+                )
+                print("AUTOMATIC REAL 3DBENCHY G-CODE READY",flush=True)
                 assert count>=1
                 assert page.locator("#ad4-dock-demo").count()==1
                 # Public documentation shots must show the REAL loaded Three.js model,
