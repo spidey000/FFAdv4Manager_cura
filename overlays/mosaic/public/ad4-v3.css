@@ -709,3 +709,10 @@ body[data-ad4-screen=filament] #sidebar-container{
 #ad4-viewer-transform .ad4-viewer-snap input[type=checkbox]:checked,#ad4-viewer-transform .ad4-viewer-lock input[type=checkbox]:checked{background:var(--v3-green);border-color:var(--v3-green)}
 #ad4-viewer-transform .ad4-viewer-snap input[type=checkbox]::after,#ad4-viewer-transform .ad4-viewer-lock input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform .15s}
 #ad4-viewer-transform .ad4-viewer-snap input[type=checkbox]:checked::after,#ad4-viewer-transform .ad4-viewer-lock input[type=checkbox]:checked::after{transform:translateX(15px)}
+
+/* One unified expandable panel for XYZ, snap and proportional scaling. */
+#ad4-viewer-transform .ad4-viewer-editor-box{box-sizing:border-box;width:156px;max-width:calc(100vw - 30px);display:flex;flex-direction:column;gap:6px;padding:9px;border:1px solid #3f5750;border-radius:12px;background:rgba(14,28,25,.96);box-shadow:0 5px 20px #0005}
+#ad4-viewer-transform .ad4-viewer-editor-box[hidden]{display:none!important}
+#ad4-viewer-transform .ad4-viewer-values{width:100%;padding:0 0 7px;border-bottom:1px solid #344941}
+#ad4-viewer-transform .ad4-viewer-snap,#ad4-viewer-transform .ad4-viewer-lock{box-sizing:border-box;width:100%;margin:0;padding:2px 0;border:0;background:none;box-shadow:none;border-radius:0;white-space:nowrap}
+#ad4-viewer-transform .ad4-viewer-value-row{width:100%}
