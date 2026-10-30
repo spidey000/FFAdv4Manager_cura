@@ -28,9 +28,10 @@ def build():
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     # Keep performant viewer code as tracked overlays, never edit generated frontend.
-    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs"):
+    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-stl-worker-client.mjs"):
         shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
+    shutil.copy2(OV/"public/ad4-stl-worker.js", DEST/"public/ad4-stl-worker.js")
     for name in ("ad4-manager-tools.js", "ad4-manager-tools.css", "ad4-live-job.js", "ad4-live-job.css"):
         shutil.copy2(OV/"public"/name, DEST/"public"/name)
     shutil.copy2(OV/"public/ad4.css",DEST/"public/ad4.css")
@@ -292,7 +293,14 @@ globalThis.AD4GCodePreview = {
           '    load_model(array_buffer, stl_file_name.endsWith(".stl") ? "stl" : "3mf", reader.file_name);')
     patch("src/gui/viewer/model_viewer.mjs",
           'export function load_model(raw_data, model_type) {',
-          'export function load_model(raw_data, model_type, file_name = "") {')
+          'export async function load_model(raw_data, model_type, file_name = "") {')
+    patch("src/gui/viewer/model_viewer.mjs",
+          'import * as THREE from "three";',
+          'import * as THREE from "three";\\n'
+          'import {parseStlGeometry} from "./ad4-stl-worker-client.mjs";')
+    patch("src/gui/viewer/model_viewer.mjs",
+          '      viewer.stl_loader.parse(raw_data),',
+          '      await parseStlGeometry(raw_data, viewer.stl_loader),')
     patch("src/gui/viewer/model_viewer.mjs",
           '  models[mesh.uuid] = {\n    mesh: mesh,\n    data: raw_data\n  };',
           '  mesh.name = file_name || ("Model " + (Object.keys(models).length + 1));\n'
