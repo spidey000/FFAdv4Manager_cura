@@ -26,6 +26,7 @@ export function cancel_slice() {
     active_controller.abort();
     active_controller = null;
     fetch("./api/slice/cancel", { method: "POST" }).catch(() => {});
+    document.dispatchEvent(new CustomEvent("ad4:slice-progress", {detail: {state: "cancelled"}}));
   }
 }
 
@@ -44,6 +45,7 @@ export async function slice(stl, on_progress) {
   const controller = new AbortController();
   active_controller = controller;
   let progressTimer = null;
+  let finished = false;
   try {
     const settings = active_containers.export_settings();
     settings["/tmp/input/model.stl"] = {extruder_nr: "0"};
@@ -52,7 +54,6 @@ export async function slice(stl, on_progress) {
     const jobId = crypto.randomUUID();
     let lastPercent = 0;
     let polling = false;
-    let timer;
     const report = (percent, stage) => {
       on_progress?.(percent == null ? null : percent / 100, stage);
       document.dispatchEvent(new CustomEvent("ad4:slice-progress", {
@@ -61,7 +62,7 @@ export async function slice(stl, on_progress) {
     };
     report(0, "Preparing");
     const poll = async () => {
-      if (polling || controller.signal.aborted) return;
+      if (polling || controller.signal.aborted || finished) return;
       polling = true;
       try {
         const response = await fetch("./api/slice/progress?job_id=" + encodeURIComponent(jobId), {
@@ -69,7 +70,7 @@ export async function slice(stl, on_progress) {
         });
         if (!response.ok) return;
         const status = await response.json();
-        if (status.state !== "running") return;
+        if (finished || status.state !== "running") return;
         // Never invent a percentage: while CuraEngine has not reported a
         // numeric value the UI remains indeterminate.
         const percent = Number.isFinite(status.percent)
@@ -82,14 +83,15 @@ export async function slice(stl, on_progress) {
         polling = false;
       }
     };
-    timer = progressTimer = setInterval(poll, 400);
+    progressTimer = setInterval(poll, 400);
     const res = await fetch("./api/slice", {
       method: "POST",
       headers: {"Content-Type": "application/vnd.ffadv4-slice", "X-AD4-Slice-Id": jobId},
       body: to_blob({stl, settings}),
       signal: controller.signal,
     });
-    clearInterval(timer);
+    finished = true;
+    clearInterval(progressTimer);
     const payload = await res.json();
     if (!res.ok) throw Error(payload.error || "Server slicing failed");
     if (payload.engine !== "server") throw Error("Server engine verification failed");
@@ -104,7 +106,13 @@ export async function slice(stl, on_progress) {
       time_estimate: seconds == null ? "Not reported by CuraEngine" : format_time(seconds),
       material_estimate: metres == null ? "Not reported" : metres.toFixed(2) + "m",
     };
+  } catch (error) {
+    if (error.name !== "AbortError") {
+      document.dispatchEvent(new CustomEvent("ad4:slice-progress", {detail: {state: "failed"}}));
+    }
+    throw error;
   } finally {
+    finished = true;
     clearInterval(progressTimer);
     if (active_controller === controller) active_controller = null;
   }
