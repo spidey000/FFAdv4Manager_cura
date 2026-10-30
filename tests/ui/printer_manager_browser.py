@@ -3,6 +3,7 @@ import ast
 import functools
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -58,7 +59,7 @@ def run():
         thread.start()
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+                browser = p.chromium.launch(headless=True, executable_path=os.environ.get("CHROME_BIN") or shutil.which("google-chrome") or shutil.which("chromium") or None, args=['--no-sandbox'])
                 for width in (390, 1280):
                     page = browser.new_page(viewport={'width': width, 'height': 900})
                     errors = []
@@ -85,7 +86,7 @@ def run():
                     page.wait_for_function('document.getElementById("ad4-manager-status").textContent.includes("completed")')
                     assert any(method == 'POST' and path.startswith('/upload?') for method, path, body in calls)
                     assert not errors, errors
-                    assert page.locator('#ad4-manager').evaluate('(e)=>e.scrollWidth<=e.clientWidth+1'), 'Horizontal overflow in printer manager' 
+                    assert page.locator('#ad4-manager').evaluate('(e)=>e.scrollWidth<=e.clientWidth+1'), 'Horizontal overflow in printer manager'
                     page.screenshot(path=f'/tmp/ad4-manager-tools-{width}.png')
                     page.close()
                 browser.close()
