@@ -61,6 +61,9 @@ def verify(output):
                 page.wait_for_function('globalThis.app?.gui?.file?.load_file && globalThis.app?.settings?.active_containers', timeout=30000)
                 page.locator('#stl-file').set_input_files(str(ROOT / 'overlays/mosaic/public/demo-cube-20mm.stl'))
                 page.wait_for_function('Object.keys(globalThis.app.gui.model_viewer.models).length === 1')
+                settings = page.evaluate('globalThis.app.settings.active_containers.export_settings()')
+                (output / 'browser-settings.json').write_text(json.dumps(settings))
+                print('Browser settings per group:', {key: len(value) for key, value in settings.items()}, flush=True)
                 with page.expect_response(lambda response: response.url.endswith('/api/slice') and response.request.method == 'POST', timeout=300000) as pending:
                     page.locator('#ad4-v3-run-slice').click()
                 response = pending.value
@@ -73,6 +76,7 @@ def verify(output):
                 assert ';LAYER:' in gcode, 'Native output has no layers'
                 page.wait_for_function('typeof globalThis.app.gui.slicer.exported_gcode === "string"')
                 assert page.evaluate('globalThis.app.gui.slicer.exported_gcode') == gcode
+                page.screenshot(path=str(output / 'native-slice.png'), full_page=True)
                 browser.close()
             source = output / 'native-cube.gcode'
             source.write_text(gcode)

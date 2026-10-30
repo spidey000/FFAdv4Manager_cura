@@ -19,6 +19,9 @@ from dataclasses import dataclass
 ROOT = Path(__file__).resolve().parents[1]
 MAX_STL = 50 * 1024 * 1024
 MAX_JSON = 512 * 1024
+# Mosaic exports the entire pinned Cura catalog (over 650 global values), not
+# just the values visible in the sidebar. Keep a bounded envelope for that set.
+MAX_SETTINGS_PER_GROUP = 1024
 MAX_GCODE = 100 * 1024 * 1024
 MAX_FRAME = MAX_STL + MAX_JSON + 4
 SETTING_NAME = re.compile(r"^[a-z][a-zA-Z0-9_]{0,79}$")
@@ -65,8 +68,8 @@ def engine_binary() -> str:
     candidate = override or (str(bundled) if bundled.is_file() else "")
     if not candidate:
         raise SlicingError(
-            "CuraEngine server binary is not installed. Run scripts/install.sh "
-            "with AD4_BUILD_CURAENGINE=1 or set AD4_CURAENGINE_BIN to a "
+            "CuraEngine server binary is not installed. Run bash scripts/build_engine.sh "
+            "after scripts/install.sh, or set AD4_CURAENGINE_BIN to a "
             "MosaicSlicer-compatible native CuraEngine with -r support."
         )
     executable = shutil.which(candidate)
@@ -106,7 +109,7 @@ def check_settings(settings: object) -> dict:
         raise SlicingError("Only the Adventurer 4, extruder 0 and one STL are supported")
     checked = {}
     for group, values in settings.items():
-        if not isinstance(values, dict) or len(values) > 650:
+        if not isinstance(values, dict) or len(values) > MAX_SETTINGS_PER_GROUP:
             raise SlicingError("Invalid settings group")
         result = {}
         for key, value in values.items():
@@ -215,3 +218,4 @@ def slice_model(stl: bytes, settings: dict, *, timeout: int = 240) -> SliceResul
             with LOCK:
                 if ACTIVE_PROCESS is proc:
                     ACTIVE_PROCESS = None
+

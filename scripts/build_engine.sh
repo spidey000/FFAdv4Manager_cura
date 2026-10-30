@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Native CuraEngine fork compiled locally. Prereqs: compiler C++20, cmake, git.
+# Native CuraEngine fork compiled locally. Prereqs: C++20 compiler, CMake, Ninja, git.
 # Python packages are isolated in .venv; engine artifacts live in .local/.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 test -x .venv/bin/python || { echo "Run scripts/install.sh first"; exit 1; }
 command -v cmake >/dev/null || { echo "Install CMake 3.20+ and a C++20 compiler first"; exit 1; }
+command -v ninja >/dev/null || { echo "Install Ninja (ninja-build) first"; exit 1; }
 export CONAN_HOME="${AD4_CONAN_HOME:-$ROOT/.local/conan2}"
 git submodule update --init vendor/mosaic-slicer
 git -C vendor/mosaic-slicer submodule update --init third_party/CuraEngine third_party/conan-config
@@ -38,6 +39,9 @@ done
 .venv/bin/conan export "$RECIPES/standardprojectsettings/all" --version=0.2.0 --user=ultimaker --channel=stable
 .venv/bin/conan export "$RECIPES/clipper/all" --version=6.4.2 --user=ultimaker --channel=stable
 .venv/bin/conan export "$RECIPES/mapbox-wagyu/all" --version=0.5.0 --user=ultimaker --channel=stable
+# The public headers identify as 1.1.0-alpha.0. Export a local compatibility
+# package for the engine's >=1.1.0 requirement; the source revision above is the
+# authority, not an upstream release tag. Native slicing is checked in CI.
 .venv/bin/conan export "$ROOT/.local/sources/scripta" --version=1.1.0 --user=ultimaker --channel=testing
 mkdir -p .local/curaengine/build .local/curaengine/bin
 .venv/bin/conan install "$ENGINE" -of "$ROOT/.local/curaengine/build" \

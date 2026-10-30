@@ -1,6 +1,7 @@
 name: Verify native CuraEngine slicing
 on:
   push:
+    branches: [main]
     paths:
       - '.github/workflows/native-engine.yml'
       - 'scripts/build_engine.sh'
@@ -43,7 +44,10 @@ jobs:
           AD4_SKIP_ENGINE_BUILD: '1'
         run: bash scripts/install.sh
       - name: Build the pinned native engine with resolved JSON support
-        run: bash scripts/build_engine.sh
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ad4-native-validation"
+          bash scripts/build_engine.sh 2>&1 | tee "$RUNNER_TEMP/ad4-native-validation/native-build.log"
       - name: Slice through the actual browser, HTTP API and native process
         run: |
           .venv/bin/python -m pip install 'playwright==1.56.0'
