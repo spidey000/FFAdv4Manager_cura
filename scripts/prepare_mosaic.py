@@ -283,6 +283,11 @@ globalThis.AD4GCodePreview = {
           "  focus_stl(mesh.uuid);\n"
           "  document.dispatchEvent(new CustomEvent('ad4:models-changed', {detail:{count:Object.keys(models).length}}));\n\n"
           "  let sceneobj")
+    # Hidden models remain part of the exported slicing geometry even if
+    # a future STLExporter starts honoring the source mesh's visible flag.
+    patch("src/gui/viewer/model_viewer.mjs",
+          "    let mesh = models[model].mesh.clone();",
+          "    let mesh = models[model].mesh.clone();\n    mesh.visible = true;")
     model_source = DEST / "src/gui/viewer/model_viewer.mjs"
     model_source.write_text(model_source.read_text() + """
 // Public model-list operations, bound to Mosaic's own selected mesh.
