@@ -319,6 +319,7 @@ function setAxis(axis,raw,{exact=false}={}){
  }
  $("slice-export-container")?.setAttribute("data-active","false");
  refreshAxis();
+ updateCompactValues();
 }
 function initRulers(){
  const Slider=globalThis.SlideRuler?.default||globalThis.SlideRuler;
@@ -355,16 +356,28 @@ const viewerTransform=make("nav","ad4-viewer-transform");
 viewerTransform.id="ad4-viewer-transform";
 viewerTransform.setAttribute("aria-label","Model transforms");
 for(const [type,iconName,label] of [["translate","move","Move"],["rotate","rotate","Rotate"],["scale","scale","Scale"]]){
- const btn=navButton(iconName,label,()=>{if(!hasSelection()){notify("Select a model on the plate");return}setTransform(type)});
+ const btn=navButton(iconName,label,()=>{if(!hasSelection()){notify("Select a model on the plate");return}setTransform(activeViewerMode===type?null:type)});
  btn.dataset.viewerMode=type;btn.setAttribute("aria-label",label+" selected model");
  viewerTransform.append(btn);
 }
+let activeViewerMode=null;
+const compactValues=make("div","ad4-viewer-values");compactValues.id="ad4-viewer-values";compactValues.hidden=true;
+for(const axis of ["x","y","z"]){const label=make("label","ad4-viewer-value-row");label.innerHTML='<span>'+axis.toUpperCase()+'</span><input type="number" inputmode="decimal" step="any" aria-label="'+axis.toUpperCase()+' transform value"><span class="ad4-viewer-value-unit"></span>';const input=label.querySelector("input");input.addEventListener("change",()=>setAxis(axis,Number(input.value),{exact:true}));input.addEventListener("keydown",e=>{if(e.key==="Enter")input.blur()});compactValues.append(label)}
+viewerTransform.append(compactValues);
 const snapLabel=make("label","ad4-viewer-snap");
 snapLabel.innerHTML='<input id="ad4-viewer-snap" type="checkbox" checked><span>Snap 5</span>';
 viewerTransform.append(snapLabel);
+const lockLabel=make("label","ad4-viewer-lock");lockLabel.innerHTML='<input id="ad4-viewer-lock" type="checkbox" checked><span>Lock proportions</span>';lockLabel.hidden=true;viewerTransform.append(lockLabel);
 $("viewer")?.append(viewerTransform);
-snapLabel.querySelector("input").addEventListener("change",e=>{$("ad4-v3-snap").checked=e.target.checked;setTransform(mode)});
+lockLabel.querySelector("input").addEventListener("change",e=>{$("ad4-v3-resize-lock").checked=e.target.checked});
+snapLabel.querySelector("input").addEventListener("change",e=>{$("ad4-v3-snap").checked=e.target.checked;if(activeViewerMode)setTransform(mode)});
 function setTransform(next){
+ activeViewerMode=next;
+ compactValues.hidden=next===null;
+ lockLabel.hidden=next!=="scale";
+ snapLabel.hidden=next===null;
+ if(next===null){for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed","false");
+  globalThis.app?.gui?.model_viewer?.model_controls?.detach?.();return;}
  mode=next;
  for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed",String(b.dataset.viewerMode===next));
  for(const b of transform.querySelectorAll("[data-mode]"))b.setAttribute("aria-pressed",String(b.dataset.mode===next));
@@ -386,8 +399,11 @@ function setTransform(next){
  $("ad4-v3-transform-help").textContent=focused?"Swipe the ruler or edit a value":"Tap the model on the bed to select it";
  // Reflect the newly selected native mode immediately; never show Scale % as Rotate °.
  refreshAxis();
+ updateCompactValues();
  requestAnimationFrame(initRulers);
 }
+function updateCompactValues(){if(!activeViewerMode)return;for(const axis of ["x","y","z"]){const row=compactValues.querySelectorAll(".ad4-viewer-value-row")[["x","y","z"].indexOf(axis)];const field=row.querySelector("input");if(document.activeElement!==field){const v=Number(sourceAxis(axis)?.value);field.value=Number.isFinite(v)?String(Number(v.toFixed(3))):""}row.querySelector(".ad4-viewer-value-unit").textContent=units[mode]}}
+setInterval(updateCompactValues,450);
 /* Actual three.js camera, no fake screenshots or alternative model renderer. */
 function cameraView(preset){
  const renderer=globalThis.app?.gui?.renderer;
