@@ -73,6 +73,7 @@ function refreshState(){
  // Native G-code layers remain authoritative; the range controls act on actual mesh groups.
  if(current==="sliced")requestAnimationFrame(initLayerRulers);
  viewerTransform.hidden=!["preview","transform"].includes(current);
+ syncModelsDock();
  const progressBadge=$("ad4-v3-progress");
  if(progressBadge)progressBadge.hidden=!sliced;
 }
@@ -80,7 +81,7 @@ function topActive(){
  for(const b of top.querySelectorAll("button"))b.setAttribute("aria-pressed",String(b.dataset.route===(current==="sliced"||current==="transform"||current==="slice-info"?"preview":current)));
 }
 function activate(name){
- closeStatusMenu();closeSheet();
+ closeStatusMenu();closeSheet();closeModelsMenu();
  current=name;
  root.dataset.ad4Screen=name;
  $("sidebar-container")?.setAttribute("aria-hidden",String(name!=="print"&&name!=="filament"));
@@ -691,11 +692,114 @@ const editorButtons={
  move:()=>{activate("transform");setTransform("translate")},
  slice:()=>{if(sliceReady())activate("sliced");else if(staticPreview||!hasModel())activate("slice-info");else $("ad4-dock-slice")?.click()}
 };
+// File and Slice are separate workflows. Model selection gets its own dock item.
+const modelsDock=toolBtn("boxes","Models",toggleModelsMenu,"ad4-v3-nav-models");
+modelsDock.disabled=true;
+modelsDock.setAttribute("aria-expanded","false");
+modelsDock.setAttribute("aria-controls","ad4-v3-models-menu");
 bottom.append(
  toolBtn("file","File",editorButtons.file,"ad4-v3-nav-file"),
-
+ modelsDock,
  toolBtn("layers","Slice",editorButtons.slice,"ad4-v3-nav-slice")
 );
+
+const modelsMenu=make("section","ad4-v3-models-menu");
+modelsMenu.id="ad4-v3-models-menu";
+modelsMenu.hidden=true;
+modelsMenu.setAttribute("aria-label","Loaded models");
+modelsMenu.innerHTML='<div class="ad4-v3-models-head"><strong>'+svg("boxes")+' Models</strong><span id="ad4-v3-models-count">0 models</span></div><div id="ad4-v3-models-list" class="ad4-v3-models-list" role="list"></div>';
+root.append(modelsMenu);
+let modelsMenuOpen=false;
+function modelViewerAPI(){return globalThis.app?.gui?.model_viewer}
+function syncModelsDock(){
+ if(!modelsDock)return;
+ const available=modelCount()>0;
+ modelsDock.disabled=!available;
+ modelsDock.setAttribute("aria-disabled",String(!available));
+ if(!available&&modelsMenuOpen)closeModelsMenu();
+ modelsDock.setAttribute("aria-expanded",String(modelsMenuOpen));
+ modelsDock.setAttribute("aria-pressed",String(modelsMenuOpen));
+ const fileDock=$("ad4-v3-nav-file");
+ if(fileDock&&modelsMenuOpen)fileDock.setAttribute("aria-pressed","false");
+}
+function closeModelsMenu(){
+ if(!modelsMenuOpen)return;
+ modelsMenuOpen=false;
+ modelsMenu.hidden=true;
+ root.classList.remove("ad4-models-open");
+ syncModelsDock();
+}
+function toggleModelsMenu(){
+ if(!modelCount())return;
+ if(modelsMenuOpen){closeModelsMenu();return}
+ if(current!=="preview")activate("preview");
+ modelsMenuOpen=true;
+ modelsMenu.hidden=false;
+ root.classList.add("ad4-models-open");
+ renderModelsMenu();
+ syncModelsDock();
+}
+function renderModelsMenu(){
+ if(!modelsMenuOpen)return;
+ const mv=modelViewerAPI(),models=mv?.models||{};
+ const entries=Object.entries(models),list=$("ad4-v3-models-list");
+ list.replaceChildren();
+ $("ad4-v3-models-count").textContent=entries.length+" "+(entries.length===1?"model":"models");
+ for(const [uuid,model] of entries){
+  const name=model.name||model.mesh?.name||"Model "+(entries.findIndex(item=>item[0]===uuid)+1);
+  const row=make("div","ad4-v3-models-row");
+  row.setAttribute("role","listitem");
+  row.dataset.modelUuid=uuid;
+  if(mv.focused===uuid)row.classList.add("selected");
+  const select=make("button","ad4-v3-model-select");
+  select.type="button";select.title="Select "+name;select.setAttribute("aria-label","Select "+name);
+  select.innerHTML=svg("box")+'<span class="ad4-v3-model-name"></span>';
+  select.querySelector(".ad4-v3-model-name").textContent=name;
+  select.addEventListener("click",()=>{
+   if(mv.ad4_select_model?.(uuid)){renderModelsMenu()}
+   else notify("Model selection is unavailable; rebuild the UI from the current source");
+  });
+  const visible=make("label","ad4-v3-model-visible");
+  visible.title="Show or hide "+name+" in preview (does not affect slicing)";
+  const toggle=make("input");toggle.type="checkbox";toggle.checked=model.mesh?.visible!==false;
+  toggle.setAttribute("aria-label","Show "+name+" in preview");
+  const switchText=make("span","ad4-v3-toggle-track");switchText.setAttribute("aria-hidden","true");
+  visible.append(toggle,switchText);
+  toggle.addEventListener("change",()=>{
+   if(!mv.ad4_set_model_visible?.(uuid,toggle.checked)){
+    toggle.checked=!toggle.checked;notify("Model visibility is unavailable");return;
+   }
+   // Preview visibility must not invalidate slicing or change STL export.
+   renderModelsMenu();
+  });
+  const remove=make("button","ad4-v3-model-remove");
+  remove.type="button";remove.title="Remove "+name;
+  remove.setAttribute("aria-label","Delete "+name);
+  remove.innerHTML=svg("x");
+  remove.addEventListener("click",()=>{
+   if(!confirm("Delete model “"+name+"” from the build plate?"))return;
+   if(!mv.ad4_delete_model?.(uuid)){notify("Model deletion is unavailable");return}
+   renderModelsMenu();refreshState();renderTools();
+  });
+  row.append(select,visible,remove);list.append(row);
+ }
+ globalThis.AD4Icons?.hydrate(modelsMenu);
+}
+document.addEventListener("ad4:models-changed",()=>{
+ syncModelsDock();
+ if(modelsMenuOpen)renderModelsMenu();
+});
+document.addEventListener("pointerdown",event=>{
+ if(!modelsMenuOpen)return;
+ if(modelsMenu.contains(event.target)||modelsDock.contains(event.target))return;
+ closeModelsMenu();
+},true);
+document.addEventListener("focusin",event=>{
+ if(!modelsMenuOpen)return;
+ if(modelsMenu.contains(event.target)||modelsDock.contains(event.target))return;
+ closeModelsMenu();
+});
+
 function actionButton(id,label,click,primary=false){
  const b=make("button","ad4-v3-action"+(primary?" primary":""),label);b.id=id;b.type="button";b.addEventListener("click",click);return b;
 }
@@ -724,7 +828,7 @@ const runSlice=actionButton("ad4-v3-run-slice","Slice model",()=>{if(!staticPrev
 function renderTools(){
  action.replaceChildren();
  if(current==="preview"){
-  action.append(openModel,removeModel,...(staticPreview?[demoModel]:[]),previewLayers,...(staticPreview?[]:[runSlice]));
+  action.append(openModel,removeModel,...(staticPreview?[demoModel]:[]),...(staticPreview?[]:[runSlice]));
  }else if(current==="sliced"){
   action.append(previewLayers,exportGcode,upload,print);
  }
@@ -739,6 +843,7 @@ function renderTools(){
    current==="preview"?b.id==="ad4-v3-nav-file":false
   ));
  }
+ syncModelsDock();
  runSlice.hidden=staticPreview||!hasModel()||sliceReady();
   removeModel.hidden=!hasModel();
  previewLayers.hidden=!sliceReady();
@@ -834,7 +939,7 @@ setInterval(()=>{
 },1000);
 addEventListener("keydown",e=>{
  if(e.key!=="Escape")return;
-  
+ if(modelsMenuOpen){closeModelsMenu();return}
  if(current!=="preview" && !manager?.open)activate("preview");
 });
 activate("preview");
