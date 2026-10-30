@@ -855,7 +855,7 @@ const removeModel=actionButton("ad4-v3-remove-model","Remove model",()=>{
  $("context-delete")?.click();
   setTimeout(()=>{refreshState();renderTools()},150);
 });
-const demoModel=actionButton("ad4-v3-demo","Demo STL",()=>$("ad4-dock-demo")?.click());
+const demoModel=actionButton("ad4-v3-demo","3DBenchy",()=>$("ad4-dock-demo")?.click());
 const previewLayers=actionButton("ad4-v3-show-layers","Layer types",toggleLayerTypePanel);
 function updateLayerViewButton(){
  const label=showTypes?"Layer range":"Layer types";
