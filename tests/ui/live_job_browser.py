@@ -29,7 +29,7 @@ def run():
         path = route.request.url.split('/api/printer', 1)[1]
         requests.append(path)
         if path == '/camera/live':
-            return route.fulfill(status=200, content_type='image/jpeg', body=picture.getvalue())
+            return route.fulfill(status=200, content_type='image/jpeg', headers={'Cache-Control': 'no-store'}, body=picture.getvalue())
         if path.startswith('/current-job/toolpath'): data = geometry
         elif path == '/current-job': data = state
         elif path == '/status': data = state['status']
@@ -63,7 +63,9 @@ def run():
                 cameras_before = requests.count('/camera/live')
                 page.evaluate('Object.defineProperty(document,"hidden",{configurable:true,value:true});document.dispatchEvent(new Event("visibilitychange"))')
                 assert page.locator('#ad4-live-camera').get_attribute('src') is None
-                page.evaluate('Object.defineProperty(document,"hidden",{configurable:true,value:false});document.dispatchEvent(new Event("visibilitychange"))')
+                with page.expect_response('**/api/printer/camera/live') as resumed:
+                    page.evaluate('Object.defineProperty(document,"hidden",{configurable:true,value:false});document.dispatchEvent(new Event("visibilitychange"))')
+                resumed.value.finished()
                 page.wait_for_function('document.querySelector("#ad4-live-camera").naturalWidth > 0 && !!document.querySelector("#ad4-live-camera").getAttribute("src")')
                 assert requests.count('/camera/live') > cameras_before
                 assert page.locator('#ad4-live-camera-toggle').is_checked()
