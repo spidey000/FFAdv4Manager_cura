@@ -40,7 +40,21 @@ includes real HTTP authorization checks and protocol/controller regressions.
 `python tests/ui/printer_manager_browser.py` exercises the actual manager modules
 against a simulated API at 390 and 1280 px. It sends no commands to hardware.
 
-The native CuraEngine build and physical firmware behavior still need a local
+The **Verify native CuraEngine slicing** workflow compiles the pinned engine on
+Ubuntu 24.04 and exercises the real browser → HTTP API → native G-code → GX →
+deposited-layer parser flow. It intercepts printer requests and retains output
+and logs as artifacts. After installing the app, native engine and Playwright,
+the same check can be run locally with:
+
+```sh
+.venv/bin/python scripts/verify_native_slicing.py --output-dir /tmp/ad4-native-validation
+```
+
+The server accepts the complete resolved Cura catalog within a bounded 1024
+settings per group and 512 KiB JSON envelope. Machine, temperature and value
+validation also applies to settings exported by the browser.
+
+Physical firmware behavior, real camera frames and printing still need a local
 hardware check; the static Pages preview cannot verify them.
 
 ## Current print, live layers and camera
@@ -107,3 +121,4 @@ independently before configuring it.
 `python tests/ui/live_job_browser.py` tests the actual bundled Three.js renderer,
 side-by-side camera layout, provenance labels, cleanup, and editor isolation at
 390 and 1280 px against a simulated printer API.
+

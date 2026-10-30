@@ -203,6 +203,11 @@ main().catch(error => {
 // The ranges are 1-based inclusive and operate on parsed Cura G-code groups.
 globalThis.AD4GCodePreview = {
   get count(){return layers.length},
+  get bounds(){
+    if(!gcode_mesh)return null;
+    const box=new THREE.Box3().setFromObject(gcode_mesh);
+    return {min:box.min.toArray(),max:box.max.toArray()};
+  },
   get types(){return globalThis.__AD4_GCODE_CATEGORIES__||[]},
   hiddenTypes:new Set(),
   setTypeVisible(type,visible){if(visible)this.hiddenTypes.delete(type);else this.hiddenTypes.add(type);this.refreshTypes()},
@@ -217,9 +222,19 @@ globalThis.AD4GCodePreview = {
   }
 };
 """)
-    patch("src/gui/viewer/gcode_viewer.mjs",
-          "machine_settings.machine_width.default_value / 2\n  );\n  mesh.rotation",
-          "machine_settings.machine_depth.default_value / 2\n  );\n  mesh.rotation")
+    patch("src/gui/viewer/gcode_viewer.mjs", """  mesh.position.set(
+    -machine_settings.machine_width.default_value / 2,
+    0,
+    machine_settings.machine_width.default_value / 2
+  );""", """  // Native AD4 slices use a bed-centered origin. Apply an offset only for
+  // machines whose G-code origin is at the corner, using resolved dimensions.
+  const stack=active_containers.containers.global;
+  const centered=stack.resolve_setting("machine_center_is_zero");
+  mesh.position.set(
+    centered ? 0 : -stack.resolve_setting("machine_width") / 2,
+    0,
+    centered ? 0 : stack.resolve_setting("machine_depth") / 2
+  );""")
 
     patch("src/gui/viewer/viewer.mjs",
           '    let res = await fetch("resources/meshes/" + model_filename);',
@@ -422,3 +437,4 @@ export function ad4_delete_model(uuid) {
             raise RuntimeError("Required AD4 overlay missing: "+required)
     print("AD4 Studio generated with native preset controls; slicing remains server-only")
 if __name__=="__main__":build()
+

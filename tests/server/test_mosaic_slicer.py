@@ -3,7 +3,7 @@ import struct
 from unittest.mock import patch
 from pathlib import Path
 from server.mosaic_slicer import (
-    START, MACHINE, PLA, SlicingError, check_settings, is_valid_stl, parse_frame,
+    START, MACHINE, PLA, SlicingError, check_settings, is_valid_stl, parse_frame, finalized_gcode,
 )
 
 
@@ -39,3 +39,14 @@ def test_refuses_other_printers_and_overheated_materials():
 def test_only_valid_stl_binary_and_ascii():
     assert is_valid_stl(dummy_stl())
     assert not is_valid_stl(b"not a model")
+
+
+def test_native_final_header_replaces_only_initial_metadata():
+    body = "\n;Generated with Cura\nM104 S210\n;LAYER:0\nG1 X1 E1\n"
+    original = ";FLAVOR:Marlin\n;TIME:6666\n;Filament used: 0m\n" + body
+    header = ";FLAVOR:Marlin\n;TIME:1341\n;Filament used: 1.29896m\n"
+    log = "[info] Gcode header after slicing: " + header + "\n[info] Done\n"
+    assert finalized_gcode(original, log) == header + body
+    assert finalized_gcode(original, "no final metadata") == original
+    assert finalized_gcode("G1 X1 E1\n", log) == "G1 X1 E1\n"
+

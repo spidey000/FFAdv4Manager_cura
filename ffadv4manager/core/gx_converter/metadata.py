@@ -60,6 +60,9 @@ def _parse_print_time(value: str) -> int:
 
 def extract_metadata(lines: list[str], profile: PrinterProfile | None = None) -> PrintMetadata:
     meta = PrintMetadata()
+    command_bed = 0
+    command_nozzles = [0, 0]
+    active_tool = 0
     speed_priority = -1
     time_keys = {
         "estimated printing time (normal mode)", "estimated printing time",
@@ -73,6 +76,24 @@ def extract_metadata(lines: list[str], profile: PrinterProfile | None = None) ->
     for line in lines:
         stripped = line.strip()
         if not stripped.startswith(";"):
+            # Cura normally emits heater commands without temperature comments.
+            # Read those for missing GX display metadata; preserve every command.
+            code = re.sub(r"\([^)]*\)", "", stripped.split(";", 1)[0]).strip()
+            code = re.sub(r"^N\d+\s*", "", code, flags=re.I)
+            tool = re.fullmatch(r"T([01])", code, flags=re.I)
+            if tool:
+                active_tool = int(tool[1])
+            command = re.match(r"^(M104|M109|M140|M190)(?=[A-Z\s]|$)", code, re.I)
+            if command:
+                targets = re.findall(r"[SR]\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+))", code, re.I)
+                target = max((round(float(value)) for value in targets if 0 < float(value) <= 32767), default=0)
+                if command[1].upper() in ("M140", "M190"):
+                    command_bed = max(command_bed, target)
+                else:
+                    selected = re.search(r"T\s*(\d+)", code, re.I)
+                    index = int(selected[1]) if selected else active_tool
+                    if index in (0, 1):
+                        command_nozzles[index] = max(command_nozzles[index], target)
             continue
         comment = stripped[1:].strip()
         if "=" in comment:
@@ -129,9 +150,13 @@ def extract_metadata(lines: list[str], profile: PrinterProfile | None = None) ->
             vals = _parse_int_list(value)
             if vals and vals[0] <= 32767:
                 meta.perimeter_shells = vals[0]
+    meta.bed_temp = meta.bed_temp or command_bed
+    meta.nozzle_right = meta.nozzle_right or command_nozzles[0]
+    meta.nozzle_left = meta.nozzle_left or command_nozzles[1]
     if profile:
         meta.multi_extruder_type = profile.multi_extruder_type
         if not profile.dual:
             meta.filament_left_mm = 0
             meta.nozzle_left = 0
     return meta
+

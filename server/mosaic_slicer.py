@@ -19,6 +19,9 @@ from dataclasses import dataclass
 ROOT = Path(__file__).resolve().parents[1]
 MAX_STL = 50 * 1024 * 1024
 MAX_JSON = 512 * 1024
+# Mosaic exports the entire pinned Cura catalog (over 650 global values), not
+# just the values visible in the sidebar. Keep a bounded envelope for that set.
+MAX_SETTINGS_PER_GROUP = 1024
 MAX_GCODE = 100 * 1024 * 1024
 MAX_FRAME = MAX_STL + MAX_JSON + 4
 SETTING_NAME = re.compile(r"^[a-z][a-zA-Z0-9_]{0,79}$")
@@ -65,8 +68,8 @@ def engine_binary() -> str:
     candidate = override or (str(bundled) if bundled.is_file() else "")
     if not candidate:
         raise SlicingError(
-            "CuraEngine server binary is not installed. Run scripts/install.sh "
-            "with AD4_BUILD_CURAENGINE=1 or set AD4_CURAENGINE_BIN to a "
+            "CuraEngine server binary is not installed. Run bash scripts/build_engine.sh "
+            "after scripts/install.sh, or set AD4_CURAENGINE_BIN to a "
             "MosaicSlicer-compatible native CuraEngine with -r support."
         )
     executable = shutil.which(candidate)
@@ -106,7 +109,7 @@ def check_settings(settings: object) -> dict:
         raise SlicingError("Only the Adventurer 4, extruder 0 and one STL are supported")
     checked = {}
     for group, values in settings.items():
-        if not isinstance(values, dict) or len(values) > 650:
+        if not isinstance(values, dict) or len(values) > MAX_SETTINGS_PER_GROUP:
             raise SlicingError("Invalid settings group")
         result = {}
         for key, value in values.items():
@@ -167,6 +170,17 @@ class SliceResult:
     filament_mm: float | None
 
 
+def finalized_gcode(gcode: str, engine_log: str) -> str:
+    # Sequential native Cura writes a placeholder header to the file (TIME 6666,
+    # zero filament, empty bounds), then logs the final header after slicing.
+    # Replace only that initial comment block, never any executable instruction.
+    headers = re.findall(r"Gcode header after slicing: ((?:;[^\r\n]*\r?\n)+)", engine_log)
+    initial = re.match(r"^(?:;[^\r\n]*\r?\n)+", gcode)
+    if headers and initial:
+        return headers[-1] + gcode[initial.end():]
+    return gcode
+
+
 def slice_model(stl: bytes, settings: dict, *, timeout: int = 240) -> SliceResult:
     global ACTIVE_PROCESS
     executable = engine_binary()
@@ -185,25 +199,32 @@ def slice_model(stl: bytes, settings: dict, *, timeout: int = 240) -> SliceResul
         with LOCK:
             if ACTIVE_PROCESS and ACTIVE_PROCESS.poll() is None:
                 raise SlicingError("Another server-side slice is in progress")
-            proc = subprocess.Popen(
-                argv, cwd=str(root), stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                env={**os.environ, "OMP_NUM_THREADS": "2"},
-            )
+            engine_log = tempfile.TemporaryFile()
+            try:
+                proc = subprocess.Popen(
+                    argv, cwd=str(root), stdin=subprocess.DEVNULL,
+                    stdout=engine_log, stderr=subprocess.STDOUT,
+                    env={**os.environ, "OMP_NUM_THREADS": "2", "CURAENGINE_LOG_LEVEL": "info"},
+                )
+            except BaseException:
+                engine_log.close()
+                raise
             ACTIVE_PROCESS = proc
         try:
             try:
-                _, stderr = proc.communicate(timeout=timeout)
+                proc.communicate(timeout=timeout)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.communicate()
                 raise SlicingError("CuraEngine server job exceeded time limit")
+            engine_log.seek(0, os.SEEK_END)
+            engine_log.seek(max(0, engine_log.tell() - 256 * 1024))
+            log_text = engine_log.read().decode("utf-8", "replace")
             if proc.returncode != 0:
-                message = stderr.decode("utf-8", "replace")[-1200:] if stderr else ""
-                raise SlicingError("CuraEngine failed: " + message)
+                raise SlicingError("CuraEngine failed: " + log_text[-1200:])
             if not output_path.is_file() or output_path.stat().st_size > MAX_GCODE:
                 raise SlicingError("CuraEngine generated no output or an oversized G-code file")
-            gcode = output_path.read_text(encoding="utf-8", errors="replace")
+            gcode = finalized_gcode(output_path.read_text(encoding="utf-8", errors="replace"), log_text)
             if not re.search(r"(?m)^(?:G0|G1|M104|M109)\b", gcode):
                 raise SlicingError("CuraEngine did not return executable G-code")
             match = re.search(r"(?m)^;TIME:(\d+)", gcode)
@@ -212,6 +233,8 @@ def slice_model(stl: bytes, settings: dict, *, timeout: int = 240) -> SliceResul
             filament = float(match.group(1)) * 1000 if match else None
             return SliceResult(gcode, seconds, filament)
         finally:
+            engine_log.close()
             with LOCK:
                 if ACTIVE_PROCESS is proc:
                     ACTIVE_PROCESS = None
+
