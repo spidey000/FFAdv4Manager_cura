@@ -21,6 +21,8 @@ def run():
                   if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'dialog' for t in node.targets))
     markup = markup[:markup.index('<script')]
     calls = []
+    preview_requests = []
+    session = {'profile': 'AD4', 'host': None, 'notifying': False}
     state = {'machine_status': 'READY', 'bed_current': 25}
     record = {'running': False, 'encoding': False}
     bitmap = io.BytesIO()
@@ -30,16 +32,18 @@ def run():
         path = req.url.split('/api/printer', 1)[1]
         calls.append((req.method, path, req.post_data))
         if path.startswith('/tools/preview'):
-            return route.fulfill(status=200, content_type='image/bmp', body=bitmap.getvalue())
+            preview_requests.append(route)
+            return
         if path == '/status': data = state
         elif path.startswith('/files?'): data = [{'path': '/data/test.gx', 'name': 'test.gx', 'estimated_seconds': 120}]
         elif path == '/files': data = ['/data/test.gx']
         elif path == '/timelapse': data = record
         elif path == '/timelapses': data = []
         elif path == '/profiles': data = ['AD4']
-        elif path == '/session': data = {'profile': 'AD4', 'notifying': False}
+        elif path == '/session': data = session
         elif path == '/discover': data = [{'name': 'AD4', 'ip': '192.168.1.42', 'port': 8899}]
         elif path.startswith('/tools/profile?'): data = {'host': '192.168.1.42', 'port': 8899, 'timeout': 12, 'camera_port': 8080}
+        elif path == '/tools/config': data = {'values': {'host': '192.168.1.88', 'timeout': '9'}, 'path': '/tmp/defaults.ini'}
         elif path == '/tools/telemetry': data = {'monitoring': False, 'records': [], 'waiting': False, 'wait_result': None}
         elif path.startswith('/tools/inspect'): data = {'format': 'gcode', 'sha256': 'test-sha', 'size_bytes': 28}
         elif path.startswith('/upload?'): data = {'remote_name': 'test.gx', 'started': False}
@@ -61,6 +65,8 @@ def run():
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True, executable_path=os.environ.get("CHROME_BIN") or shutil.which("google-chrome") or shutil.which("chromium") or None, args=['--no-sandbox'])
                 for width in (390, 1280):
+                    session['profile'] = 'AD4'
+                    preview_requests.clear()
                     page = browser.new_page(viewport={'width': width, 'height': 900})
                     errors = []
                     page.on('pageerror', lambda error: errors.append(str(error)))
@@ -78,6 +84,24 @@ def run():
                     page.wait_for_function('document.getElementById("ad4-conn-timeout").value === "12"')
                     page.locator('#ad4-profile-update').click()
                     page.wait_for_function('document.getElementById("ad4-manager-status").textContent.includes("completed")')
+                    page.locator('#ad4-config-show').click()
+                    page.wait_for_function('document.getElementById("ad4-conn-timeout").value === "9"')
+                    with page.expect_request('**/tools/preview?*'):
+                        page.locator('#ad4-file-list strong').click()
+                    # Refresh replaces the requested row before its preview returns.
+                    page.evaluate('globalThis.AD4Printer.refresh()')
+                    assert len(preview_requests) == 1
+                    preview_requests[0].fulfill(status=200, content_type='image/bmp', body=bitmap.getvalue())
+                    page.wait_for_function('document.querySelector("#ad4-file-list img")?.naturalWidth > 0')
+                    page.evaluate('globalThis.AD4Printer.refresh()')
+                    page.wait_for_function('document.querySelector("#ad4-file-list img")?.naturalWidth > 0')
+                    session['profile'] = 'other-printer'
+                    page.evaluate('globalThis.AD4Printer.refresh()')
+                    assert page.locator('#ad4-file-list img').count() == 0
+                    session['profile'] = 'AD4'
+                    page.evaluate('globalThis.AD4Printer.refresh()')
+                    page.wait_for_function('document.querySelector("#ad4-file-list img")?.naturalWidth > 0')
+                    assert len(preview_requests) == 1, 'Refresh must not request more printer thumbnails'
                     page.locator('#ad4-local-job').set_input_files({'name': 'part.gcode', 'mimeType': 'text/plain', 'buffer': b'M104 S205\nM140 S55\nG1 X1\n'})
                     page.locator('#ad4-inspect-job').click()
                     page.wait_for_function('document.getElementById("ad4-inspect-result").textContent.includes("test-sha")')
@@ -99,3 +123,4 @@ def run():
 
 if __name__ == '__main__':
     run()
+

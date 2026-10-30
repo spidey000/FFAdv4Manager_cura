@@ -105,6 +105,7 @@
  $("ad4-open-manager").addEventListener("click",()=>queueMicrotask(()=>{if(manager.querySelector('[data-pane="live"][aria-pressed="true"]'))start()}));
  manager.addEventListener("close",stop);
  for(const id of ["ad4-live-toggle","ad4-snapshot"])$(id).addEventListener("click",()=>{$("ad4-live-camera-toggle").checked=false;camera()});
- document.addEventListener("visibilitychange",()=>{if(document.hidden){controller?.abort();camera()}else if(viewing){controller=new AbortController();refresh()}});
+ document.addEventListener("visibilitychange",()=>{if(document.hidden){controller?.abort();camera()}else if(viewing){controller=new AbortController();camera();refresh()}});
  if(demo){$("ad4-live-consult").disabled=true;$("ad4-live-associate").disabled=true;text("ad4-live-status","Live tracking requires the printer server")}
 })();
+

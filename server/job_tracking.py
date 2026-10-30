@@ -123,7 +123,7 @@ def parse_toolpath(payload, filename):
             value = words[axis] * scale
             delta = value - extrusion[axis] if e_absolute else value
             extrusion[axis] = value if e_absolute else extrusion[axis] + value
-        if delta <= .000001 or tuple(xyz) == before:
+        if delta <= .000001 or (number in (0, 1) and tuple(xyz) == before):
             continue
         if not all(-10000 < value < 10000 for value in xyz):
             raise ValueError('Extruded coordinates exceed preview bounds')
@@ -225,3 +225,4 @@ class LayerTracker:
         if self.samples >= 2 and (self.layer is None or candidate >= self.layer):
             self.layer = candidate
         return self.layer
+

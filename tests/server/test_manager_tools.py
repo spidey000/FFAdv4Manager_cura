@@ -4,6 +4,21 @@ from unittest.mock import Mock
 from urllib.parse import urlsplit
 import pytest
 from server import manager_tools as tools, ad4_bridge as bridge
+from ffadv4manager.config import save_config
+
+
+@pytest.mark.parametrize('stored', [{}, {'host': '192.168.1.42', 'port': '8899', 'timeout': '12'}])
+def test_server_defaults_use_the_real_structured_config(monkeypatch, tmp_path, stored):
+    path = tmp_path / 'defaults.ini'
+    monkeypatch.setenv('FFADV4MANAGER_CONFIG', str(path))
+    if stored:
+        save_config(stored)
+    command = Mock(side_effect=AssertionError('Config must not parse human-readable CLI output'))
+    monkeypatch.setattr(bridge, 'command', command)
+    handler = Mock()
+    tools.get(handler, 'config', urlsplit('/api/printer/tools/config'), bridge)
+    handler.json.assert_called_once_with(200, {'values': stored, 'path': str(path)})
+    command.assert_not_called()
 
 
 def test_connection_values_reject_public_hosts_and_invalid_fields():
@@ -78,3 +93,4 @@ def test_tools_are_authenticated_by_existing_http_handler():
         server.shutdown()
         server.server_close()
         thread.join(timeout=3)
+

@@ -37,6 +37,22 @@ def test_relative_flashprint_extrusion_and_xy_arcs():
     assert parsed['layers'][0]['segments'][-3:] == [0., 10., .2]
 
 
+@pytest.mark.parametrize('direction', ['G2', 'G3'])
+@pytest.mark.parametrize('extruder', ['E', 'A'])
+def test_full_circle_arcs_retain_geometry_and_layer_heights(direction, extruder):
+    code = (f'G90\nM83\nG1 X10 Y0 Z.2\nG1 {extruder}1\n'
+            f'{direction} I-10 J0 {extruder}5\nG1 Z.4\n'
+            f'{direction} I-10 J0 {extruder}5\n').encode()
+    parsed = tracking.parse_toolpath(code, 'circles.gcode')
+    assert [layer['z'] for layer in parsed['layers']] == [.2, .4]
+    for layer in parsed['layers']:
+        points = layer['segments']
+        assert points[:3] == points[-3:] == [10., 0., layer['z']]
+        assert min(points[0::3]) < -9.9 and max(points[0::3]) == 10
+        assert min(points[1::3]) < -9.9 and max(points[1::3]) > 9.9
+        assert layer['moves'] > 20
+
+
 def test_duplicate_markers_at_same_z_are_one_physical_layer():
     parsed = tracking.parse_toolpath(b'M83\nG1 Z.2\n;LAYER:-1\nG1 X10 E1\n;LAYER:0\nG1 Y10 E1\n', 'part.gcode')
     assert parsed['layer_total'] == 1
@@ -159,3 +175,4 @@ def test_configured_downloader_uses_argv_and_checks_job_after_download(setup_job
     source = handler.json.call_args.args[1]['source']
     assert source['kind'] == 'printer_download'
     assert source['remote_verified'] is True
+

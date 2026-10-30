@@ -60,6 +60,13 @@ def run():
                 page.locator('[data-printer-card="job"] button').click()
                 page.wait_for_function('document.querySelector("#ad4-live-canvas canvas") !== null', timeout=15000)
                 page.wait_for_function('document.querySelector("#ad4-live-camera").naturalWidth > 0')
+                cameras_before = requests.count('/camera/live')
+                page.evaluate('Object.defineProperty(document,"hidden",{configurable:true,value:true});document.dispatchEvent(new Event("visibilitychange"))')
+                assert page.locator('#ad4-live-camera').get_attribute('src') is None
+                page.evaluate('Object.defineProperty(document,"hidden",{configurable:true,value:false});document.dispatchEvent(new Event("visibilitychange"))')
+                page.wait_for_function('document.querySelector("#ad4-live-camera").naturalWidth > 0 && !!document.querySelector("#ad4-live-camera").getAttribute("src")')
+                assert requests.count('/camera/live') > cameras_before
+                assert page.locator('#ad4-live-camera-toggle').is_checked()
                 page.wait_for_function('document.querySelector("#ad4-live-position").textContent.includes("2 / 3")')
                 assert page.locator('#ad4-live-source').inner_text().startswith('Source: retained copy')
                 assert page.locator('#ad4-live-fetch').is_disabled()
@@ -86,3 +93,4 @@ def run():
 
 if __name__ == '__main__':
     run()
+
