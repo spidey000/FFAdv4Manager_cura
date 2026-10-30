@@ -356,6 +356,27 @@ export function ad4_delete_model(uuid) {
         '    notify("Server-side CuraEngine unavailable", error?.message || String(error));\n'
         '  }\n'
         '});', 1)
+    # The percentage must come from CuraEngine, not a simulated timer.
+    action_code=action_code.replace(
+        '  slice_progress_bar.style.width = "0%";',
+        '''  slice_progress_bar.style.width = "0%";
+  slice_progress_bar.setAttribute("role", "progressbar");
+  slice_progress_bar.setAttribute("aria-label", "CuraEngine slicing progress");
+  slice_progress_bar.setAttribute("aria-valuemin", "0");
+  slice_progress_bar.setAttribute("aria-valuemax", "100");''', 1)
+    action_code=action_code.replace(
+        '    slice_progress_bar.style.width = `${progress * 100}%`;',
+        '''    if (Number.isFinite(progress)) {
+      const value = Math.round(progress * 100);
+      slice_progress_bar.style.width = value + "%";
+      slice_progress_bar.setAttribute("aria-valuenow", String(value));
+      slice_progress_bar.classList.remove("ad4-indeterminate");
+    } else {
+      slice_progress_bar.removeAttribute("aria-valuenow");
+      slice_progress_bar.classList.add("ad4-indeterminate");
+    }''', 1)
+    if 'classList.add("ad4-indeterminate")' not in action_code:
+        raise RuntimeError("Mosaic progress bar callback changed")
     actions.write_text(action_code)
     html=DEST/"public/index.html"
     source=html.read_text()
