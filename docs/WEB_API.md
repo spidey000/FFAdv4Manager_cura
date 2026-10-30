@@ -70,7 +70,7 @@ Para asociar captura automática a un inicio de impresión pueden utilizarse `ti
 | --- | --- | --- |
 | GET / POST | `/api/printer/tools/config` | Leer, guardar o restablecer defaults persistentes de conexión |
 | GET / POST | `/api/printer/tools/profile` | Consultar, crear o editar un perfil |
-| GET / POST | `/api/printer/tools/telemetry` | Estado e historial reciente de monitor |
+| GET | `/api/printer/tools/telemetry` | Estado e historial reciente de monitor |
 | POST | `/api/printer/tools/monitor` | Iniciar/parar monitorización acotada |
 | GET | `/api/printer/tools/log` | Descarga JSONL del monitor |
 | POST | `/api/printer/tools/wait` | Esperar estado o temperatura de cama con límite de tiempo |
