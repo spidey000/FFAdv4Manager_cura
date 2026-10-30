@@ -805,3 +805,82 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
  #ad4-v3-layer-card .ad4-v3-estimates .ad4-v3-stat strong{font-size:12px}
  #ad4-v3-show-layers .ad4-action-icon .ad4-icon-svg{width:18px!important;height:18px!important}
 }
+
+
+/* Model list: separate File / Models / Slice dock, with an anchored mobile sheet. */
+#ad4-v3-bottom{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+#ad4-v3-nav-models:disabled{
+ color:#65716e!important;opacity:.4!important;cursor:not-allowed!important;
+}
+#ad4-v3-nav-models:disabled .ad4-lucide,#ad4-v3-nav-models:disabled svg{color:#65716e!important}
+#ad4-v3-nav-models[aria-expanded=true]{color:var(--v3-green)!important}
+#ad4-v3-models-menu{
+ position:fixed;left:10px;right:10px;bottom:calc(var(--v3-bottom) + var(--v3-actions) + 4px);
+ z-index:70;box-sizing:border-box;min-width:0;max-height:min(46dvh,345px);
+ overflow:hidden;display:flex;flex-direction:column;gap:8px;
+ padding:12px;background:#1e2425;border:1px solid #39483f;border-radius:15px;
+ box-shadow:0 12px 32px #0008;color:#edf5ef;
+}
+#ad4-v3-models-menu[hidden]{display:none!important}
+#ad4-v3-models-menu .ad4-v3-models-head{
+ display:flex;align-items:center;justify-content:space-between;gap:10px;
+ font-size:13px;padding:2px 3px 8px;border-bottom:1px solid #3c4842;
+}
+#ad4-v3-models-menu .ad4-v3-models-head strong{display:flex;align-items:center;gap:8px}
+#ad4-v3-models-menu .ad4-v3-models-head .ad4-icon-svg{width:19px;height:19px;color:var(--v3-green)}
+#ad4-v3-models-count{color:#a6b8ad;font-size:11px}
+#ad4-v3-models-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto;overscroll-behavior:contain;min-height:0;padding:2px 0}
+#ad4-v3-models-menu .ad4-v3-models-row{
+ display:flex;gap:8px;align-items:center;min-height:52px;padding:5px 7px;
+ background:#161e1b;border:1px solid #34443c;border-radius:11px;
+}
+#ad4-v3-models-menu .ad4-v3-models-row.selected{
+ border-color:var(--v3-green);background:#173224;
+}
+#ad4-v3-models-menu .ad4-v3-model-select{
+ flex:1;min-width:0;display:flex;align-items:center;gap:9px;text-align:left;
+ color:#e4eee8;background:transparent;border:0;cursor:pointer;
+ font-size:12px;font-weight:650;padding:6px 2px;min-height:38px;
+}
+#ad4-v3-models-menu .ad4-v3-model-select .ad4-icon-svg{
+ color:#c6d9cd;width:18px;height:18px;flex:none;
+}
+#ad4-v3-models-menu .ad4-v3-models-row.selected .ad4-v3-model-select .ad4-icon-svg{color:var(--v3-green)}
+#ad4-v3-models-menu .ad4-v3-model-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ad4-v3-models-menu .ad4-v3-model-visible{
+ display:flex;align-items:center;justify-content:center;flex:none;
+ min-width:44px;min-height:44px;cursor:pointer;position:relative;
+}
+#ad4-v3-models-menu .ad4-v3-model-visible input{
+ position:absolute;opacity:0;width:34px;height:20px;cursor:pointer;
+}
+#ad4-v3-models-menu .ad4-v3-toggle-track{
+ display:block;width:36px;height:21px;border-radius:999px;background:#59675e;
+ border:1px solid #73817a;position:relative;pointer-events:none;transition:background .15s;
+}
+#ad4-v3-models-menu .ad4-v3-toggle-track::before{
+ content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;
+ border-radius:50%;background:#fff;transition:transform .15s;
+}
+#ad4-v3-models-menu .ad4-v3-model-visible input:checked+.ad4-v3-toggle-track{
+ background:var(--v3-green);border-color:var(--v3-green);
+}
+#ad4-v3-models-menu .ad4-v3-model-visible input:checked+.ad4-v3-toggle-track::before{transform:translateX(15px)}
+#ad4-v3-models-menu .ad4-v3-model-visible input:focus-visible+.ad4-v3-toggle-track{
+ outline:2px solid #fff;outline-offset:3px;
+}
+#ad4-v3-models-menu .ad4-v3-model-remove{
+ flex:none;display:flex;align-items:center;justify-content:center;
+ background:transparent;color:#e8a7a2;border:1px solid #664542;
+ border-radius:9px;width:38px;height:38px;cursor:pointer;
+}
+#ad4-v3-models-menu .ad4-v3-model-remove .ad4-icon-svg{width:18px;height:18px}
+#ad4-v3-models-menu .ad4-v3-model-remove:focus-visible,
+#ad4-v3-models-menu .ad4-v3-model-select:focus-visible{
+ outline:2px solid var(--v3-green);outline-offset:2px;
+}
+@media(max-width:360px){
+ #ad4-v3-models-menu .ad4-v3-models-row{gap:4px;padding-inline:4px}
+ #ad4-v3-models-menu .ad4-v3-model-select{font-size:11px}
+ #ad4-v3-models-menu .ad4-v3-model-visible{min-width:40px}
+}
