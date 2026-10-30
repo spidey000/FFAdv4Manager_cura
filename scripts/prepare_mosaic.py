@@ -296,7 +296,7 @@ globalThis.AD4GCodePreview = {
           'export async function load_model(raw_data, model_type, file_name = "") {')
     patch("src/gui/viewer/model_viewer.mjs",
           'import * as THREE from "three";',
-          'import * as THREE from "three";\\n'
+          'import * as THREE from "three";\n'
           'import {parseStlGeometry} from "./ad4-stl-worker-client.mjs";')
     patch("src/gui/viewer/model_viewer.mjs",
           '      viewer.stl_loader.parse(raw_data),',
