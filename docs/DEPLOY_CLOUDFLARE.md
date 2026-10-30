@@ -9,7 +9,7 @@ Esta guía complementa las [instrucciones de instalación de AD4 Studio](../AGEN
 - AD4 Studio instalado y funcionando en Linux: `http://127.0.0.1:8765/`.
 - Impresora Adventurer 4 en la misma LAN del servidor, si quieres controlar hardware.
 - Cuenta Cloudflare, dominio gestionado allí y Cloudflare Zero Trust.
-- `cloudflared` instalado en el servidor desde las [instrucciones oficiales](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/). No dupliques un servicio existente.
+- `cloudflared` instalado en el servidor desde las [instrucciones oficiales](https://developers.cloudflare.com/tunnel/downloads/). No dupliques un servicio existente.
 
 ## 1. Crear la protección de Cloudflare Access
 
