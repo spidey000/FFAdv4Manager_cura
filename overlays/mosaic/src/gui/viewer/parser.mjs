@@ -11,7 +11,11 @@ export async function parse(gcode) {
   let layer = [];
   let x = 0, y = 0, z = 0, e = 0, subtype = "OTHER";
   let absoluteXYZ = true, absoluteE = true;
-  let cursor = 0, lineNumber = 0;
+  let cursor = 0, lineNumber = 0, moves = 0;
+  // Bound preview allocations while preserving the full print G-code.
+  // This is a visual LOD only, never a modification of a printable file.
+  const stride = Math.max(1, Math.ceil(gcode.length / (14 * 1024 * 1024)));
+  globalThis.AD4GcodeParserInfo = {simplified: stride > 1, samplingStride: stride};
   // Parse directly against the source, avoiding gcode.split("\n") which
   // transiently creates an array of hundreds of thousands of strings.
   while (cursor < gcode.length) {
@@ -48,7 +52,7 @@ export async function parse(gcode) {
           case "E": e = op === "G92" ? value : absoluteE ? value : e + value; hasExtrusion = true; break;
         }
       }
-      if (op !== "G92" && moved) {
+      if (op !== "G92" && moved && (++moves % stride === 0 || layer.length === 0)) {
         layer.push({
           type: hasExtrusion && e > lastE + 1e-7 ? "print" : "travel",
           subtype, vector: {x, y, z, w: e}
