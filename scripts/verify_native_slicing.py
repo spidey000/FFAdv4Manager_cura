@@ -78,6 +78,10 @@ def verify(output):
                 assert payload['filament_mm'] > 0, 'Native finalized filament estimate missing'
                 page.wait_for_function('typeof globalThis.app.gui.slicer.exported_gcode === "string"')
                 assert page.evaluate('globalThis.app.gui.slicer.exported_gcode') == gcode
+                page.wait_for_function('document.getElementById("slice-export-container")?.dataset.active === "true"')
+                page.locator('#ad4-v3-nav-slice').click()
+                page.wait_for_function('globalThis.AD4GCodePreview?.count > 1 && document.body.dataset.ad4Screen === "sliced"')
+                browser_layers = page.evaluate('globalThis.AD4GCodePreview.count')
                 page.screenshot(path=str(output / 'native-slice.png'), full_page=True)
                 browser.close()
             source = output / 'native-cube.gcode'
@@ -92,6 +96,7 @@ def verify(output):
                       'gcode_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
                       'gx_sha256': hashlib.sha256(gx.read_bytes()).hexdigest(),
                       'layers': toolpath['layer_total'], 'deposited_segments': toolpath['segment_count'],
+                      'browser_preview_layers': browser_layers,
                       'time_seconds': payload['time_seconds'], 'filament_mm': payload['filament_mm'],
                       'hardware_commands_sent': False}
             (output / 'verification.json').write_text(json.dumps(report, indent=2))
