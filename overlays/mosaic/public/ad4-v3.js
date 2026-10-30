@@ -658,17 +658,17 @@ const sectionMap={control:["Print controls","Printer connections and diagnostics
 if(manager){
  const head=manager.querySelector(".ad4-head");
  head?.after(manageTab);
- for(const [key,title] of [["camera","Camera"],["timelapse","Timelapse"],["files","Files"],["control","Control"]]){
+ for(const [key,title] of [["live","Live print"],["camera","Camera"],["timelapse","Timelapse"],["files","Files"],["control","Control"]]){
   const b=make("button",null,title);b.type="button";b.dataset.pane=key;b.addEventListener("click",()=>setManagerPane(key));manageTab.append(b);
  }
- manager.querySelector("details")?.setAttribute("open","");
+ manager.querySelector("details.ad4-section")?.setAttribute("open","");
 }
 function setManagerPane(pane){
  managerPane=pane;
  for(const b of manageTab.querySelectorAll("button"))b.setAttribute("aria-pressed",String(b.dataset.pane===pane));
  // Tabs are jump links: no information sections may disappear offline.
  for(const section of manager.querySelectorAll(".ad4-section"))section.hidden=false;
- const label={camera:"Camera",timelapse:"Timelapses",files:"Printer files",control:"Print controls"}[pane];
+ const label={live:"Current print",camera:"Camera",timelapse:"Timelapses",files:"Printer files",control:"Print controls"}[pane];
  if(manager.open&&label){
   const target=[...manager.querySelectorAll(".ad4-section")].find(section=>
    (section.querySelector("h3")?.textContent||"").includes(label));

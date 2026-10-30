@@ -9,11 +9,12 @@ import json
 from pathlib import Path
 import subprocess
 import threading
+from bisect import bisect_right
 
 PRINTING = {"BUILDING", "BUILDING_FROM_SD", "PRINTING"}
 
 
-def layer_from_position(payload, height):
+def layer_from_position(payload, height, layer_heights=None):
     if not isinstance(payload, dict) or not 0.06 <= height <= 0.4:
         return None
     z = next((value for key, value in payload.items() if str(key).lower() == "z"), None)
@@ -23,16 +24,21 @@ def layer_from_position(payload, height):
         return None
     if not 0.06 <= z < 260:
         return None
+    if layer_heights:
+        if z < layer_heights[0] - .06 or z > layer_heights[-1] + .6:
+            return None
+        return max(1, min(len(layer_heights), bisect_right(layer_heights, z + .025)))
     return max(1, round(z / height))
 
 
 class LayerCapture:
     """Popen-compatible capture worker used by the existing timelapse lifecycle."""
-    def __init__(self, argv, folder, status_reader, *, height=0.2, poll_interval=2.0):
+    def __init__(self, argv, folder, status_reader, *, height=0.2, poll_interval=2.0, layer_heights=None):
         self.argv = list(argv)
         self.folder = Path(folder)
         self.status_reader = status_reader
         self.height = height
+        self.layer_heights = layer_heights
         self.poll_interval = poll_interval
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="AD4-M114-layer-capture", daemon=True)
@@ -69,7 +75,7 @@ class LayerCapture:
                 if result.returncode:
                     continue
                 coords = json.loads(result.stdout)
-                layer = layer_from_position(coords, self.height)
+                layer = layer_from_position(coords, self.height, self.layer_heights)
             except (OSError, ValueError, TypeError, subprocess.TimeoutExpired, json.JSONDecodeError):
                 continue
             if layer is None or layer <= last_layer:

@@ -12,7 +12,7 @@
   ["status","Machine status","Machine","—","control","Print controls"],
   ["temperatures","Temperatures","Nozzle / bed","— / —","control","Temperature & fan controls"],
   ["progress","Print progress","Completion / layer","— / —","control","Print controls"],
-  ["job","Current file","Job filename","—","files","Printer files"],
+  ["job","Current file","Job filename","—","live","View current print"],
   ["camera","Camera","Snapshot / live feed","Unavailable","camera","Open camera"],
   ["files","Stored printer files","Files on printer","—","files","Browse files"],
   ["timelapse","Timelapses","Recording and gallery","Unavailable","timelapse","View timelapses"],
@@ -62,8 +62,8 @@
   const tab=dialog.querySelector('#ad4-v3-manager-tabs [data-pane="'+pane+'"]');
   tab?.click();
   if(pane==="control"){
-   const target=dialog.querySelector(".ad4-section summary");
-   if(target?.parentElement?.tagName==="DETAILS")target.parentElement.open=true;
+   const target=dialog.querySelector("details.ad4-section");
+   if(target)target.open=true;
   }
  }
  page.addEventListener("click",event=>{
@@ -95,8 +95,11 @@
    put("status",fmt(state.machine_status),"Connected via the authenticated printer bridge");
    put("temperatures",fmt(state.nozzle_current,"°C")+" / "+fmt(state.bed_current,"°C"),
     "Targets "+fmt(state.nozzle_target,"°C")+" / "+fmt(state.bed_target,"°C"));
-   put("progress",fmt(state.progress_percent,"%")+" / "+fmt(state.layer_current),
-    state.layer_total==null?"Layer total not reported":"Layer "+fmt(state.layer_current)+" of "+fmt(state.layer_total));
+   const estimate=globalThis.AD4LayerEstimate;
+   const useEstimate=state.layer_current==null&&estimate&&estimate.file===state.current_file&&Date.now()-estimate.stamp<10000&&/BUILDING|PRINTING|PAUSED/.test(state.machine_status);
+   const layer=useEstimate?estimate.layer:state.layer_current,total=useEstimate?estimate.total:state.layer_total;
+   put("progress",fmt(state.progress_percent,"%")+" / "+fmt(layer),
+    total==null?"Layer total not reported":"Layer "+fmt(layer)+" of "+fmt(total)+(useEstimate?" (estimated)":""));
    put("job",fmt(state.current_file),state.current_file?"Currently printing":"No active job reported");
    put("camera","Available on request","Snapshot and live video are never started automatically");
    put("controls",fmt(state.machine_status),"Pause · Resume · Cancel · Fan");

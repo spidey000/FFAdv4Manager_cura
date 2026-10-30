@@ -50,8 +50,12 @@ class TimelapseChecks(unittest.TestCase):
                 recording = service.folder
                 (recording / 'frame-20261026T155000-000000.jpg').write_bytes(b'\xff\xd8mock\xff\xd9')
                 deadline = time.monotonic() + 3
-                while not service.list()[0]['video_ready'] and time.monotonic() < deadline:
+                # The MP4 is published atomically before frame cleanup finishes.
+                # Wait for the entire worker operation before checking cleanup or
+                # letting TemporaryDirectory remove the recording beneath it.
+                while (not service.list()[0]['video_ready'] or service.state()['encoding']) and time.monotonic() < deadline:
                     time.sleep(0.02)
+                self.assertFalse(service.state()['encoding'])
                 self.assertFalse(service.state()['running'])
                 self.assertTrue(service.list()[0]['video_ready'])
                 self.assertTrue((recording / 'timelapse.mp4').is_file())
@@ -96,3 +100,4 @@ class TimelapseChecks(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

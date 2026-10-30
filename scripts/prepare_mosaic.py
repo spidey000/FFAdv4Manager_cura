@@ -28,7 +28,7 @@ def build():
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
-    for name in ("ad4-manager-tools.js", "ad4-manager-tools.css"):
+    for name in ("ad4-manager-tools.js", "ad4-manager-tools.css", "ad4-live-job.js", "ad4-live-job.css"):
         shutil.copy2(OV/"public"/name, DEST/"public"/name)
     shutil.copy2(OV/"public/ad4.css",DEST/"public/ad4.css")
     shutil.copy2(OV/"public/ad4-settings.css",DEST/"public/ad4-settings.css")
@@ -43,6 +43,7 @@ def build():
     shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
     shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
     shutil.copy2(OV/"src/gui/ad4-setting-help.mjs",DEST/"src/gui/ad4-setting-help.mjs")
+    shutil.copy2(OV/"src/gui/ad4-live-renderer.mjs",DEST/"src/gui/ad4-live-renderer.mjs")
     # Offline SettingsGuide content, pinned as a git submodule for reproducible builds.
     guide=ROOT/"vendor/settings-guide"
     if not (guide/"resources/articles/resolution/layer_height.md").is_file():
@@ -88,6 +89,7 @@ def build():
         stream.write('\nexport * as renderer from "./viewer/renderer.mjs";\n')
     app_entry=DEST/"src/index.mjs"
     app_code=app_entry.read_text()
+    app_code='import "./gui/ad4-live-renderer.mjs";\n'+app_code
     app_code=app_code.replace('import * as resources from "./resources.mjs";',
       'import * as resources from "./resources.mjs";\\nimport {install_ad4_features} from "./gui/ad4-settings.mjs";\\nimport {install_ad4_icon_pack} from "./gui/ad4-icon-pack.mjs";'.replace('\\n','\n'))
     app_code=app_code.replace('  console.log("Loaded GUI");',
@@ -410,8 +412,8 @@ export function ad4_delete_model(uuid) {
     <pre id="ad4-diagnostic-result"></pre>
   </details>
 </dialog>
-<link rel="stylesheet" href="ad4-manager-tools.css">
-<script type="module" src="ad4-manager.js"></script><script type="module" src="ad4-manager-tools.js"></script>\n<script type="module" src="ad4-studio.js"></script>\n<script src="ad4-slide-ruler.js"></script><script type="module" src="ad4-v3.js"></script>\n<script type="module" src="ad4-printer-dashboard.js"></script>
+<link rel="stylesheet" href="ad4-manager-tools.css"><link rel="stylesheet" href="ad4-live-job.css">
+<script type="module" src="ad4-manager.js"></script><script type="module" src="ad4-manager-tools.js"></script><script type="module" src="ad4-live-job.js"></script>\n<script type="module" src="ad4-studio.js"></script>\n<script src="ad4-slide-ruler.js"></script><script type="module" src="ad4-v3.js"></script>\n<script type="module" src="ad4-printer-dashboard.js"></script>
 """
     html.write_text(source.replace("</body>",dialog+"</body>"))
     built=html.read_text()

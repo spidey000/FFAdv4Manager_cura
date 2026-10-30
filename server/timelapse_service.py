@@ -119,7 +119,7 @@ class TimelapseService:
             })
         return sorted(records, key=lambda item: item['id'], reverse=True)
 
-    def start(self, capture_argv, status_reader=None, auto=False, mode='interval', layer_height=0.2):
+    def start(self, capture_argv, status_reader=None, auto=False, mode='interval', layer_height=0.2, layer_heights=None):
         if mode not in ('interval', 'layer'):
             raise ValueError('Unknown timelapse capture mode')
         if not 0.06 <= layer_height <= 0.4:
@@ -133,7 +133,8 @@ class TimelapseService:
             folder.mkdir(mode=0o700)
             self._write_metadata(folder, created_at=datetime.now(timezone.utc).isoformat(), auto=bool(auto), mode=mode, layer_height=layer_height, error=None, status='recording')
             try:
-                worker = (LayerCapture(capture_argv, folder, status_reader, height=layer_height)
+                worker = (LayerCapture(capture_argv, folder, status_reader, height=layer_height,
+                                       **({'layer_heights': layer_heights} if layer_heights else {}))
                           if mode == 'layer' else subprocess.Popen(
                     [*capture_argv, 'camera', 'timelapse', str(folder), '--interval', str(self.interval)],
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
