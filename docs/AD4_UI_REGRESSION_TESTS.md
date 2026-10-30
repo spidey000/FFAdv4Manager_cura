@@ -1,50 +1,68 @@
-# AD4 Studio — Mobile UI regression suite
+# AD4 Studio — matriz de regresiones de interfaz
 
-## Target and test principles
+La UI viene de **MosaicSlicer fijado como submódulo** y de los overlays propios en `overlays/mosaic/`. `frontend/` es un producto generado; nunca modificarlo para arreglar un fallo.
 
-- Target: `FFAdv4Manager_cura` built from its pinned MosaicSlicer submodule with the same overrides used by GitHub Pages.
-- Browser: Chromium via Playwright in GitHub Actions; desktop 1280×800 and mobile 390×844 / 320×568. These are **emulated viewports**, not physical-device verification.
-- Public preview: `window.__AD4_STATIC_PREVIEW__=true`, demo STL is present, the browser never sends jobs to real printer hardware. Server-side CuraEngine must remain disabled in Pages.
-- Reproduction: `bash scripts/install.sh` (including submodules); run local Pages variant using `.github/workflows/ci.yml` and `tests/ui/pages_browser_smoke.py`.
-- CI saves `/tmp/ad4-pages-*.png` and uploads an artifact `ad4-pages-browser-screenshot` on both successes and failures. Inspect screenshots at each change; do not declare a mobile issue fixed from desktop screenshots alone.
+## Entornos y pruebas
 
-## Regression matrix
+- **Páginas públicas:** demo estática con modelo 3D real, catálogo Cura y controles de edición. Sin CuraEngine nativo ni conexión a impresora.
+- **Aplicación Linux privada:** API same-origin, CuraEngine nativo en servidor, gestor FlashForge y opciones de envío a hardware.
+- **Playwright/Chromium:** pruebas de viewport 320 × 568, 390 × 844 y 1280 × 800. Son **emulaciones**, no pruebas en Android/iOS físico.
+- **Smoke:** `tests/ui/pages_browser_smoke.py`, `tests/ui/printer_manager_browser.py`, `tests/ui/live_job_browser.py`.
+- **CI nativa:** `.github/workflows/native-engine.yml` compila CuraEngine y comprueba browser → API → motor → G-code → GX → parser de capas, con comandos a impresora interceptados.
 
-| ID | Scenario | Assertion / evidence |
+## Estados que no pueden romperse
+
+| ID | Interacción | Afirmación / evidencia |
 | --- | --- | --- |
-| R01 | Startup / demo mesh | No permanent Loading overlay; demo STL loads real 3D geometry; no JS errors |
-| R02 | Import STL | A second STL can be loaded into the viewer |
-| R03 | Remove model | Last mesh removal clears model registry, filename, UI state and dependent actions; confirmed in Chromium |
-| R04 | Print at 320×568 | Header visible, content inside viewport, sidebar has one scrollable region, bottom rows reachable |
-| R05 | Print at 390×844 | No fixed Save profile over inputs; Quality values not clipped by their accordion |
-| R06 | Print at 1280×800 | Visible Quality controls, desktop spacing, no overflow |
-| R07 | Profiles & filters | Process and material selectors, first-class All Cura button and native category picker; one continuous scroller |
-| R08 | Categories | Quick categories provide native Cura content; All Cura exposes the full 693-setting catalog including native category browser |
-| R09 | Global search | `temperature` from Quality returns material settings; X clears term |
-| R10 | Empty/single accordions | Empty groups hidden; single-setting category header not wasteful |
-| R11 | Filament route | Changes to Filament route and activates Material category with usable controls |
-| R12 | Printer route | Displays printer status and controls or explicit preview-only limitation |
-| R13 | Camera from editor | Shows printer/camera unavailable view on Pages; does not look like a dead click |
-| R14 | Slice from editor | Shows explicit server-side CuraEngine unavailable view and never invokes Pages slicing |
-| R15 | Header status menu | Opens/closes, ARIA expanded updates, shortcuts work; Source Code points to this repository |
-| R16 | Toast | Dismissible, non-blocking notification with adequate contrast |
-| R17 | Navigation | No icon magnification/layout shift; single active nav mode; other views hide editor toolbar |
-| R18 | Transform | Three 44px numeric axes; slider and numeric sync; 5-step snap; 45-degree Z rotation |
-| R19 | Resize | Lock proportions checkbox; rotate shortcut hidden in Move and Scale |
-| R20 | Accessibility | Labels for sliders, value inputs, Cura settings and profile picker; hidden legacy auto-slice absent from focus |
-| R21 | Small-device overflow | `documentElement.scrollWidth <= innerWidth + 1`; interactive targets reachable |
-| R22 | Project settings | App cards scroll; code link always reachable |
-| R23 | Real server | Protected API, printer manager, real CuraEngine slice, GX upload/print — requires separate integration test and auth; **not verified by Pages smoke** |
+| R01 | Inicio de UI | Desaparece Loading, carga cubo STL 20 mm como geometría real, consola sin errores |
+| R02 | Importación | STL adicional se importa y aparece en el registro de modelos Three.js |
+| R03 | Modelos | Seleccionar, ocultar sin quitar del export STL, volver a mostrar y eliminar conserva estados correctos |
+| R04 | Eliminación final | Al borrar el último modelo se limpia la escena y los botones dependientes |
+| R05 | Navegación | Preview / Print / Filament / Printer / App llevan a vistas diferenciadas; dock File / Models / Slice coherente |
+| R06 | Preview y Slice | Se ve el visor 3D; Pages mantiene el slicing deshabilitado con explicación clara |
+| R07 | Ajustes Print | Panel con scroll propio, sin botones fijos tapando parámetros ni desbordamiento a 320/390/1280 |
+| R08 | Catálogo Cura | All + Quality / Strength / Speed / Support / Material; contenido nativo completo, sin catálogo duplicado ni contador intrusivo |
+| R09 | Accordions | Grupos colapsados inicialmente; grupos vacíos ocultos, valores accesibles al abrir |
+| R10 | Filtros | All / Basic / Advanced / Expert y búsqueda global accesibles, filtros sin scroll horizontal |
+| R11 | Filament | Muestra opciones Material reales; no es una pestaña muerta |
+| R12 | Presets | Material y proceso recuperados; Guardar/Reset con estados acordes a los cambios reales |
+| R13 | Ayuda Cura | Icono Lucide de interrogación y nombre abren SettingsGuide empaquetado localmente |
+| R14 | Modal ayuda | Imágenes y artículos cargan; scroll propio, X, Escape y backdrop cierran limpiamente |
+| R15 | Transformaciones | Move/Rotate/Scale actúan sobre malla real, snapping configurable, rotación por pasos y escala proporcional |
+| R16 | Sliced Preview | Capas reales del G-code generado en Linux; navegación y selección de rango compatibles con los datos depositados |
+| R17 | Gestión offline | Todas las tarjetas de Printer están presentes y explican indisponibilidad cuando no hay servidor |
+| R18 | Cámara y timelapse | Sus controles responden en gestor con API simulada; stream y temporizadores se liberan al cerrar |
+| R19 | Impresión actual | Visor independiente de modelo + cámara lado a lado; M114/capa estimada y procedencia del G-code visibles |
+| R20 | Acciones críticas | Upload-only, Print, Pause/Resume/Cancel y captura no se activan en Pages; fail closed, confirmaciones y estados en gestor |
+| R21 | Accesibilidad | Etiquetas en botones/inputs/rulers, keyboard dismiss, foco y estados disabled comprensibles |
+| R22 | Móvil | Sin overflow horizontal ni pie cortado, áreas táctiles alcanzables, scroll de Print y App |
+| R23 | End-to-end nativo | Prueba independiente con CuraEngine real y transporte de impresora simulado; **no prueba firmware físico** |
+| R24 | Publicación Pages | El HTML, recursos, subruta y capturas del README responden; no hay worker de CuraEngine en el frontend |
 
-## Required screenshot states
+## Capturas reales para el README
 
-For each mobile width, save: Print default, Print after scrolling / expanded native catalog, Filament Material, Printer preview-mode, Transform Scale, Slice unavailable, final Preview. Capture desktop model deletion as well. Both CI and Pages deployment upload all `/tmp/ad4-pages-*.png` images to GitHub Actions artifacts retained for 14 days.
+Las imágenes de documentación **no son ilustraciones generadas ni capturas de un mockup**. Las produce el mismo test de Chromium sobre el bundle de Pages tras cargar el cubo STL real.
 
-## Remaining physical checks before a production claim
+En la compilación de `.github/workflows/pages.yml`, la variable `AD4_DOC_SCREENSHOT_DIR` solicita:
 
-On Android/iOS hardware, repeat 320-like narrow device and 390px device checks with touch, software keyboard, safe-area insets, focus order and screen reader. On protected Linux host, independently verify camera frames, server CuraEngine G-code/GX, printer storage and printing; **do not** run those tests against GitHub Pages.
+| Fichero publicado en `/screenshots/` | Estado capturado |
+| --- | --- |
+| `ad4-studio-desktop.png` | Visor 3D en 1280 × 800 |
+| `ad4-studio-mobile.png` | Visor 3D en 390 × 844 |
+| `ad4-studio-settings-mobile.png` | Print / ajustes Cura en 390 × 844 |
 
-| R24 | Settings help icon | Every native row has a small Lucide circle-help button next to its label, with accessible name and tooltip |
-| R25 | SettingsGuide modal | Label/icon open real bundled Markdown; images load; scroll and sticky X work; Back follows cross-article links |
-| R26 | Modal dismissal | X, Escape and backdrop close; no setting changes, accordion collapse, or parent scroll loss |
-| R27 | Missing guide | Native Cura description shown when an article is not available; no remote fetch |
+Las capturas se guardan en `frontend/dist/screenshots/` solo durante el pipeline, **no se versiona `frontend/`**. El workflow comprueba que son PNG no vacíos y que están disponibles tras desplegar Pages. Las capturas adicionales de pruebas funcionales se almacenan como artefactos durante 14 días y no sustituyen a las del README.
+
+## Comprobación local
+
+~~~bash
+AD4_SKIP_ENGINE_BUILD=1 bash scripts/install.sh
+.venv/bin/python -m pip install pytest 'playwright==1.56.0'
+.venv/bin/python -m pytest -q tests/cli tests/server tests/integration tests/cura tests/ui
+~~~
+
+Para reproducir el smoke de Pages, sigue las etapas de `.github/workflows/ci.yml`: copiar `frontend/dist/` bajo `/tmp/ad4-pages/FFAdv4Manager_cura/`, añadir el flag estático, levantar `http.server` y ejecutar `tests/ui/pages_browser_smoke.py` contra ese origen. Las pruebas de gestor utilizan una API simulada; **no ejecutar pruebas automáticas contra hardware real**.
+
+## Pendientes de validación física
+
+Antes de declarar el proyecto listo para producción, comprobar en dispositivos Android/iOS reales la respuesta táctil, teclados, safe area, accesibilidad y orientación; y en el servidor protegido validar con la Adventurer 4 real cámara, transferencia de GX, estados, interruptores físicos, pausa, inicio y timelapse. Ningún test estático acredita un comando de descarga de G-code desde la impresora: consultar [integración](PRINTER_INTEGRATION.md).
