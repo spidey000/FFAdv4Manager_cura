@@ -68,9 +68,11 @@ jobs:
           print("Public AD4 Studio preview ready; printer controls disabled; server CuraEngine not shipped")
           PY
       - name: Validate real model preview and settings in Chromium before publishing
-        # Record regression failures without retaining a stale Pages deployment.
-        # Installation, packaging and published asset checks remain blocking.
+        # The smoke test captures the real demo model plus mobile Print controls
+        # inside the Pages output, making README images versioned with the UI.
         continue-on-error: true
+        env:
+          AD4_DOC_SCREENSHOT_DIR: ${{ github.workspace }}/frontend/dist/screenshots
         run: |
           .venv/bin/python -m pip install 'playwright==1.56.0'
           mkdir -p /tmp/ad4-pages/FFAdv4Manager_cura
@@ -81,6 +83,12 @@ jobs:
           CHROME_BIN="$(command -v google-chrome || command -v chromium || true)"
           if [ -z "$CHROME_BIN" ]; then .venv/bin/python -m playwright install chromium; fi
           CHROME_BIN="$CHROME_BIN" .venv/bin/python tests/ui/pages_browser_smoke.py
+      - name: Validate published README screenshots
+        run: |
+          for screenshot in ad4-studio-desktop.png ad4-studio-mobile.png ad4-studio-settings-mobile.png; do
+            test -s "frontend/dist/screenshots/$screenshot"
+            file "frontend/dist/screenshots/$screenshot" | grep -q 'PNG image data'
+          done
       - name: Upload UI screenshots from local preview
         uses: actions/upload-artifact@v4
         if: always()
@@ -124,7 +132,7 @@ jobs:
                       html=response.read().decode("utf-8")
                   assert "__AD4_STATIC_PREVIEW__=true" in html
                   assert "ad4-studio.js" in html
-                  for asset in ("ad4-studio.css","ad4-studio.js","ad4-v3.css","ad4-v3.js","ad4-printer-dashboard.js","demo-cube-20mm.stl","js/app.mjs","resources/cura_data.tar.gz","settings-guide/index.json","settings-guide/articles/resolution/layer_height.md","settings-guide/articles/images/layer_height_0.1.png"):
+                  for asset in ("ad4-studio.css","ad4-studio.js","ad4-v3.css","ad4-v3.js","ad4-printer-dashboard.js","demo-cube-20mm.stl","js/app.mjs","resources/cura_data.tar.gz","settings-guide/index.json","settings-guide/articles/resolution/layer_height.md","settings-guide/articles/images/layer_height_0.1.png","screenshots/ad4-studio-desktop.png","screenshots/ad4-studio-mobile.png","screenshots/ad4-studio-settings-mobile.png"):
                       with urllib.request.urlopen(site+asset,timeout=30) as response:
                           assert response.status==200,asset
                   print("Verified live mobile AD4 Studio public preview",site)

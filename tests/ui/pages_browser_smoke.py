@@ -55,6 +55,15 @@ with sync_playwright() as p:
                 print("DEMO STL GEOMETRY LOADED",count,flush=True)
                 assert count>=1
                 assert page.locator("#ad4-dock-demo").count()==1
+                # Public documentation shots must show the REAL loaded Three.js model,
+                # not a fabricated mockup. Only the Pages pipeline enables this output.
+                docs_dir=os.environ.get("AD4_DOC_SCREENSHOT_DIR")
+                if docs_dir and width in (390, 1280):
+                    shot_dir=Path(docs_dir)
+                    shot_dir.mkdir(parents=True,exist_ok=True)
+                    page.wait_for_timeout(700)  # allow one rendered Three.js frame
+                    suffix="mobile" if width==390 else "desktop"
+                    page.screenshot(path=str(shot_dir/f"ad4-studio-{suffix}.png"),full_page=False)
                 assert page.locator("#slice-button").is_disabled()
                 assert page.locator("#ad4-dock-slice").is_disabled()
                 if width<500:
@@ -160,6 +169,8 @@ with sync_playwright() as p:
                 # Capture the real Print screen from the deployed bundle before scrolling.
                 print_shot=Path(f"/tmp/ad4-pages-print-{width}.png")
                 page.screenshot(path=str(print_shot),full_page=False)
+                if os.environ.get("AD4_DOC_SCREENSHOT_DIR") and width==390:
+                    page.screenshot(path=str(Path(os.environ["AD4_DOC_SCREENSHOT_DIR"])/"ad4-studio-settings-mobile.png"),full_page=False)
                 layout=page.evaluate("""() => {
                     const frame=document.querySelector("#sidebar-container");
                     const body=document.querySelector("#sidebar");
