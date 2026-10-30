@@ -48,7 +48,7 @@ with sync_playwright() as p:
             try:
                 page.wait_for_function("""() => {
                   const gui=globalThis.app?.gui;
-                  return gui?.file?.stl_file_name==="AD4_demo_cube_20mm.stl"
+                  return gui?.file?.stl_file_name==="3DBenchy.stl"
                     && Object.keys(gui.model_viewer?.models||{}).length>0;
                 }""",timeout=18000)
                 count=page.evaluate("Object.keys(app.gui.model_viewer.models).length")
@@ -67,10 +67,10 @@ with sync_playwright() as p:
                 assert page.locator("#slice-button").is_disabled()
                 assert page.locator("#ad4-dock-slice").is_disabled()
                 if width<500:
-                    sample=page.request.get(url.rstrip("/")+"/demo-cube-20mm.stl")
+                    sample=page.request.get(url.rstrip("/")+"/demo-benchy.stl")
                     assert sample.ok, "Demo STL was not served"
                     page.locator("#stl-file").set_input_files({
-                        "name":"user_imported_cube.stl",
+                        "name":"user_imported_benchy.stl",
                         "mimeType":"model/stl",
                         "buffer":sample.body()
                     })
@@ -88,9 +88,9 @@ with sync_playwright() as p:
                     items=menu.locator(".ad4-v3-models-row")
                     assert items.count()>=2
                     names=menu.locator(".ad4-v3-model-name").all_inner_texts()
-                    assert "AD4_demo_cube_20mm.stl" in names, names
-                    assert "user_imported_cube.stl" in names, names
-                    import_row=items.filter(has_text="user_imported_cube.stl")
+                    assert "3DBenchy.stl" in names, names
+                    assert "user_imported_benchy.stl" in names, names
+                    import_row=items.filter(has_text="user_imported_benchy.stl")
                     model_uuid=import_row.get_attribute("data-model-uuid")
                     import_row.locator(".ad4-v3-model-select").click()
                     assert page.evaluate("(uuid)=>app.gui.model_viewer.focused===uuid",model_uuid), "Model selection did not reach native scene"
