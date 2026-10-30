@@ -129,7 +129,7 @@ function refreshSelectionBrackets(){
  const selection=mv?.focused?mv?.models?.[mv.focused]?.mesh:null;
  const camera=globalThis.app?.gui?.renderer?.camera;
  const canvas=$("stl-viewer");
- if(!selection||!camera||!canvas){frame.hidden=true;return}
+ if(!selection||!selection.visible||!camera||!canvas){frame.hidden=true;return}
  selection.geometry?.computeBoundingBox?.();
  const bounding=selection.geometry?.boundingBox;
  if(!bounding){frame.hidden=true;return}
@@ -770,6 +770,7 @@ function renderModelsMenu(){
     toggle.checked=!toggle.checked;notify("Model visibility is unavailable");return;
    }
    // Preview visibility must not invalidate slicing or change STL export.
+   if(!toggle.checked && mv.focused===uuid && activeViewerMode)setTransform(null);
    renderModelsMenu();
   });
   const remove=make("button","ad4-v3-model-remove");
