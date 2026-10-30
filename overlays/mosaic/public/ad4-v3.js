@@ -62,7 +62,7 @@ function refreshState(){
  const slice=$("ad4-dock-slice");
  if(slice)slice.disabled=staticPreview || !model || $("slice-progress-container")?.dataset.active==="true";
  const newPreview=$("ad4-v3-preview-status");
- if(newPreview)newPreview.textContent=sliced?"Real G-code ready":"Slice a model to preview layers";
+ if(newPreview)newPreview.textContent=sliced?(staticPreview?"Demo G-code · preview only":"Real G-code ready"):"Slice a model to preview layers";
  const navSlice=$("ad4-v3-nav-slice");if(navSlice)navSlice.classList.toggle("ready",sliced);
  const slicingBusy=$("slice-progress-container")?.dataset.active==="true";
  const start=$("ad4-v3-run-slice");if(start){start.hidden=staticPreview||!model||sliced;start.disabled=staticPreview||slicingBusy}
