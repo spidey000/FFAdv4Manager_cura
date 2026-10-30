@@ -157,8 +157,8 @@ setInterval(refreshSelectionBrackets,120);
 
 const layerUI=make("section","ad4-v3-layer-card");layerUI.id="ad4-v3-layer-card";
 layerUI.innerHTML='<div class="ad4-v3-card-title"><strong id="ad4-v3-panel-title">Sliced preview</strong><span id="ad4-v3-preview-status">G-code layers</span></div>'+
-'<div id="ad4-v3-range-panel"><div class="ad4-v3-range-labels"><label>From <input id="ad4-v3-layer-from" type="number" min="1" value="1"></label><label>To <input id="ad4-v3-layer-to" type="number" min="1" value="1"></label></div>'+
-'<div class="ad4-v3-double-range" id="ad4-v3-double-range"><div class="ad4-v3-range-track"></div><div class="ad4-v3-range-selected" id="ad4-v3-range-selected"></div><input id="ad4-v3-range-min" type="range" min="1" max="100" value="1" aria-label="First visible layer"><input id="ad4-v3-range-max" type="range" min="1" max="100" value="100" aria-label="Last visible layer"></div>'+
+'<div id="ad4-v3-range-panel">'+
+'<div class="ad4-v3-double-range" id="ad4-v3-double-range" aria-label="Visible layer range"><div class="ad4-v3-range-track"></div><div class="ad4-v3-range-selected" id="ad4-v3-range-selected"></div><button type="button" class="ad4-v3-range-thumb" id="ad4-v3-range-min" role="slider" aria-valuemin="1" aria-valuemax="100" aria-valuenow="1" aria-label="From layer"><span id="ad4-v3-layer-from">1</span></button><button type="button" class="ad4-v3-range-thumb" id="ad4-v3-range-max" role="slider" aria-valuemin="1" aria-valuemax="100" aria-valuenow="100" aria-label="To layer"><span id="ad4-v3-layer-to">100</span></button></div>'+
 '<output id="ad4-v3-layer-number">Layers 1–1</output><div class="ad4-v3-estimates"><span>'+svg("clock")+' <b id="ad4-v3-time">—</b><small>Estimated print time</small></span><span>'+svg("filament")+' <b id="ad4-v3-material">—</b><small>Filament usage</small></span></div></div>'+
 '<div id="ad4-v3-types-panel" hidden><div class="ad4-v3-type-heading">Toolpath visibility <small>Times approximate · G-code feedrates</small></div><div id="ad4-v3-type-list"></div></div>';
 root.append(layerUI);
@@ -166,11 +166,15 @@ let layerFrom=1,layerTo=1,layerCount=0,showTypes=false,typesGcodeCache="";
 const typeLabels={"WALL-OUTER":"Outer wall","WALL-INNER":"Inner wall","SKIN":"Top / Bottom","FILL":"Infill","SUPPORT":"Support","SUPPORT-INTERFACE":"Support interface","SKIRT":"Skirt","BRIM":"Brim","RAFT":"Raft","TRAVEL":"Travel","OTHER":"Other"};
 const typeColors={"WALL-OUTER":"#ff443d","WALL-INNER":"#37cf74","SKIN":"#ffdc46","FILL":"#ffa526","SUPPORT":"#8c80ff","SUPPORT-INTERFACE":"#bd88ff","SKIRT":"#00c6bb","BRIM":"#38cbad","RAFT":"#64ba9f","TRAVEL":"#13dbe9","OTHER":"#98a6a1"};
 function updateRangeVisual(){
- const max=Math.max(1,layerCount),left=(layerFrom-1)/Math.max(1,max-1)*100,right=(layerTo-1)/Math.max(1,max-1)*100;
- const selected=$("ad4-v3-range-selected");
- selected.style.left=left+"%";selected.style.width=(right-left)+"%";
- for(const [id,value] of [["ad4-v3-layer-from",layerFrom],["ad4-v3-layer-to",layerTo],["ad4-v3-range-min",layerFrom],["ad4-v3-range-max",layerTo]]){
-  const el=$(id);if(document.activeElement!==el)el.value=String(value);el.max=String(max);
+ const max=Math.max(1,layerCount),denominator=Math.max(1,max-1);
+ const left=(layerFrom-1)/denominator*100,right=(layerTo-1)/denominator*100;
+ const selected=$("ad4-v3-range-selected");selected.style.left=left+"%";selected.style.width=(right-left)+"%";
+ for(const [side,value,position] of [["min",layerFrom,left],["max",layerTo,right]]){
+  const thumb=$("ad4-v3-range-"+side);
+  thumb.style.left=position+"%";
+  thumb.setAttribute("aria-valuemax",String(max));
+  thumb.setAttribute("aria-valuenow",String(value));
+  thumb.querySelector("span").textContent=String(value);
  }
  $("ad4-v3-layer-number").textContent="Layers "+layerFrom+"–"+layerTo+" of "+max;
 }
@@ -186,12 +190,36 @@ function initLayerRulers(){
  const count=globalThis.AD4GCodePreview?.count||0;
  if(!count||current!=="sliced")return;
  if(count!==layerCount){layerCount=count;layerFrom=1;layerTo=count}
- updateRangeVisual();
- refreshTypes();
+ updateRangeVisual();refreshTypes();
 }
-for(const [kind,numeric,slider] of [["lower","ad4-v3-layer-from","ad4-v3-range-min"],["upper","ad4-v3-layer-to","ad4-v3-range-max"]]){
- $(numeric).addEventListener("change",e=>commitLayerRange(kind,e.target.value));
- $(slider).addEventListener("input",e=>commitLayerRange(kind,e.target.value));
+const layerRail=$("ad4-v3-double-range");
+let draggedLayerThumb=null;
+function positionToLayer(clientX){
+ const rect=layerRail.getBoundingClientRect();
+ return 1+Math.round(Math.max(0,Math.min(1,(clientX-rect.left)/Math.max(1,rect.width)))*Math.max(0,layerCount-1));
+}
+layerRail.addEventListener("pointerdown",event=>{
+ if(!layerCount||event.button!==0)return;
+ const target=event.target.closest(".ad4-v3-range-thumb");
+ const value=positionToLayer(event.clientX);
+ draggedLayerThumb=target?(target.id.endsWith("min")?"lower":"upper"):(Math.abs(value-layerFrom)<=Math.abs(value-layerTo)?"lower":"upper");
+ layerRail.setPointerCapture(event.pointerId);
+ commitLayerRange(draggedLayerThumb,value);
+ event.preventDefault();
+});
+layerRail.addEventListener("pointermove",event=>{
+ if(!draggedLayerThumb)return;
+ commitLayerRange(draggedLayerThumb,positionToLayer(event.clientX));
+});
+for(const eventName of ["pointerup","pointercancel","lostpointercapture"])layerRail.addEventListener(eventName,()=>draggedLayerThumb=null);
+for(const [id,bound] of [["ad4-v3-range-min","lower"],["ad4-v3-range-max","upper"]]){
+ $(id).addEventListener("keydown",event=>{
+  if(!["ArrowLeft","ArrowRight","Home","End","PageUp","PageDown"].includes(event.key))return;
+  event.preventDefault();
+  const currentValue=bound==="lower"?layerFrom:layerTo;
+  const next=event.key==="Home"?1:event.key==="End"?layerCount:currentValue+({"ArrowLeft":-1,"ArrowRight":1,"PageUp":10,"PageDown":-10}[event.key]||0);
+  commitLayerRange(bound,next);
+ });
 }
 function estimateTypeTimes(gcode){
  // Feedrate-based approximation only; accelerations and firmware pauses omitted.
