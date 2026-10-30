@@ -67,12 +67,15 @@ with sync_playwright() as p:
                 assert page.locator("#slice-button").is_disabled()
                 assert page.locator("#ad4-dock-slice").is_disabled()
                 if width<500:
-                    sample=page.request.get(url.rstrip("/")+"/demo-benchy.stl")
-                    assert sample.ok, "Demo STL was not served"
+                    # Tiny second fixture: never import the 11 MiB Benchy twice
+                    # in a mobile viewport just to test the model list.
+                    import struct
+                    tiny = (b"Second model".ljust(80,b" ") + struct.pack("<I",1)
+                            + struct.pack("<12fH",0,0,1,0,0,0,10,0,0,0,10,0,0))
                     page.locator("#stl-file").set_input_files({
-                        "name":"user_imported_benchy.stl",
+                        "name":"user_imported_test.stl",
                         "mimeType":"model/stl",
-                        "buffer":sample.body()
+                        "buffer":tiny
                     })
                     page.wait_for_function("() => Object.keys(app.gui.model_viewer.models).length>=2",timeout=8000)
                     print("USER FILE UPLOAD LOADED AS 3D MODEL",flush=True)
@@ -89,8 +92,8 @@ with sync_playwright() as p:
                     assert items.count()>=2
                     names=menu.locator(".ad4-v3-model-name").all_inner_texts()
                     assert "3DBenchy.stl" in names, names
-                    assert "user_imported_benchy.stl" in names, names
-                    import_row=items.filter(has_text="user_imported_benchy.stl")
+                    assert "user_imported_test.stl" in names, names
+                    import_row=items.filter(has_text="user_imported_test.stl")
                     model_uuid=import_row.get_attribute("data-model-uuid")
                     import_row.locator(".ad4-v3-model-select").click()
                     assert page.evaluate("(uuid)=>app.gui.model_viewer.focused===uuid",model_uuid), "Model selection did not reach native scene"
