@@ -43,6 +43,8 @@ class TimelapseService:
         self.watching = False
         self.last_error = None
         self.mode = 'interval'
+        self.fps = 10
+        self.capture_interval = interval
         self._event = None
 
     def folder_for(self, identifier):
@@ -89,7 +91,8 @@ class TimelapseService:
             return {'running': running, 'encoding': bool(encoding), 'auto': watching,
                     'id': folder.name if folder else None,
                     'frames': len(frames_in(folder)) if folder and folder.exists() else 0,
-                    'mode': self.mode,
+                    'mode': self.mode, 'fps': self.fps,
+                    'interval': self.capture_interval,
                     'error': error}
 
     def list(self):
@@ -116,14 +119,21 @@ class TimelapseService:
                 'reason': meta.get('reason'),
                 'auto': meta.get('auto', False),
                 'mode': meta.get('mode', 'interval'),
+                'fps': meta.get('fps', 10),
+                'interval': meta.get('interval', self.interval),
             })
         return sorted(records, key=lambda item: item['id'], reverse=True)
 
-    def start(self, capture_argv, status_reader=None, auto=False, mode='interval', layer_height=0.2, layer_heights=None):
+    def start(self, capture_argv, status_reader=None, auto=False, mode='interval', layer_height=0.2, layer_heights=None, fps=10, interval=None):
         if mode not in ('interval', 'layer'):
             raise ValueError('Unknown timelapse capture mode')
         if not 0.06 <= layer_height <= 0.4:
             raise ValueError('Unsupported G-code layer height')
+        if type(fps) is not int or not 1 <= fps <= 60:
+            raise ValueError('Timelapse FPS must be between 1 and 60')
+        if interval is not None and (type(interval) not in (int, float) or not 2 <= interval <= 300):
+            raise ValueError('Timelapse interval must be between 2 and 300 seconds')
+        interval = self.interval if interval is None else interval
         self.require_encoder()
         with self.lock:
             if self.folder or self.encoding:
@@ -131,12 +141,12 @@ class TimelapseService:
             self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
             folder = self.root / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S') + '-' + secrets.token_hex(4))
             folder.mkdir(mode=0o700)
-            self._write_metadata(folder, created_at=datetime.now(timezone.utc).isoformat(), auto=bool(auto), mode=mode, layer_height=layer_height, error=None, status='recording')
+            self._write_metadata(folder, created_at=datetime.now(timezone.utc).isoformat(), auto=bool(auto), mode=mode, layer_height=layer_height, fps=fps, interval=interval, error=None, status='recording')
             try:
                 worker = (LayerCapture(capture_argv, folder, status_reader, height=layer_height,
                                        **({'layer_heights': layer_heights} if layer_heights else {}))
                           if mode == 'layer' else subprocess.Popen(
-                    [*capture_argv, 'camera', 'timelapse', str(folder), '--interval', str(self.interval)],
+                    [*capture_argv, 'camera', 'timelapse', str(folder), '--interval', str(interval)],
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
             except Exception:
                 shutil.rmtree(folder)
@@ -144,6 +154,8 @@ class TimelapseService:
             self.folder = folder
             self.worker = worker
             self.mode = mode
+            self.fps = fps
+            self.capture_interval = interval
             self.watching = bool(status_reader)
             self.last_error = None
             event = threading.Event()
@@ -221,10 +233,13 @@ class TimelapseService:
             return None
         temp = folder / '.timelapse.partial.mp4'
         try:
+            fps = self._metadata(folder).get('fps', 10)
+            if type(fps) is not int or not 1 <= fps <= 60:
+                raise ValueError('Invalid stored timelapse FPS')
             self.require_encoder()
             result = subprocess.run([
                 self.require_encoder(), '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
-                '-framerate', '10', '-pattern_type', 'glob', '-i', str(folder / 'frame-*.jpg'),
+                '-framerate', str(fps), '-pattern_type', 'glob', '-i', str(folder / 'frame-*.jpg'),
                 '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2:in_range=full:out_range=limited,format=yuv420p',
                 '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28',
                 '-pix_fmt', 'yuv420p', '-movflags', '+faststart',

@@ -98,6 +98,38 @@ class TimelapseChecks(unittest.TestCase):
                 self.assertEqual(service.list(), [])
 
 
+    def test_custom_fps_and_interval_are_used_for_capture_and_encoding(self):
+        with tempfile.TemporaryDirectory() as work:
+            service = TimelapseService(Path(work))
+            capture = FakeCapture()
+            commands = []
+            def ffmpeg_spy(argv, **kwargs):
+                commands.append(argv)
+                return fake_ffmpeg(argv, **kwargs)
+            with patch('server.timelapse_service.TimelapseService.require_encoder', return_value='ffmpeg'), \
+                    patch('server.timelapse_service.subprocess.Popen', return_value=capture) as popen, \
+                    patch('server.timelapse_service.subprocess.run', side_effect=ffmpeg_spy):
+                service.start(['ffadv4manager'], fps=24, interval=15)
+                self.assertEqual(service.state()['fps'], 24)
+                self.assertEqual(service.state()['interval'], 15)
+                argv = popen.call_args.args[0]
+                self.assertEqual(argv[argv.index('--interval') + 1], '15')
+                folder = service.folder
+                self.assertEqual(service._metadata(folder)['fps'], 24)
+                (folder / 'frame-20261030T155000-000000.jpg').write_bytes(b'\xff\xd8mock\xff\xd9')
+                service.stop('manual')
+                self.assertEqual(commands[0][commands[0].index('-framerate') + 1], '24')
+                self.assertEqual(service.list()[0]['fps'], 24)
+                self.assertEqual(service.list()[0]['interval'], 15)
+
+    def test_rejects_invalid_fps_and_interval_before_start(self):
+        with tempfile.TemporaryDirectory() as work:
+            service = TimelapseService(Path(work))
+            for kwargs in ({'fps': 0}, {'fps': 61}, {'fps': '24'}, {'interval': 1}, {'interval': 301}):
+                with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                    service.start(['ffadv4manager'], **kwargs)
+
+
 if __name__ == '__main__':
     unittest.main()
 

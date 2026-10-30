@@ -131,11 +131,11 @@ def source_layer_heights(mode):
     return layer_heights
 
 
-def start_print_timelapse(mode='interval', layer_height=0.2):
+def start_print_timelapse(mode='interval', layer_height=0.2, fps=10, interval=10):
     argv = cli_argv()
     layer_heights = source_layer_heights(mode)
     return TIMELAPSES.start(argv, selected_status_reader(argv), auto=True,
-                            mode=mode, layer_height=layer_height,
+                            mode=mode, layer_height=layer_height, fps=fps, interval=interval,
                             **({'layer_heights': layer_heights} if layer_heights else {}))
 
 
@@ -561,6 +561,10 @@ class Handler(SimpleHTTPRequestHandler):
                 start = query.get('start', ['false'])[0] == 'true'
                 auto_timelapse = start and query.get('timelapse', ['false'])[0] == 'true'
                 capture_mode = query.get('timelapse_mode', ['interval'])[0]
+                capture_fps = int(query.get('timelapse_fps', ['10'])[0])
+                capture_interval = int(query.get('timelapse_interval', ['10'])[0])
+                if not 1 <= capture_fps <= 60 or not 2 <= capture_interval <= 300:
+                    raise ValueError('Invalid timelapse FPS or interval')
                 if capture_mode not in ('interval', 'layer'):
                     raise ValueError('Invalid capture mode')
                 if auto_timelapse:
@@ -592,7 +596,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if auto_timelapse:
                     try:
                         timelapse_capture = start_print_timelapse(mode=capture_mode,
-                            layer_height=estimated_layer_height(data))
+                            layer_height=estimated_layer_height(data), fps=capture_fps,
+                            interval=capture_interval)
                     except (OSError, ValueError, RuntimeError) as exc:
                         # The physical print already started; report capture failure honestly.
                         timelapse_error = str(exc)
@@ -612,6 +617,10 @@ class Handler(SimpleHTTPRequestHandler):
                 if action == 'print':
                     auto_timelapse = body.get('timelapse') is True
                     capture_mode = body.get('timelapse_mode', 'interval')
+                    capture_fps = body.get('timelapse_fps', 10)
+                    capture_interval = body.get('timelapse_interval', 10)
+                    if type(capture_fps) is not int or not 1 <= capture_fps <= 60 or type(capture_interval) is not int or not 2 <= capture_interval <= 300:
+                        raise ValueError('Invalid timelapse FPS or interval')
                     if capture_mode not in ('interval', 'layer'):
                         raise ValueError('Invalid capture mode')
                     if auto_timelapse:
@@ -625,7 +634,8 @@ class Handler(SimpleHTTPRequestHandler):
                     output = command('print', filename, timeout=50)
                     if auto_timelapse:
                         try:
-                            start_print_timelapse(mode=capture_mode)
+                            start_print_timelapse(mode=capture_mode, fps=capture_fps,
+                                interval=capture_interval)
                         except (OSError, ValueError, RuntimeError) as exc:
                             return self.json(200, {'detail': output[-1000:], 'timelapse_error': str(exc)})
                 elif action in simple:
@@ -685,6 +695,7 @@ class Handler(SimpleHTTPRequestHandler):
                     layer_heights = source_layer_heights(capture_mode)
                     return self.json(200, TIMELAPSES.start(
                         argv, selected_status_reader(argv), auto=False, mode=capture_mode,
+                        fps=body.get('fps', 10), interval=body.get('interval', 10),
                         **({'layer_heights': layer_heights} if layer_heights else {})))
                 raise ValueError('Acción de timelapse inválida')
             if path == '/api/printer/notifications':

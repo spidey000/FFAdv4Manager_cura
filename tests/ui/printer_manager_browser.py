@@ -106,7 +106,10 @@ def run():
                     page.locator('#ad4-inspect-job').click()
                     page.wait_for_function('document.getElementById("ad4-inspect-result").textContent.includes("test-sha")')
                     page.locator('#ad4-upload-job').click()
-                    page.get_by_role('button', name='Send only', exact=True).click()
+                    # Preflight checks live printer status again before resolving. A prior
+                    # operation can already say "completed"; wait for the actual upload.
+                    with page.expect_request(lambda request: request.method == 'POST' and '/api/printer/upload?' in request.url):
+                        page.get_by_role('button', name='Send only', exact=True).click()
                     page.wait_for_function('document.getElementById("ad4-manager-status").textContent.includes("completed")')
                     assert any(method == 'POST' and path.startswith('/upload?') for method, path, body in calls)
                     assert not errors, errors
