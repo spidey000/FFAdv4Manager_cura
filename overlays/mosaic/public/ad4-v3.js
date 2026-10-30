@@ -159,10 +159,11 @@ const layerUI=make("section","ad4-v3-layer-card");layerUI.id="ad4-v3-layer-card"
 layerUI.innerHTML='<div class="ad4-v3-card-title"><strong id="ad4-v3-panel-title">Sliced preview</strong><span id="ad4-v3-preview-status">G-code layers</span></div>'+
 '<div id="ad4-v3-range-panel">'+
 '<div class="ad4-v3-double-range" id="ad4-v3-double-range" aria-label="Visible layer range"><div class="ad4-v3-range-track"></div><div class="ad4-v3-range-selected" id="ad4-v3-range-selected"></div><button type="button" class="ad4-v3-range-thumb" id="ad4-v3-range-min" role="slider" aria-valuemin="1" aria-valuemax="100" aria-valuenow="1" aria-label="From layer"><span id="ad4-v3-layer-from">1</span></button><button type="button" class="ad4-v3-range-thumb" id="ad4-v3-range-max" role="slider" aria-valuemin="1" aria-valuemax="100" aria-valuenow="100" aria-label="To layer"><span id="ad4-v3-layer-to">100</span></button></div>'+
-'<output id="ad4-v3-layer-number">Layers 1–1</output><div class="ad4-v3-estimates"><span>'+svg("clock")+' <b id="ad4-v3-time">—</b><small>Estimated print time</small></span><span>'+svg("filament")+' <b id="ad4-v3-material">—</b><small>Filament usage</small></span></div></div>'+
+'<div class="ad4-v3-estimates"><div class="ad4-v3-stat" title="Estimated print time">'+svg("clock")+'<strong id="ad4-v3-time">—</strong></div><div class="ad4-v3-stat" title="Estimated filament weight">'+svg("filament")+'<strong id="ad4-v3-material">— g</strong></div></div></div>'+
 '<div id="ad4-v3-types-panel" hidden><div class="ad4-v3-type-heading">Toolpath visibility <small>Times approximate · G-code feedrates</small></div><div id="ad4-v3-type-list"></div></div>';
 root.append(layerUI);
 let layerFrom=1,layerTo=1,layerCount=0,showTypes=false,typesGcodeCache="";
+root.dataset.ad4LayerPanel="range";
 const typeLabels={"WALL-OUTER":"Outer wall","WALL-INNER":"Inner wall","SKIN":"Top / Bottom","FILL":"Infill","SUPPORT":"Support","SUPPORT-INTERFACE":"Support interface","SKIRT":"Skirt","BRIM":"Brim","RAFT":"Raft","TRAVEL":"Travel","OTHER":"Other"};
 const typeColors={"WALL-OUTER":"#ff443d","WALL-INNER":"#37cf74","SKIN":"#ffdc46","FILL":"#ffa526","SUPPORT":"#8c80ff","SUPPORT-INTERFACE":"#bd88ff","SKIRT":"#00c6bb","BRIM":"#38cbad","RAFT":"#64ba9f","TRAVEL":"#13dbe9","OTHER":"#98a6a1"};
 function updateRangeVisual(){
@@ -176,7 +177,7 @@ function updateRangeVisual(){
   thumb.setAttribute("aria-valuenow",String(value));
   thumb.querySelector("span").textContent=String(value);
  }
- $("ad4-v3-layer-number").textContent="Layers "+layerFrom+"–"+layerTo+" of "+max;
+
 }
 function commitLayerRange(bound,raw){
  if(!layerCount)return;
@@ -270,8 +271,9 @@ function toggleLayerTypePanel(){
  $("ad4-v3-range-panel").hidden=showTypes;
  $("ad4-v3-types-panel").hidden=!showTypes;
  $("ad4-v3-panel-title").textContent=showTypes?"Layer types":"Sliced preview";
+ root.dataset.ad4LayerPanel=showTypes?"types":"range";
  $("ad4-v3-show-layers").setAttribute("aria-pressed",String(showTypes));
- $("ad4-v3-show-layers").textContent=showTypes?"Layer range":"Layer types";
+ updateLayerViewButton();
  if(showTypes){typesGcodeCache="";refreshTypes()}
 }
 
@@ -707,6 +709,14 @@ const removeModel=actionButton("ad4-v3-remove-model","Remove model",()=>{
 });
 const demoModel=actionButton("ad4-v3-demo","Demo STL",()=>$("ad4-dock-demo")?.click());
 const previewLayers=actionButton("ad4-v3-show-layers","Layer types",toggleLayerTypePanel);
+function updateLayerViewButton(){
+ const label=showTypes?"Layer range":"Layer types";
+ const iconName=showTypes?"sliders-horizontal":"layers";
+ previewLayers.innerHTML='<span class="ad4-action-icon" aria-hidden="true">'+svg(iconName)+'</span><span class="ad4-action-text">'+label+'</span>';
+ previewLayers.setAttribute("aria-label",showTypes?"Show layer range controls":"Show layer types and visibility");
+ globalThis.AD4Icons?.hydrate(previewLayers);
+}
+updateLayerViewButton();
 const exportGcode=actionButton("ad4-v3-export","Export G-code",()=>$("export-gcode-button")?.click());
 const upload=actionButton("ad4-v3-send","Send to printer",()=>{if(!staticPreview)openPrinter("files");$("ad4-upload")?.click()});
 const print=actionButton("ad4-v3-print","Send and print now",()=>{if(!staticPreview)openPrinter("files");$("ad4-send-print")?.click()},true);
@@ -739,16 +749,83 @@ function renderTools(){
 function checkStatus(){}
 $("ad4-v3-file-label")?.addEventListener("click",()=>$("ad4-dock-model")?.click());
 $("stl-file")?.addEventListener("change",()=>{activate("preview");setTimeout(refreshState,500)});
-$("ad4-v3-layer-number").textContent="1 / 1";
+
+
+const PLA_DIAMETER_MM=1.75,PLA_DENSITY_G_CM3=1.24;
+function gramsFromFilamentMm(mm){
+ return mm*Math.PI*Math.pow(PLA_DIAMETER_MM/2,2)*PLA_DENSITY_G_CM3/1000;
+}
+function formatWeightGrams(grams){
+ return Number.isFinite(grams)&&grams>=0?(grams>=10?String(Math.round(grams)):String(Number(grams.toFixed(1))))+" g":"— g";
+}
+function formatPrintClock(seconds){
+ if(!Number.isFinite(seconds)||seconds<0)return "—";
+ const wholeMinutes=Math.ceil(seconds/60),days=Math.floor(wholeMinutes/1440);
+ const hours=Math.floor(wholeMinutes%1440/60),minutes=wholeMinutes%60;
+ return [days,hours,minutes].map(x=>String(x).padStart(2,"0")).join(" ").replace(/^(\d{2}) (\d{2}) (\d{2})$/, "$1 $2:$3");
+}
+function parsePrintTime(raw){
+ const value=String(raw||"").trim().toLowerCase().replace(/,/g,".");
+ if(!value||/not reported|unknown|demo|unavailable/.test(value))return NaN;
+ const dayClock=value.match(/^(\d+)\s+(\d{1,2}):(\d{2})$/);
+ if(dayClock)return (+dayClock[1]*86400)+(+dayClock[2]*3600)+(+dayClock[3]*60);
+ const clock=value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+ if(clock)return +clock[1]*3600+(+clock[2])*60+(+clock[3]||0);
+ let seconds=0,found=false;
+ for(const m of value.matchAll(/(\d+(?:\.\d+)?)\s*(days?|d\b|hours?|hrs?|hr\b|h\b|minutes?|mins?|min\b|m\b|seconds?|secs?|sec\b|s\b)/g)){
+  const n=Number(m[1]),unit=m[2];
+  seconds+=n*(/^d/.test(unit)?86400:/^h/.test(unit)?3600:/^m/.test(unit)?60:1);
+  found=true;
+ }
+ return found?seconds:NaN;
+}
+function parseFilamentGrams(raw){
+ const m=String(raw||"").trim().toLowerCase().replace(/,/g,".").match(/^(\d+(?:\.\d+)?)\s*(mm|m|g|grams?)$/);
+ if(!m)return NaN;
+ const n=Number(m[1]);
+ return m[2]==="mm"?gramsFromFilamentMm(n):m[2]==="m"?gramsFromFilamentMm(n*1000):n;
+}
+let demoStatsSource=null,demoStats={clock:"—",weight:"— g"};
+function getDemoStats(){
+ const gcode=globalThis.app?.gui?.slicer?.exported_gcode;
+ if(typeof gcode!=="string"||!gcode)return {clock:"—",weight:"— g"};
+ if(gcode===demoStatsSource)return demoStats;
+ demoStatsSource=gcode;
+ // Pages showcases a non-printable fixture. Its figures are approximate,
+ // derived from feedrates and extruded E in the demonstration toolpath.
+ const times=estimateTypeTimes(gcode);
+ const seconds=[...times.values()].reduce((sum,n)=>sum+n,0);
+ let maxExtrusion=0;
+ for(const match of gcode.matchAll(/(?:^|\n)G1[^\n]*\sE(\d+(?:\.\d+)?)/g)){
+  maxExtrusion=Math.max(maxExtrusion,Number(match[1]));
+ }
+ demoStats={clock:formatPrintClock(seconds),weight:formatWeightGrams(gramsFromFilamentMm(maxExtrusion))};
+ return demoStats;
+}
+function updatePrintStats(){
+ const time=$("ad4-v3-time"),weight=$("ad4-v3-material");
+ if(!time||!weight)return;
+ if(staticPreview){
+  const stats=getDemoStats();
+  time.textContent=stats.clock;
+  weight.textContent=stats.weight;
+  time.parentElement.title="Illustrative time from demo G-code feedrates; not a CuraEngine estimate";
+  weight.parentElement.title="Illustrative PLA mass from demo G-code extrusion; not a CuraEngine estimate";
+ }else{
+  time.textContent=formatPrintClock(parsePrintTime($("gcode-time-estimate")?.textContent));
+  weight.textContent=formatWeightGrams(parseFilamentGrams($("material-estimate")?.textContent));
+  time.parentElement.title="CuraEngine estimated print time (days hours:minutes)";
+  weight.parentElement.title="Approximate PLA mass (1.75 mm filament, 1.24 g/cm³)";
+ }
+ time.parentElement.setAttribute("aria-label","Print time "+time.textContent);
+ weight.parentElement.setAttribute("aria-label","Filament "+weight.textContent);
+}
 let tick=0;
 setInterval(()=>{
  refreshState();checkStatus();
   if(current==="preview"){removeModel.hidden=!hasModel()}
  if(++tick%3===0){
-  if(current==="sliced"){
-   $("ad4-v3-time").textContent=$("gcode-time-estimate")?.textContent||"—";
-   $("ad4-v3-material").textContent=$("material-estimate")?.textContent||"—";
-  }
+  if(current==="sliced")updatePrintStats();
   if(current==="transform"){
    const focused=globalThis.app?.gui?.model_viewer?.focused;
    $("ad4-v3-transform-help").textContent=focused?"Drag the axes or adjust values":"Tap the model on the bed to select it";
