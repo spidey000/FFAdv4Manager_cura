@@ -43,23 +43,61 @@ export async function slice(stl, on_progress) {
   if (active_controller) cancel_slice();
   const controller = new AbortController();
   active_controller = controller;
+  let progressTimer = null;
   try {
     const settings = active_containers.export_settings();
     settings["/tmp/input/model.stl"] = {extruder_nr: "0"};
     settings.global.machine_start_gcode = format_gcode(settings.global.machine_start_gcode);
     settings.global.machine_end_gcode = format_gcode(settings.global.machine_end_gcode);
-    on_progress?.(0.03);
+    const jobId = crypto.randomUUID();
+    let lastPercent = 0;
+    let polling = false;
+    let timer;
+    const report = (percent, stage) => {
+      on_progress?.(percent == null ? null : percent / 100, stage);
+      document.dispatchEvent(new CustomEvent("ad4:slice-progress", {
+        detail: {percent, stage, state: "running"}
+      }));
+    };
+    report(0, "Preparing");
+    const poll = async () => {
+      if (polling || controller.signal.aborted) return;
+      polling = true;
+      try {
+        const response = await fetch("./api/slice/progress?job_id=" + encodeURIComponent(jobId), {
+          cache: "no-store", signal: controller.signal
+        });
+        if (!response.ok) return;
+        const status = await response.json();
+        if (status.state !== "running") return;
+        // Never invent a percentage: while CuraEngine has not reported a
+        // numeric value the UI remains indeterminate.
+        const percent = Number.isFinite(status.percent)
+          ? Math.max(lastPercent, Math.min(99, status.percent)) : null;
+        if (percent != null) lastPercent = percent;
+        report(percent, status.stage || "Slicing");
+      } catch (error) {
+        if (error.name !== "AbortError") console.debug("Slice progress unavailable", error);
+      } finally {
+        polling = false;
+      }
+    };
+    timer = progressTimer = setInterval(poll, 400);
     const res = await fetch("./api/slice", {
       method: "POST",
-      headers: {"Content-Type": "application/vnd.ffadv4-slice"},
+      headers: {"Content-Type": "application/vnd.ffadv4-slice", "X-AD4-Slice-Id": jobId},
       body: to_blob({stl, settings}),
       signal: controller.signal,
     });
+    clearInterval(timer);
     const payload = await res.json();
     if (!res.ok) throw Error(payload.error || "Server slicing failed");
     if (payload.engine !== "server") throw Error("Server engine verification failed");
     exported_gcode = payload.gcode;
-    on_progress?.(1);
+    on_progress?.(1, "Complete");
+    document.dispatchEvent(new CustomEvent("ad4:slice-progress", {
+      detail: {percent: 100, stage: "Complete", state: "completed"}
+    }));
     const seconds = payload.time_seconds;
     const metres = payload.filament_mm == null ? null : payload.filament_mm / 1000;
     return {
@@ -67,6 +105,7 @@ export async function slice(stl, on_progress) {
       material_estimate: metres == null ? "Not reported" : metres.toFixed(2) + "m",
     };
   } finally {
+    clearInterval(progressTimer);
     if (active_controller === controller) active_controller = null;
   }
 }
