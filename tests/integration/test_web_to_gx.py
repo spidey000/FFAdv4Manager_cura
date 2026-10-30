@@ -12,12 +12,12 @@ def test_server_slice_output_converts_to_flashforge_gx(tmp_path, monkeypatch):
     executable.write_text(
         "#!/usr/bin/env python3\n"
         "import sys, pathlib\n"
-        "assert sys.argv[1:3] == ['slice', '-r']\n"
-        "settings = pathlib.Path(sys.argv[3])\n"
+        "assert sys.argv[1:3] == ['slice', '-v'] and '-r' in sys.argv\n"
+        "settings = pathlib.Path(sys.argv[sys.argv.index('-r') + 1])\n"
         "assert settings.is_file()\n"
         "payload = __import__('json').loads(settings.read_text())\n"
         "assert any(key.endswith('/model.stl') for key in payload)\n"
-        "pathlib.Path(sys.argv[-1]).write_text("
+        "pathlib.Path(sys.argv[sys.argv.index('-o')+1]).write_text("
         "';TIME:3723\\n;Filament used: 1.234m\\nG28\\nM104 S205\\nG1 X1 Y1 E0.2\\n')\n"
     )
     executable.chmod(0o755)
