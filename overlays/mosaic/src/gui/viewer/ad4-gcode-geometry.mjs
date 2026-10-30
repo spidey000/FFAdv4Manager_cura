@@ -27,20 +27,22 @@ function addRibbon(vertices, a, b, radius) {
   );
 }
 
-export function buildGcodeLayers(parsedData) {
+export async function buildGcodeLayers(parsedData) {
   const group = new THREE.Group();
   const layers = [];
   const materials = new Map();
   const categories = new Set();
   const segmentCount = parsedData.reduce((sum, layer) => sum + layer.length, 0);
   const stride = Math.max(1, Math.ceil(segmentCount / PREVIEW_SEGMENT_BUDGET));
-  let previous = null, index = 0, displayed = 0;
+  let previous = null, index = 0, displayed = 0, processed = 0;
 
   for (const layer of parsedData) {
     const layerGroup = new THREE.Group();
     const byCategory = new Map();
     let capturedLayerSegment = false;
     for (const point of layer) {
+      // Let touch, camera and progress UI remain interactive during preview build.
+      if (++processed % 8000 === 0) await new Promise(resolve => setTimeout(resolve, 0));
       const b = point.vector;
       const a = previous?.vector;
       previous = point;
@@ -83,7 +85,7 @@ export function buildGcodeLayers(parsedData) {
   }
   return {
     mesh: group, layers, categories: [...categories].sort(),
-    segmentCount, displayed, simplified: stride > 1
+    segmentCount, displayed, simplified: stride > 1 || Boolean(globalThis.AD4GcodeParserInfo?.simplified)
   };
 }
 
