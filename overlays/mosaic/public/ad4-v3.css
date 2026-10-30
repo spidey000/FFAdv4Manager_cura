@@ -909,3 +909,48 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
  #ad4-v3-models-menu .ad4-v3-model-select{font-size:11px}
  #ad4-v3-models-menu .ad4-v3-model-visible{min-width:40px}
 }
+
+
+/* Native slicing feedback stays visible even while the mobile settings drawer
+ * is collapsed. The real percent is provided by the server, never animated. */
+#ad4-slice-progress-hud[hidden] { display: none !important; }
+#ad4-slice-progress-hud {
+  position: fixed; z-index: 80;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  width: min(480px, calc(100vw - 24px));
+  margin-inline: auto;
+  box-sizing: border-box;
+  padding: 15px 17px;
+  background: #142522; color: #f2f7f5;
+  border: 1px solid #4b8073;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px #0007;
+  font-size: 13px;
+}
+.ad4-slice-hud-title,.ad4-slice-hud-foot {
+  display: flex; justify-content: space-between; gap: 12px; align-items: center;
+}
+#ad4-slice-hud-bar {
+  width: 100%; height: 9px; margin: 12px 0 8px;
+  display: block; accent-color: #65cba5; border: 0;
+}
+#ad4-slice-hud-stage { color: #c0d8ce; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ad4-slice-hud-cancel {
+  color: #fff; background: #3b5049; border: 1px solid #749184;
+  border-radius: 8px; padding: 5px 10px; cursor: pointer;
+}
+#slice-progress-bar.ad4-indeterminate {
+  width: 100% !important; background: repeating-linear-gradient(
+    90deg, #4c947c 0px, #77c6a7 20px, #4c947c 40px);
+  background-size: 80px 100%;
+  animation: ad4-unknown-progress 1s linear infinite;
+}
+@keyframes ad4-unknown-progress {to {background-position-x: 80px;}}
+@media (min-width: 900px) {
+  #ad4-slice-progress-hud { bottom: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #slice-progress-bar.ad4-indeterminate { animation: none; }
+}
