@@ -123,6 +123,22 @@
       const data = await res.blob();
       const sample = new File([data], "AD4_demo_cube_20mm.stl", {type:"model/stl"});
       editor.load_file(sample);
+      // A checked-in companion toolpath showcases the *real* G-code parser
+      // and layer ruler in Pages. It is not CuraEngine output or print-safe.
+      if (staticPreview) {
+        const path="./demo-cube-20mm.gcode";
+        const response=await fetch(path,{cache:"force-cache"});
+        if (!response.ok) throw Error("Demo G-code not available");
+        const gcode=await response.text();
+        const slicer=globalThis.app?.gui?.slicer;
+        if (typeof slicer?.load_demo_gcode!=="function") throw Error("Demo parser bridge not available");
+        slicer.load_demo_gcode(gcode);
+        const exportPane=byId("slice-export-container");
+        if(exportPane)exportPane.dataset.active="true";
+        const estimate=byId("gcode-time-estimate");
+        if(estimate)estimate.textContent="Demo preview only";
+        document.dispatchEvent(new CustomEvent("ad4:demo-gcode-ready"));
+      }
     } catch (error) {
       console.error("Could not load example STL", error);
       byId("ad4-dock-state").textContent = "Demo STL could not load";
