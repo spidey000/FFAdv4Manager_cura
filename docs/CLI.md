@@ -3,14 +3,14 @@
 `ffadv4manager` is the Linux/Python command-line client for FlashForge Adventurer
 printers. For installation, create a virtual environment and install this
 checkout with `python -m pip install -e .`; see the [README installation
-steps](../README.md#linux-cli-installation-and-use). The installed command is
+steps](../README.md#instalación-en-linux). The installed command is
 `ffadv4manager`; `ad4ctl` remains a compatibility alias to the same CLI. You can
 also run it from a checkout with `python3 -m ffadv4manager.cli`.
 
-For an evidence-qualified catalog of printer commands, G-code in the test files,
-and the distinction between TCP command framing and UDP discovery, see the
-[printer command catalog](PRINTER-COMMANDS.md). It is not an exhaustive command
-reference.
+For the current integration, transport assumptions and unverified
+stock-Adventurer-4 file-download limitations, see the
+[printer integration notes](PRINTER_INTEGRATION.md). This CLI guide documents
+implemented commands, not a verified exhaustive firmware protocol.
 
 Run `ffadv4manager help` for the built-in overview, `ffadv4manager help COMMAND` for a
 command's concise help, or `ffadv4manager COMMAND --help` for argparse syntax. For
@@ -336,17 +336,13 @@ project notes refer to a separate `v2.3.3-3.33` test. Printer commands use the
 legacy FlashForge TCP protocol without encryption or authentication; other
 models or firmware may behave differently.
 
-## OrcaSlicer post-processing hook
+## Integración con otros slicers
 
-For automatic upload from OrcaSlicer, see the [README's OrcaSlicer Linux
-post-processing hook section](../README.md#orcaslicer-linux-post-processing-hook)
-and `scripts/orca_ad4_upload.py`. In the documented Linux contract, Orca
-appends the generated G-code path as a shell-quoted final argument; do not add a
-filename placeholder. The hook shares `ffadv4manager` config and supports `--host`,
-`--port`, `--timeout`, `--start`, `--force`, and `--no-convert`. It automatically
-converts supported G-code using the shared converter helper; see upload above
-for prerequisites and limitations. `--start` is opt-in; without
-`--force`, the hook fails closed if status cannot be read/parsed or the printer
-is not in a known idle `READY` state. The verified OrcaSlicer contract is
-version/build-dependent; consult the README caveat before relying on export
-failure behavior.
+El CLI permite convertir archivos G-code compatibles a GX y subirlos desde un
+proceso externo mediante `ffadv4manager convert` y `ffadv4manager upload`.
+Este repositorio **no incluye** el antiguo script
+`scripts/orca_ad4_upload.py`: la integración automática con OrcaSlicer
+debería implementarse y verificarse antes de documentarla como instalada.
+No se debe asumir que subir un archivo inicia o no una impresión en todas
+las versiones de firmware; consulte las advertencias de la sección
+`upload` y supervise la impresora.
