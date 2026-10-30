@@ -309,6 +309,7 @@ function setAxis(axis,raw,{exact=false}={}){
  if(value===null){notify("Enter a valid numeric value");return}
  const old=Number(sourceAxis(axis)?.value)|| (mode==="scale"?100:0);
  const locked=mode==="scale"&&$("ad4-v3-resize-lock").checked;
+ if(mode==="scale")lockLabel.querySelector("input").checked=locked;
  const factor=locked&&old!==0?value/old:1;
  for(const key of locked?["x","y","z"]:[axis]){
   const source=sourceAxis(key);if(!source)continue;
@@ -320,6 +321,7 @@ function setAxis(axis,raw,{exact=false}={}){
  $("slice-export-container")?.setAttribute("data-active","false");
  refreshAxis();
  updateCompactValues();
+ if(mode==="scale")captureScaleBaseline();
 }
 function initRulers(){
  const Slider=globalThis.SlideRuler?.default||globalThis.SlideRuler;
@@ -363,22 +365,46 @@ for(const [type,iconName,label] of [["translate","move","Move"],["rotate","rotat
 let activeViewerMode=null;
 const compactValues=make("div","ad4-viewer-values");compactValues.id="ad4-viewer-values";compactValues.hidden=true;
 for(const axis of ["x","y","z"]){const label=make("label","ad4-viewer-value-row");label.innerHTML='<span>'+axis.toUpperCase()+'</span><input type="number" inputmode="decimal" step="any" aria-label="'+axis.toUpperCase()+' transform value"><span class="ad4-viewer-value-unit"></span>';const input=label.querySelector("input");input.addEventListener("change",()=>setAxis(axis,Number(input.value),{exact:true}));input.addEventListener("keydown",e=>{if(e.key==="Enter")input.blur()});compactValues.append(label)}
-viewerTransform.append(compactValues);
+const editorBox=make("div","ad4-viewer-editor-box");editorBox.hidden=true;
+editorBox.append(compactValues);
 const snapLabel=make("label","ad4-viewer-snap");
 snapLabel.innerHTML='<input id="ad4-viewer-snap" type="checkbox" checked><span>Snap 5</span>';
-viewerTransform.append(snapLabel);
-const lockLabel=make("label","ad4-viewer-lock");lockLabel.innerHTML='<input id="ad4-viewer-lock" type="checkbox" checked><span>Lock proportions</span>';lockLabel.hidden=true;viewerTransform.append(lockLabel);
+editorBox.append(snapLabel);
+const lockLabel=make("label","ad4-viewer-lock");lockLabel.innerHTML='<input id="ad4-viewer-lock" type="checkbox" checked><span>Lock proportions</span>';lockLabel.hidden=true;editorBox.append(lockLabel);
+viewerTransform.append(editorBox);
 $("viewer")?.append(viewerTransform);
-lockLabel.querySelector("input").addEventListener("change",e=>{$("ad4-v3-resize-lock").checked=e.target.checked});
+lockLabel.querySelector("input").addEventListener("change",e=>{$("ad4-v3-resize-lock").checked=e.target.checked;captureScaleBaseline()});
+let scaleBaseline=null,scaleDragActive=false,scaleSyncing=false;
+function captureScaleBaseline(){const mesh=globalThis.app?.gui?.model_viewer?.model_controls?.object;scaleBaseline=mesh?mesh.scale.clone():null}
+function ensureScaleLock(){
+ const controls=globalThis.app?.gui?.model_viewer?.model_controls;
+ if(!controls||controls.__ad4ScaleLockAttached)return;
+ controls.__ad4ScaleLockAttached=true;
+ controls.addEventListener("mouseDown",()=>{scaleDragActive=true;captureScaleBaseline()});
+ controls.addEventListener("mouseUp",()=>{scaleDragActive=false;captureScaleBaseline()});
+ controls.addEventListener("objectChange",()=>{
+  if(scaleSyncing||!scaleDragActive||activeViewerMode!=="scale"||!lockLabel.querySelector("input").checked||!scaleBaseline||!controls.object)return;
+  const mesh=controls.object,old=scaleBaseline,now=mesh.scale;
+  const axes=["x","y","z"].filter(a=>Math.abs(old[a])>1e-8);
+  if(!axes.length)return;
+  const axis=axes.reduce((best,a)=>Math.abs(now[a]/old[a]-1)>Math.abs(now[best]/old[best]-1)?a:best,axes[0]);
+  const ratio=now[axis]/old[axis];if(!Number.isFinite(ratio)||ratio<=0)return;
+  scaleSyncing=true;
+  try{for(const a of axes)now[a]=old[a]*ratio;mesh.updateMatrixWorld(true)}finally{scaleSyncing=false}
+ });
+}
+const scaleLockPoll=setInterval(()=>{ensureScaleLock();if(activeViewerMode==="scale"&&!scaleDragActive&&!scaleBaseline)captureScaleBaseline()},500);
 snapLabel.querySelector("input").addEventListener("change",e=>{$("ad4-v3-snap").checked=e.target.checked;if(activeViewerMode)setTransform(mode)});
 function setTransform(next){
  activeViewerMode=next;
+ editorBox.hidden=next===null;
  compactValues.hidden=next===null;
  lockLabel.hidden=next!=="scale";
  snapLabel.hidden=next===null;
  if(next===null){for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed","false");
   globalThis.app?.gui?.model_viewer?.model_controls?.detach?.();return;}
  mode=next;
+ if(next==="scale"){ensureScaleLock();captureScaleBaseline();lockLabel.querySelector("input").checked=$("ad4-v3-resize-lock").checked;}
  for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed",String(b.dataset.viewerMode===next));
  for(const b of transform.querySelectorAll("[data-mode]"))b.setAttribute("aria-pressed",String(b.dataset.mode===next));
  const focused=globalThis.app?.gui?.model_viewer?.focused,controls=globalThis.app?.gui?.model_viewer?.model_controls;
