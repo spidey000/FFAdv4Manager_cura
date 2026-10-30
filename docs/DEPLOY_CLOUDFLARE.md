@@ -1,144 +1,104 @@
-# Secure deployment: Cloudflare Tunnel + Access
+# Acceso remoto seguro — Cloudflare Tunnel + Cloudflare Access
 
-This is the **authoritative** deployment guide for the consolidated
-`spidey000/FFAdv4Manager` repository. Historical upstream guides under
-`docs/web/` use an obsolete two-repo layout and old URL prefix.
+Esta guía complementa las [instrucciones de instalación de AD4 Studio](../AGENTS.md) y el [README](../README.md). Permite acceder desde Internet al **servidor Linux local** sin abrir los puertos de la impresora.
 
-## Prerequisites
+> **Importante:** Cloudflare Tunnel publica una dirección web; **Cloudflare Access controla quién puede entrar**. Configura y prueba Access antes de hacer pública la ruta. AD4 Studio realiza además su propia verificación del JWT de Access.
 
-- Always-on Linux host on the same trusted LAN as the FlashForge Adventurer 4.
-- Python 3.9+, pip/venv, Node.js 20+, npm; `cloudflared` installed on this host.
-- Known printer LAN IP; exact HTTPS public hostname (e.g. `printer.example.com`).
-- Cloudflare Zero Trust team hostname, Access self-hosted application AUD and
-  authorized sign-in email.
-- A working Cloudflare Tunnel that you own. Protect the app with Cloudflare
-  Access **before** attaching any publicly reachable Tunnel route.
+## Requisitos
 
-## 1. Install and build from the single monorepo
+- AD4 Studio instalado y funcionando en Linux: `http://127.0.0.1:8765/`.
+- Impresora Adventurer 4 en la misma LAN del servidor, si quieres controlar hardware.
+- Cuenta Cloudflare, dominio gestionado allí y Cloudflare Zero Trust.
+- `cloudflared` instalado en el servidor desde las [instrucciones oficiales](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/). No dupliques un servicio existente.
 
-```bash
-git clone https://github.com/spidey000/FFAdv4Manager.git
-cd FFAdv4Manager
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e .
-ffadv4manager config set --host PRINTER_LAN_IP
-ffadv4manager status --json
-cd frontend
-npm ci
-npm test
-npm run build
-cd ..
-python -m pip install pytest
-python -m pytest -q tests
-```
+## 1. Crear la protección de Cloudflare Access
 
-Replace `PRINTER_LAN_IP` with the device's actual IP. Never commit it to a
-public configuration file. Running tests and `status` does not request
-printer movement or start.
+1. Abre **Zero Trust → Access controls → Applications → Add application → Self-hosted**.
+2. Protege el **hostname completo** que utilizarás, por ejemplo `impresora.example.com`, incluidas la web, cámara y rutas `/api/*`.
+3. Configura una política **Allow** que incluya **solo** tu correo o usuarios autorizados; activa MFA cuando esté disponible. No crees una política Bypass ni excepciones públicas.
+4. Guarda el **Application AUD tag** y tu dominio del equipo, por ejemplo `mi-equipo.cloudflareaccess.com`.
 
-## 2. Create the Access policy before publishing
+El backend de AD4 Studio está preparado para una dirección de correo autorizada concreta. Si quieres acceso para más usuarios será necesario adaptar previamente esa política interna: una política Allow amplia en Cloudflare no elimina el filtro de correo del servidor.
 
-In Cloudflare Zero Trust, create a **Self-hosted** Access application protecting
-the **entire** public hostname including `/`, `/assets/*` and `/api/printer/*`.
-Allow only your intended identity or group, ideally with MFA. Do not create
-Bypass routes or unauthenticated API exceptions. Record its AUD tag and
-the team hostname such as `myteam.cloudflareaccess.com`.
+## 2. Crear el túnel y su ruta
 
-## 3. Configure server-side validation
+1. En **Cloudflare → Networking → Tunnels** crea un túnel administrado desde el panel, o utiliza uno existente.
+2. Sigue el procedimiento oficial para instalar `cloudflared` en Linux. Para un túnel nuevo puedes usar el comando que proporciona el panel, del tipo:
 
-Store the following in a service-managed environment file such as
-`/etc/ffadv4manager/bridge.env` (root-owned and readable by the service user;
-NOT committed into Git):
+   ```bash
+   sudo cloudflared service install TOKEN_DEL_TUNEL
+   ```
+
+   El token es secreto: no lo pegues en issues, chats públicos, logs, README ni archivos versionados. Si ya tienes un servicio `cloudflared` en el servidor, añade una ruta al túnel existente en vez de instalar un segundo servicio.
+
+3. En **Routes → Add route → Published application**, configura el hostname `impresora.example.com` apuntando al servicio **`http://127.0.0.1:8765`**.
+4. Mantén el `Host` original `impresora.example.com` (no lo sobrescribas con `localhost`). Revisa que no haya reglas de Access de exclusión para `/api/`.
+
+No abras ni redirijas desde el router los puertos **8765**, **8899** ni **8080**. El origen local solo escucha en `127.0.0.1`.
+
+## 3. Configurar la validación del servidor
+
+El servidor exige estas **cuatro variables de entorno**. Sustituye sus valores por los propios; la URL debe ser HTTPS, sin ruta ni barra final:
 
 ```dotenv
-CF_ACCESS_TEAM_DOMAIN=myteam.cloudflareaccess.com
-CF_ACCESS_AUD=REPLACE_WITH_APPLICATION_AUD
-CF_ACCESS_EMAIL=your-authorized-email@example.com
-CF_ACCESS_PUBLIC_ORIGIN=https://printer.example.com
+CF_ACCESS_TEAM_DOMAIN=mi-equipo.cloudflareaccess.com
+CF_ACCESS_AUD=AUD_DE_LA_APLICACION
+CF_ACCESS_EMAIL=correo-autorizado@example.com
+CF_ACCESS_PUBLIC_ORIGIN=https://impresora.example.com
 ```
 
-All four values are required. `CF_ACCESS_PUBLIC_ORIGIN` is the exact scheme and
-hostname with no path or trailing slash. The origin validates the signed
-Cloudflare Access JWT against public keys, issuer, audience, expiry and email.
-Any partial configuration causes the service to reject startup.
-
-Run production with `--require-access` so missing configuration fails closed:
+Para una prueba manual, expórtalas en la misma shell y arranca:
 
 ```bash
-# With environment file loaded and the .venv activated:
-ffadv4manager slicer --require-access
+.venv/bin/ffadv4manager-cura --require-access
 ```
 
-If you use a systemd service, an example (adapt the absolute paths and service
-account for your environment) is:
+Para mantener la aplicación ejecutándose después de cerrar la terminal, guarda los valores en un fichero privado, por ejemplo `/etc/ad4-studio/access.env`, **fuera del repositorio**, y configura systemd. Este ejemplo supone que la instalación está en `/opt/FFAdv4Manager_cura`, que ya existe un usuario Linux dedicado `ad4studio` y que ese usuario tiene acceso a los archivos y a la configuración de la impresora:
 
 ```ini
 [Unit]
-Description=FFAdv4Manager protected web slicer and printer control
+Description=AD4 Studio (protected by Cloudflare Access)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
-User=ffadv4
-Group=ffadv4
-WorkingDirectory=/srv/FFAdv4Manager
-EnvironmentFile=/etc/ffadv4manager/bridge.env
-ExecStart=/srv/FFAdv4Manager/.venv/bin/ffadv4manager slicer --require-access
+User=ad4studio
+WorkingDirectory=/opt/FFAdv4Manager_cura
+EnvironmentFile=/etc/ad4-studio/access.env
+ExecStart=/opt/FFAdv4Manager_cura/.venv/bin/ffadv4manager-cura --require-access
 Restart=on-failure
-RestartSec=5
 NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Create and permission the service account/directory appropriately; ensure
-the **same service account** owns the CLI config under its home directory
-(`~/.config/ffadv4manager/config.ini`) or set
-`FFADV4MANAGER_CONFIG` to a dedicated file. Never point the service at a
-different user's home without consent. Once the unit is installed:
+Guarda el servicio como `/etc/systemd/system/ad4-studio.service`; protege el fichero de entorno (por ejemplo, propietario `root`, permisos `0600`) y activa el servicio:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now ffadv4manager.service
-sudo systemctl status ffadv4manager.service
-sudo journalctl -u ffadv4manager.service -f
+sudo systemctl enable --now ad4-studio.service
+sudo systemctl status ad4-studio.service
 ```
 
-## 4. Publish the Tunnel route
+Si tu instalación y usuario tienen nombres diferentes, adapta **solo** esas rutas y el usuario. La configuración de `ffadv4manager` debe existir para el mismo usuario que ejecuta el servicio o proporcionarse mediante `FFADV4MANAGER_CONFIG`.
 
-In the Cloudflare Tunnel configuration, map exactly
-`printer.example.com` -> **`http://127.0.0.1:8765`** on this Linux host.
-**Preserve** the external `Host: printer.example.com` header; do not override
-it to `localhost`. Configure the Access application for the same hostname.
-Avoid changing unrelated Tunnel routes, DNS records or services.
+Con `--require-access`, el proceso **rechaza el arranque** si faltan las variables de Access. Una petición directa a `http://127.0.0.1:8765` no incluirá el JWT de Access y será rechazada: eso es normal en modo protegido.
 
-Do **not** expose TCP 8899, camera HTTP 8080 or HTTP 8765 via router
-port forwarding. Bind the bridge only to loopback; do not use
-`python -m http.server`, GitHub Pages or the Vite dev server as the public
-printer-control origin.
+## 4. Verificación sin imprimir
 
-## 5. Read-only verification
+- Desde datos móviles o una red externa, abre `https://impresora.example.com`. Confirma que se exige iniciar sesión con Cloudflare Access.
+- Con el correo autorizado, comprueba que cargan el editor, los ajustes y la información de estado.
+- Prueba un usuario no autorizado o una sesión anónima: **no** debe entrar.
+- Revisa que no hayas publicado excepciones para las rutas API, cámara o archivos.
+- No subas archivos, no actives ventiladores ni inicies impresiones solo para probar el túnel.
 
-1. Confirm the server is listening on `127.0.0.1:8765`, not `0.0.0.0`.
-2. Confirm unauthorized requests are rejected; in Access mode even requests
-   directly to the loopback origin without a valid assertion fail.
-3. From mobile data or another external network, visit
-   `https://printer.example.com/`; confirm Access sign-in is required.
-4. After authenticating, open the slicer and Printer Manager; check live status,
-   stored files and an optional single camera snapshot. These are read-only.
-5. Check `/api/printer/*` is under the **same** hostname protection.
-6. Do not claim successful end-to-end physical printing from these checks.
-   Test uploads and actual print starts only with explicit approval and
-   in-person supervision.
+## Problemas habituales
 
-## Rollback
+- **Error 502 en Cloudflare:** asegúrate de que AD4 Studio esté arrancado y el destino del túnel sea `http://127.0.0.1:8765` en **el mismo servidor**.
+- **401 después de iniciar sesión:** comprueba `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `CF_ACCESS_EMAIL`, `CF_ACCESS_PUBLIC_ORIGIN` y que no se esté modificando el encabezado `Host`.
+- **Access pide login pero la UI no carga:** revisa si la política cubre el hostname completo y los recursos/API.
+- **cloudflared service already installed:** usa el túnel existente; no reinstales ni elimines servicios compartidos.
+- **La web carga pero no hay impresora:** comprueba su IP LAN y ejecuta `.venv/bin/ffadv4manager doctor` como el usuario del servicio.
 
-Stop and disable the service, and remove only this application's Tunnel route
-and Access application if you no longer want remote access. Do not delete
-shared Tunnel routes or secrets for other applications. To roll back a software
-release, redeploy the previous reviewed Git commit, reinstall the editable
-Python package if necessary, rebuild `frontend/` and restart the service.
+Fuentes: [crear Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/get-started/), [proteger con Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/) y [tokens del túnel](https://developers.cloudflare.com/tunnel/reference/tunnel-tokens/).
