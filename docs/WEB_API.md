@@ -45,6 +45,42 @@ El servidor valida tamaño, tipos, settings, geometría de máquina y límites. 
 
 Para asociar captura automática a un inicio de impresión pueden utilizarse `timelapse=true` y `timelapse_mode=interval|layer` en las rutas de subida con `start=true`; `actions` también permite esas opciones al arrancar un archivo almacenado. Un fallo posterior al inicio físico se señala con `timelapse_error` en vez de fingir que no se inició la impresión.
 
+## Confirmación previa y estimación de vídeo
+
+Antes de «Enviar» o «Enviar e imprimir» se muestra un resumen de los
+datos realmente disponibles: nombre, impresora, material, temperaturas,
+altura y número de capas, velocidad, soportes, adhesión, filamento,
+tiempo estimado y tamaño del G-code. Se consulta el estado de la
+impresora y la sesión de grabación cada 5 segundos mientras el cuadro
+permanece abierto. Si la impresora no está disponible, está ocupada
+o el archivo laminado deja de estar vigente, se bloquea el envío.
+La validación térmica del servidor sigue siendo obligatoria.
+
+En un inicio de impresión puede activarse la grabación automática
+por altura Z estimada mediante M114 o por intervalo temporal. La interfaz
+ofrece intervalo fotográfico (5, 10, 15, 30 o 60 segundos) y FPS del
+MP4 (5, 10, 15, 20, 24 o 30), y actualiza instantáneamente el cálculo:
+
+- Modo por capas: fotogramas ≈ capas identificadas en el G-code.
+- Modo por tiempo: fotogramas ≈ techo(tiempo estimado / intervalo).
+- Duración estimada del vídeo = fotogramas estimados / FPS.
+
+**No es una duración garantizada:** pausas, duración real distinta,
+fotogramas perdidos o saltos en las medidas M114 pueden alterarla.
+Si faltan capas o tiempo fiable, se indica «no disponible» y no se
+inventan resultados. La opción «Solo enviar» no inicia una captura;
+puede activarse cuando se lance el archivo almacenado.
+
+Las rutas de subida admiten con `start=true` los parámetros opcionales
+`timelapse=true|false`, `timelapse_mode=layer|interval`,
+`timelapse_interval` (entero de 2 a 300 segundos) y
+`timelapse_fps` (entero de 1 a 60). El cuerpo JSON de
+`POST /api/printer/actions` con `action=print` admite las mismas claves.
+La captura manual de `POST /api/printer/timelapse` admite `fps` e `interval`.
+Cada sesión guarda las opciones elegidas y el servidor utiliza
+sus FPS al codificar o recuperar el MP4; las sesiones antiguas sin dato
+de FPS usan 10 por compatibilidad.
+
 ## Cámara, timelapses y seguimiento
 
 | Método | Ruta | Función |

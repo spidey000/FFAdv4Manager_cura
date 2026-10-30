@@ -86,10 +86,13 @@
   try{
    const file=chosen();
    const report=await fileCall("/tools/inspect",file);$("ad4-inspect-result").textContent=JSON.stringify(report,null,2);
-   if(!await P.confirmPrint({filename:file.name,start}))return;
-   await run(start?"Sending file and printing":"Sending file",()=>P.api("/upload?"+new URLSearchParams({name:file.name,start:String(start),
-    timelapse:String(start&&$("ad4-auto-timelapse").checked),timelapse_mode:$("ad4-capture-mode").value}),
-    {method:"POST",headers:{"Content-Type":"application/octet-stream"},body:file}));
+   const selected=await P.confirmPrint({filename:file.name,bytes:file.size,start});
+   if(!selected)return;
+   await run(start?"Sending file and printing":"Sending file",()=>P.api("/upload?"+new URLSearchParams({
+    name:file.name,start:String(start),timelapse:String(selected.timelapse),
+    timelapse_mode:selected.mode,timelapse_interval:String(selected.interval),
+    timelapse_fps:String(selected.fps)
+   }),{method:"POST",headers:{"Content-Type":"application/octet-stream"},body:file}));
   }catch(e){P.say(e.message,true)}
  }
  $("ad4-upload-job").onclick=()=>sendFile(false);$("ad4-print-job").onclick=()=>sendFile(true);
