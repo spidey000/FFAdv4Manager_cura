@@ -74,6 +74,8 @@ def verify(output):
                 assert payload['engine'] == 'server'
                 gcode = payload['gcode']
                 assert ';LAYER:' in gcode, 'Native output has no layers'
+                assert payload['time_seconds'] > 0 and payload['time_seconds'] != 6666
+                assert payload['filament_mm'] > 0, 'Native finalized filament estimate missing'
                 page.wait_for_function('typeof globalThis.app.gui.slicer.exported_gcode === "string"')
                 assert page.evaluate('globalThis.app.gui.slicer.exported_gcode') == gcode
                 page.screenshot(path=str(output / 'native-slice.png'), full_page=True)

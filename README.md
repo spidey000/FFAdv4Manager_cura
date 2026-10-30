@@ -8,7 +8,7 @@ The old React/Symple interface has been **completely replaced by [MosaicSlicer](
 
 - Linux machine on the same LAN as the printer, Python 3.10+, Node.js 20+, npm and git.
 - **Native MosaicSlicer/CuraEngine** executable with support for `-r` resolved settings JSON (ordinary CuraEngine binaries might not support it).
-- For building native engine: a C++20 compiler, CMake 3.20+, build tools and access to the UltiMaker/Conan dependency remotes.
+- For building the native engine: a C++20 compiler (GCC 12+), CMake 3.20+, Ninja, and network access to GitHub, Conan Center and SourceForge.
 
 ```bash
 git clone https://github.com/spidey000/FFAdv4Manager_cura.git
@@ -21,7 +21,7 @@ bash scripts/install.sh  # also attempts the native CuraEngine build
 
 Open `http://127.0.0.1:8765/` on the Linux server. Installation creates `.venv/` for all Python packages, `frontend/node_modules/` for MosaicSlicer dependencies, and `.local/curaengine/` for the natively compiled engine. No Python packages are installed globally.
 
-The **native engine compilation has not yet been tested successfully in CI**. `scripts/build_engine.sh` is the build recipe; if it fails due to a missing C++ dependency, the web server can still display MosaicSlicer but will **not** slice until a compatible binary is installed. Alternatively set `AD4_CURAENGINE_BIN=/absolute/path/to/CuraEngine` to a verified compatible executable. The HTTP endpoint `/api/slice/engine` reports whether the executable is configured.
+`scripts/build_engine.sh` compiles the pinned engine with C++20 and public UltiMaker recipes pinned by revision; it does not depend on the retired Cura JFrog remote. The native build is checked on Ubuntu 24.04 in CI. If building fails, the web server can still display MosaicSlicer but will **not** slice until a compatible binary is installed. Retry with `bash scripts/build_engine.sh`, or set `AD4_CURAENGINE_BIN=/absolute/path/to/CuraEngine` to a verified compatible executable. The HTTP endpoint `/api/slice/engine` reports whether the executable is configured.
 
 ## What runs where
 
@@ -62,7 +62,7 @@ The [GitHub Pages preview](https://spidey000.github.io/FFAdv4Manager_cura/) publ
 
 ## Tests and provenance
 
-The repository ships GitHub Actions checks for the isolated frontend compilation, server-side request validation, CLI/GX regressions and printer bridge smoke tests. Both CI and Pages publishing execute real headless Chromium at the repository subpath; the checks assert that loading finishes, real STL geometry renders, a second STL can be uploaded, Cura categories are accessible, and there are no JavaScript or missing-resource errors. The deployed Pages URL is also browser-tested after publishing. CI does **not** compile native CuraEngine or physically operate your printer; fully successful end-to-end slicing and printing require supervised verification on your hardware.
+The repository ships GitHub Actions checks for the isolated frontend compilation, server-side request validation, CLI/GX regressions and printer bridge smoke tests. Both CI and Pages publishing execute real headless Chromium at the repository subpath; the checks assert that loading finishes, real STL geometry renders, a second STL can be uploaded, Cura categories are accessible, and there are no JavaScript or missing-resource errors. The deployed Pages URL is also browser-tested after publishing. The separate **Verify native CuraEngine slicing** workflow compiles the pinned native engine and sends a 20 mm cube through the actual browser, HTTP API, G-code output, GX conversion, thermal validation and deposited-layer parser. It retains logs, effective settings, generated files, hashes and a screenshot as artifacts. CI sends no commands to printer hardware; physical printing and firmware behavior still require supervised verification on your printer.
 
 MosaicSlicer upstream is AGPL-3.0-only; CuraEngine is AGPL-3.0; the imported FFAdv4Manager CLI retains GPL-3.0-or-later notices. Preserve all upstream attribution and comply with AGPL network-use source obligations.
 
@@ -77,3 +77,4 @@ The existing MosaicSlicer sidebar now includes category tabs (Quality, Strength,
 ## AD4 Studio v3: new mobile navigation and visual design
 
 The mobile UI now uses a complete dark/emerald workspace inspired by high-contrast handheld slicers. Primary tabs are Preview, Print, Filament, Printer, App. Preview retains the real Mosaic Three.js build plate, model import and server Slice; Sliced Preview uses the real parsed Cura G-code with a linked layer range and estimates; Orientation reuses Mosaic's transform inputs for the actual selected mesh; Print and Filament reuse native Cura settings and the process/material preset store; Printer opens the authenticated controller with Camera, Timelapse, Files and Control panes; App offers preset import/export. The desktop renderer and the server-only CuraEngine are unchanged. The public Pages build showcases the 3D viewer and settings but disables all actions needing a Linux server or printer. The GitHub Pages demo includes a clearly labeled, manually generated, non-printable 20 mm cube G-code fixture used solely to exercise the real G-code layer parser and UI. It is not a CuraEngine slice, and upload/print remain disabled on Pages.
+
