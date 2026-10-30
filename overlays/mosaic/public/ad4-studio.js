@@ -126,6 +126,11 @@
       // A checked-in companion toolpath showcases the *real* G-code parser
       // and layer ruler in Pages. It is not CuraEngine output or print-safe.
       if (staticPreview) {
+        // Wait for Mosaic to finish replacing the STL before exposing layer preview.
+        for(let attempt=0;attempt<30;attempt++){
+          if(Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length>0)break;
+          await new Promise(resolve=>setTimeout(resolve,100));
+        }
         const path="./demo-cube-20mm.gcode";
         const response=await fetch(path,{cache:"force-cache"});
         if (!response.ok) throw Error("Demo G-code not available");
