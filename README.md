@@ -151,7 +151,7 @@ Para acceso remoto, utiliza un túnel privado protegido con autenticación y con
 
 | Documento | Para qué sirve |
 | --- | --- |
-| [Gestor y visor de impresión actual](docs/PRINTER_INTEGRATION.md) | Conexiones, diagnósticos, origen del archivo, cámara y limitaciones |
+| [3DBenchy demo](docs/DEMO_BENCHY.md) | Procedencia del STL original y G-code visual, validación de activos y limitaciones de impresión |\n| [Gestor y visor de impresión actual](docs/PRINTER_INTEGRATION.md) | Conexiones, diagnósticos, origen del archivo, cámara y limitaciones |
 | [Referencia CLI](docs/CLI.md) | Comandos y opciones de <code>ffadv4manager</code> |
 | [API web](docs/WEB_API.md) | Endpoints locales y requisitos de autorización |
 | [Formato GX](docs/AD4_GX_METADATA.md) | Metadatos, miniaturas y validación |
