@@ -120,10 +120,23 @@ def selected_status_reader(argv):
     return get_status
 
 
+def source_layer_heights(mode):
+    layer_heights = None
+    if mode == 'layer':
+        try:
+            from server.current_job import known_layer_heights
+            layer_heights = known_layer_heights(sys.modules[__name__])
+        except (OSError, RuntimeError, ValueError, KeyError, subprocess.TimeoutExpired):
+            pass  # Uniform-height estimation remains available without a source file.
+    return layer_heights
+
+
 def start_print_timelapse(mode='interval', layer_height=0.2):
     argv = cli_argv()
+    layer_heights = source_layer_heights(mode)
     return TIMELAPSES.start(argv, selected_status_reader(argv), auto=True,
-                            mode=mode, layer_height=layer_height)
+                            mode=mode, layer_height=layer_height,
+                            **({'layer_heights': layer_heights} if layer_heights else {}))
 
 
 def estimated_layer_height(payload):
@@ -407,6 +420,9 @@ class Handler(SimpleHTTPRequestHandler):
         url = urlsplit(self.path)
         path = url.path
         try:
+            if path in ('/api/printer/current-job', '/api/printer/current-job/toolpath'):
+                from server import current_job
+                return current_job.get(self, path, url, sys.modules[__name__])
             if path.startswith('/api/printer/tools/'):
                 from server import manager_tools
                 return manager_tools.get(self, path.rsplit('/', 1)[-1], url, sys.modules[__name__])
@@ -474,6 +490,14 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         url = urlsplit(self.path)
         path = url.path
+        if path in ('/api/printer/current-job/fetch', '/api/printer/current-job/associate'):
+            if not self.request_authorized(write=True):
+                return self.json(401 if ACCESS_CONFIG else 403, {'error': 'Unauthorized request'})
+            from server import current_job
+            try:
+                return current_job.post(self, path, url, sys.modules[__name__])
+            except (OSError, ValueError, RuntimeError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
+                return self.json(422, {'error': str(error)})
         if path.startswith('/api/printer/tools/'):
             if not self.request_authorized(write=True):
                 return self.json(401 if ACCESS_CONFIG else 403, {'error': 'Unauthorized request'})
@@ -545,6 +569,13 @@ class Handler(SimpleHTTPRequestHandler):
                 if not match:
                     raise RuntimeError('The CLI did not report a confirmed remote upload')
                 remote_path = match.group(1).strip()
+                preview_error = None
+                try:
+                    from server import current_job
+                    scope, _ = current_job.connection(sys.modules[__name__])
+                    current_job.remember(sys.modules[__name__], scope, remote_path, data, name)
+                except (OSError, ValueError, KeyError) as exc:
+                    preview_error = str(exc)  # Transfer/print already succeeded.
                 save_upload_metadata(remote_path.rsplit('/', 1)[-1], metadata)
                 timelapse_capture = None
                 timelapse_error = None
@@ -559,6 +590,7 @@ class Handler(SimpleHTTPRequestHandler):
                                        'remote_path': remote_path, 'started': start,
                                        'timelapse': timelapse_capture,
                                        'timelapse_error': timelapse_error,
+                                       'preview_error': preview_error,
                                        'detail': output[-1000:]})
             body = self.data()
             if not isinstance(body, dict):
@@ -640,8 +672,10 @@ class Handler(SimpleHTTPRequestHandler):
                     # Manual recordings made during a print also stop at print completion.
                     argv = cli_argv()
                     capture_mode = body.get('mode', 'interval')
+                    layer_heights = source_layer_heights(capture_mode)
                     return self.json(200, TIMELAPSES.start(
-                        argv, selected_status_reader(argv), auto=False, mode=capture_mode))
+                        argv, selected_status_reader(argv), auto=False, mode=capture_mode,
+                        **({'layer_heights': layer_heights} if layer_heights else {})))
                 raise ValueError('Acción de timelapse inválida')
             if path == '/api/printer/notifications':
                 action = body.get('action')

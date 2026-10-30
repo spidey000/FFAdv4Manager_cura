@@ -53,6 +53,9 @@ function updateState(s){
  el("ad4-bed").textContent=fmt(s.bed_current,"°C")+" / "+fmt(s.bed_target,"°C");
  el("ad4-progress").textContent=fmt(s.progress_percent,"%");
  el("ad4-layer").textContent=fmt(s.layer_current)+(s.layer_total!=null?" / "+s.layer_total:" (not reported)");
+ const estimate=globalThis.AD4LayerEstimate;
+ if(s.layer_current==null&&estimate&&isPrinting(s.machine_status)&&estimate.file===s.current_file&&Date.now()-estimate.stamp<10000)
+  el("ad4-layer").textContent=estimate.layer+" / "+estimate.total+" (estimated)";
  el("ad4-file").textContent=fmt(s.current_file);
  const state=String(s.machine_status||"");
  el("ad4-pause").disabled=!isPrinting(state)||/PAUSED/i.test(state);
@@ -255,7 +258,7 @@ async function upload(start){
 }
 el("ad4-upload").addEventListener("click",()=>upload(false));
 el("ad4-send-print").addEventListener("click",()=>upload(true));
-globalThis.AD4Printer={upload,refresh,api,post,task,confirmPrint,say};
+globalThis.AD4Printer={upload,refresh,api,post,task,confirmPrint,say,closeVideo};
 async function loadProfiles(){
  const [profiles,session]=await Promise.all([api("/profiles"),api("/session")]);
  const select=el("ad4-connection-profiles");select.replaceChildren();

@@ -1,0 +1,10 @@
+.ad4-live-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.ad4-live-pair>div{min-width:0;overflow:hidden}
+.ad4-live-caption{font-size:11px;color:#bed3c9;margin-bottom:6px}
+.ad4-live-canvas,.ad4-live-camera-wrap{height:clamp(180px,28vw,320px);min-width:0;background:#10181c;border-radius:10px;overflow:hidden;position:relative}
+.ad4-live-canvas{font-size:12px;overflow-wrap:anywhere}
+.ad4-live-canvas canvas{width:100%;height:100%;display:block;touch-action:none}
+.ad4-live-camera-wrap img{width:100%;height:100%;object-fit:contain;max-height:none!important;margin:0}
+#ad4-live-camera-state{position:absolute;bottom:8px;left:8px;color:#a9bcb3;font-size:12px}
+#ad4-live-source,#ad4-live-position{overflow-wrap:anywhere;font-size:12px}
+#ad4-live-source-file{max-width:100%}
