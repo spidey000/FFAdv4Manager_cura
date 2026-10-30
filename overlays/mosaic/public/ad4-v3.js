@@ -6,6 +6,49 @@
 const $ = id => document.getElementById(id);
 const staticPreview = window.__AD4_STATIC_PREVIEW__ === true;
 const root = document.body;
+
+/* Always-visible, accessible slicing progress, including mobile where the
+ * original Mosaic sidebar/progress element is inside a collapsed panel. */
+const sliceHud = document.createElement("section");
+sliceHud.id = "ad4-slice-progress-hud";
+sliceHud.hidden = true;
+sliceHud.setAttribute("role", "status");
+sliceHud.setAttribute("aria-live", "polite");
+sliceHud.innerHTML = '<div class="ad4-slice-hud-title"><strong>CuraEngine · Slicing</strong><strong id="ad4-slice-hud-percent">—</strong></div>'+
+  '<progress id="ad4-slice-hud-bar" max="100"></progress>'+
+  '<div class="ad4-slice-hud-foot"><span id="ad4-slice-hud-stage">Preparing…</span>'+
+  '<button type="button" id="ad4-slice-hud-cancel">Cancel</button></div>';
+root.append(sliceHud);
+sliceHud.querySelector("#ad4-slice-hud-cancel").addEventListener("click", () => {
+  document.getElementById("cancel-button")?.click();
+  sliceHud.hidden = true;
+});
+let hideSliceHud;
+const sliceStageNames = {
+  "slice": "Generating layers", "layerparts": "Building layer contours",
+  "inset+skin": "Walls and solid surfaces", "support": "Supports",
+  "export": "Writing G-code", "Preparing": "Preparing model"
+};
+document.addEventListener("ad4:slice-progress", event => {
+  const info = event.detail || {};
+  clearTimeout(hideSliceHud);
+  if (info.state === "cancelled" || info.state === "failed") {
+    sliceHud.hidden = true;
+    return;
+  }
+  sliceHud.hidden = false;
+  const numeric = Number.isFinite(info.percent);
+  const bar = sliceHud.querySelector("#ad4-slice-hud-bar");
+  if (numeric) bar.value = Math.max(0, Math.min(100, info.percent));
+  else bar.removeAttribute("value"); // HTML progressbar indeterminate state.
+  sliceHud.querySelector("#ad4-slice-hud-percent").textContent =
+    numeric ? Math.round(info.percent) + "%" : "Working…";
+  sliceHud.querySelector("#ad4-slice-hud-stage").textContent =
+    sliceStageNames[info.stage] || info.stage || "CuraEngine processing";
+  sliceHud.querySelector("#ad4-slice-hud-cancel").hidden = info.state === "completed";
+  if (info.state === "completed") hideSliceHud = setTimeout(() => { sliceHud.hidden = true; }, 1600);
+});
+
 const make = (tag,klass,text) => {
   const el = document.createElement(tag);
   if(klass) el.className=klass;
