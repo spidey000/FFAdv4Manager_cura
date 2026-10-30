@@ -28,7 +28,7 @@ with sync_playwright() as p:
     page.goto(URL, wait_until="domcontentloaded", timeout=30000)
     page.wait_for_function(
         "() => globalThis.app?.gui?.model_viewer && "
-        "document.getElementById('loading')?.style.display==='none'",
+        "getComputedStyle(document.getElementById('loading')).display==='none'",
         timeout=45000,
     )
     assert page.evaluate("typeof app.gui.renderer.invalidate") == "function"
