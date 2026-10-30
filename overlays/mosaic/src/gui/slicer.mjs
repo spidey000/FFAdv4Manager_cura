@@ -11,6 +11,7 @@ export function load_demo_gcode(text) {
   if (globalThis.__AD4_STATIC_PREVIEW__ !== true) throw Error('Demo toolpaths are Pages-only');
   if (typeof text !== 'string' || text.length > 70 * 1024 * 1024 || !/;\s*(?:LAYER\s*:\s*\d+|LAYER_CHANGE)\b/i.test(text)) throw Error('Invalid demo toolpath');
   exported_gcode = text;
+  globalThis.AD4DemoBenchyLoaded = true; // visual-only, never enabled for printing
 }
 
 let active_controller = null;
