@@ -344,8 +344,8 @@ with sync_playwright() as p:
                 if not page.locator("#ad4-v3-export-profiles:visible").count():
                     failures.append("App profile exporter missing")
                 page.locator('#ad4-v3-top [data-route="preview"]').click()
-                if page.locator("#ad4-v3-bottom button").count()!=2:
-                    failures.append(f"{width}: expected only File and Slice footer actions")
+                if page.locator("#ad4-v3-bottom button").count()!=3:
+                    failures.append(f"{width}: expected File, Models and Slice footer actions")
                 if page.locator("#ad4-v3-header:visible, #ad4-v3-status:visible").count():
                     failures.append(f"{width}: redundant branded header or status button visible")
                 if page.locator("#ad4-v3-workspace-card").count():
