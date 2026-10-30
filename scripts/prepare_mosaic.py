@@ -37,6 +37,7 @@ def build():
     shutil.copy2(OV/"public/ad4-v3.css",DEST/"public/ad4-v3.css")
     shutil.copy2(OV/"public/ad4-slide-ruler.js",DEST/"public/ad4-slide-ruler.js")
     shutil.copy2(OV/"public/demo-cube-20mm.stl",DEST/"public/demo-cube-20mm.stl")
+    shutil.copy2(OV/"public/demo-cube-20mm.gcode",DEST/"public/demo-cube-20mm.gcode")
     shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
     shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
     shutil.copy2(OV/"src/gui/ad4-setting-help.mjs",DEST/"src/gui/ad4-setting-help.mjs")
