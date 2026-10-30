@@ -6,6 +6,13 @@ import { active_containers } from "../settings/index.mjs";
 import { format_gcode } from "../settings/formatter.mjs";
 
 export let exported_gcode = null;
+// Read-only showcase toolpath for GitHub Pages; never produced by CuraEngine.
+export function load_demo_gcode(text) {
+  if (globalThis.__AD4_STATIC_PREVIEW__ !== true) throw Error('Demo toolpaths are Pages-only');
+  if (typeof text !== 'string' || text.length > 500000 || !text.includes(';LAYER:')) throw Error('Invalid demo toolpath');
+  exported_gcode = text;
+}
+
 let active_controller = null;
 
 export const cura_engine = {
