@@ -152,14 +152,61 @@ main().catch(error => {
     # Render a geometrically correct 220 x 200 mm build plate instead.
     # Give the Studio two real G-code visibility bounds; no fake geometry.
     gcode_file=DEST/"src/gui/viewer/gcode_viewer.mjs"
+    viewer_source=gcode_file.read_text()
+    start=viewer_source.index("  for (let layer of parsed_data) {")
+    stop=viewer_source.index("  let machine_settings =",start)
+    viewer_source=viewer_source[:start]+"""
+  // Separate actual toolpaths by Cura TYPE so visibility toggles affect geometry.
+  const categoryColors={
+    "WALL-OUTER":0xff443d,"WALL-INNER":0x37cf74,
+    "SKIN":0xffdc46,"FILL":0xffa526,"SUPPORT":0x8c80ff,
+    "SUPPORT-INTERFACE":0xbd88ff,"SKIRT":0x00c6bb,
+    "BRIM":0x38cbad,"RAFT":0x64ba9f,"TRAVEL":0x13dbe9,
+    "OTHER":0x98a6a1
+  };
+  const categoryKeys=new Set();
+  for(const layer of parsed_data){
+    const group=new THREE.Group();
+    const pointsByType=new Map();
+    let previous=null;
+    for(const point of layer){
+      const key=point.type==="travel"?"TRAVEL":(point.subtype||"OTHER").trim().toUpperCase();
+      if(!pointsByType.has(key))pointsByType.set(key,[]);
+      if(previous)pointsByType.get(key).push([previous,point]);
+      previous=point;
+    }
+    for(const [key,segments] of pointsByType){
+      const geometry=new LayerLineGeometry(4);
+      const color=new THREE.Color(categoryColors[key]??categoryColors.OTHER);
+      for(const [from,to] of segments){
+        geometry.add({point:from.vector,color,radius:key==="TRAVEL"?0.025:0.2});
+        geometry.add({point:to.vector,color,radius:key==="TRAVEL"?0.025:0.2});
+      }
+      if(!segments.length)continue;
+      geometry.finish();
+      const part=new THREE.Mesh(geometry,new THREE.MeshPhysicalMaterial({vertexColors:true}));
+      part.userData.ad4Category=key;
+      group.add(part);categoryKeys.add(key);
+    }
+    mesh.add(group);layers.push(group);
+  }
+  globalThis.__AD4_GCODE_CATEGORIES__=[...categoryKeys].sort();
+""" + viewer_source[stop:]
+    gcode_file.write_text(viewer_source)
+
     gcode_file.write_text(gcode_file.read_text()+"""
 // The ranges are 1-based inclusive and operate on parsed Cura G-code groups.
 globalThis.AD4GCodePreview = {
   get count(){return layers.length},
+  get types(){return globalThis.__AD4_GCODE_CATEGORIES__||[]},
+  hiddenTypes:new Set(),
+  setTypeVisible(type,visible){if(visible)this.hiddenTypes.delete(type);else this.hiddenTypes.add(type);this.refreshTypes()},
+  refreshTypes(){for(const group of layers)for(const part of group.children)part.visible=!this.hiddenTypes.has(part.userData.ad4Category)},
   setRange(from,to){
     const a=Math.max(1,Math.min(layers.length,Math.round(Number(from)||1)));
     const b=Math.max(a,Math.min(layers.length,Math.round(Number(to)||1)));
     layers.forEach((mesh,index)=>{mesh.visible=index+1>=a&&index+1<=b});
+    globalThis.AD4GCodePreview.refreshTypes();
     layer_slider.value=String(b);
     return {from:a,to:b,count:layers.length};
   }
