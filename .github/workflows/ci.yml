@@ -26,6 +26,17 @@ jobs:
           node --check overlays/mosaic/public/ad4-studio.js
           node --check overlays/mosaic/public/ad4-v3.js
           node --check overlays/mosaic/public/ad4-manager.js
+          node --check overlays/mosaic/src/gui/viewer/renderer.mjs
+          node --check overlays/mosaic/src/gui/viewer/parser.mjs
+          node --check overlays/mosaic/src/gui/viewer/ad4-gcode-geometry.mjs
+          node --test tests/ui/gcode_parser_perf.test.mjs
+      - name: Benchmark external real 3DBenchy G-code fixture
+        run: |
+          curl -fsSL --retry 2 --max-time 90 \
+            'https://raw.githubusercontent.com/xyz-tools/gcode-preview/4f2b58faebe97ca15ee2c901b6c487b8ad34e3e7/demo/gcodes/3DBenchy.gcode' \
+            -o /tmp/ad4-3dbenchy.gcode
+          test -s /tmp/ad4-3dbenchy.gcode
+          AD4_UPSTREAM_GCODE=/tmp/ad4-3dbenchy.gcode node --test --test-name-pattern='upstream 3DBenchy' tests/ui/gcode_parser_perf.test.mjs
       - name: Ensure no CuraEngine browser worker is shipped
         run: |
           test -f frontend/dist/index.html
