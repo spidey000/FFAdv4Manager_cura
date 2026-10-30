@@ -102,6 +102,12 @@ class BridgeChecks(unittest.TestCase):
             release.set()
             self.assertTrue(finished.wait(2))
 
+    def test_urgent_controls_bypass_a_slow_transfer_lock(self):
+        with patch.object(bridge, 'command', return_value='ok'):
+            with bridge.PRINTER_WRITE_LOCK:
+                for action in ('pause', 'resume'):
+                    self.assertEqual(self.request('/api/printer/actions', {'action': action}), {'detail': 'ok'})
+
     def test_remote_print_requires_listed_filename(self):
         def cmd(*args, **kwargs):
             if args == ('files', '--json'):
