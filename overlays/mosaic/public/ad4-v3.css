@@ -696,3 +696,16 @@ body[data-ad4-screen=filament] #sidebar-container{
  #ad4-viewer-transform{top:5px;gap:2px}
  #ad4-viewer-transform .ad4-v3-icon-button{min-height:42px}
 }
+
+/* Contextual viewport transform editor — only the selected mode exposes values. */
+#ad4-viewer-transform .ad4-viewer-values{display:grid;gap:5px;width:132px;padding:4px 0}
+#ad4-viewer-transform .ad4-viewer-values[hidden],#ad4-viewer-transform .ad4-viewer-lock[hidden],#ad4-viewer-transform .ad4-viewer-snap[hidden]{display:none!important}
+#ad4-viewer-transform .ad4-viewer-value-row{display:grid;grid-template-columns:16px minmax(0,1fr) 18px;gap:4px;align-items:center;color:#bdc9c6;font-size:12px}
+#ad4-viewer-transform .ad4-viewer-value-row input{width:100%;min-width:0;box-sizing:border-box;background:#162322;color:#f5fcf8;border:1px solid #415650;border-radius:7px;padding:6px 4px;font-size:13px;min-height:34px}
+#ad4-viewer-transform .ad4-viewer-value-row input:focus{outline:2px solid var(--v3-green);outline-offset:1px}
+#ad4-viewer-transform .ad4-viewer-value-unit{font-size:10px}
+#ad4-viewer-transform .ad4-viewer-snap,#ad4-viewer-transform .ad4-viewer-lock{display:flex;gap:6px;align-items:center;min-height:34px;font-size:11px;color:#e8f5ef}
+#ad4-viewer-transform .ad4-viewer-snap input[type=checkbox],#ad4-viewer-transform .ad4-viewer-lock input[type=checkbox]{appearance:none;-webkit-appearance:none;position:relative;flex:none;width:35px;height:20px;border-radius:999px;border:1px solid #65736e;background:#47544f;cursor:pointer;transition:background .15s}
+#ad4-viewer-transform .ad4-viewer-snap input[type=checkbox]:checked,#ad4-viewer-transform .ad4-viewer-lock input[type=checkbox]:checked{background:var(--v3-green);border-color:var(--v3-green)}
+#ad4-viewer-transform .ad4-viewer-snap input[type=checkbox]::after,#ad4-viewer-transform .ad4-viewer-lock input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform .15s}
+#ad4-viewer-transform .ad4-viewer-snap input[type=checkbox]:checked::after,#ad4-viewer-transform .ad4-viewer-lock input[type=checkbox]:checked::after{transform:translateX(15px)}
