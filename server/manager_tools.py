@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import threading
 from urllib.parse import parse_qs
+from ffadv4manager.config import config_path, load_config
 
 LOCK = threading.RLock()
 MONITOR = None
@@ -109,8 +110,7 @@ atexit.register(shutdown)
 def get(handler, action, url, bridge):
     query = parse_qs(url.query)
     if action == 'config':
-        return handler.json(200, {'values': json.loads(bridge.command('config', 'show', selected=False)),
-                                  'path': bridge.command('config', 'path', selected=False).strip()})
+        return handler.json(200, {'values': load_config(), 'path': str(config_path())})
     if action == 'profile':
         name = profile_name(query.get('name', [''])[0], bridge)
         return handler.json(200, json.loads(bridge.command('profiles', 'show', name, selected=False)))
@@ -225,3 +225,4 @@ def post(handler, action, url, bridge):
                 raise ValueError('Invalid wait operation')
         return handler.json(200, telemetry_state(bridge))
     return handler.json(404, {'error': 'Unknown printer tool'})
+

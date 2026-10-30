@@ -68,8 +68,8 @@
  });
  $("ad4-profile-update").onclick=()=>saveProfile("update");
  $("ad4-config-show").onclick=()=>run("Loading defaults",async()=>{const c=await P.api("/tools/config");fill(c.values);$("ad4-diagnostic-result").textContent=JSON.stringify(c,null,2)});
- $("ad4-config-save").onclick=()=>{if(confirm("Use this connection as the persistent CLI/server default?"))run("Saving defaults",()=>P.post("/tools/config",{action:"save",values:values()}))};
- $("ad4-config-reset").onclick=()=>{if(confirm("Reset persistent CLI/server connection defaults?"))run("Resetting defaults",()=>P.post("/tools/config",{action:"reset"}))};
+ $("ad4-config-save").onclick=()=>{if(confirm("Use this connection as the persistent CLI/server default?"))run("Saving defaults",async()=>{await P.post("/tools/config",{action:"save",values:values()});clearThumbnails()})};
+ $("ad4-config-reset").onclick=()=>{if(confirm("Reset persistent CLI/server connection defaults?"))run("Resetting defaults",async()=>{await P.post("/tools/config",{action:"reset"});clearThumbnails()})};
  $("ad4-raw-list").onclick=()=>run("Reading raw listing",async()=>{$("ad4-inspect-result").textContent=(await P.api("/tools/raw")).output});
  $("ad4-rename-machine").onclick=()=>{if(confirm("Rename the physical printer? The network may briefly reconnect."))run("Renaming printer",()=>P.post("/tools/rename",{name:$("ad4-machine-name").value.trim()}))};
  const chosen=()=>{const file=$("ad4-local-job").files[0];if(!file)throw Error("Choose a GX or G-code file first");if(file.size>100*1024*1024)throw Error("Maximum file size is 100 MB");return file};
@@ -124,16 +124,45 @@
  $("ad4-open-manager").addEventListener("click",poll);
  setInterval(poll,5000);
  // Thumbnail loading is deliberately on demand: never issue one request per file during polling.
+ const thumbnails=new Map(),pendingThumbnails=new Set(),fileList=$("ad4-file-list");
+ const identity=s=>JSON.stringify([s.host||null,s.profile||null]);
+ const thumbnailKey=(printer,name)=>JSON.stringify([printer,name]);
+ let restoreVersion=0,thumbnailEpoch=0;
+ function clearThumbnails(){for(const url of thumbnails.values())URL.revokeObjectURL(url);thumbnails.clear();restoreVersion++;thumbnailEpoch++;for(const img of fileList.querySelectorAll(".ad4-file-row img"))img.remove()}
+ async function restoreThumbnails(){
+  const version=++restoreVersion;
+  try{
+   const printer=identity(await P.api("/session"));if(version!==restoreVersion)return;
+   for(const row of fileList.querySelectorAll(".ad4-file-row")){
+    const name=row.querySelector("strong")?.textContent,url=thumbnails.get(thumbnailKey(printer,name));
+    if(!url)continue;
+    let img=row.querySelector("img");if(!img){img=document.createElement("img");img.width=80;img.height=60;img.alt="Printer thumbnail for "+name;row.prepend(img)}
+    if(img.getAttribute("src")!==url)img.src=url;
+   }
+  }catch{}
+ }
+ // Rows are replaced by refresh/pagination. Restore only cached blobs; /session
+ // is server state and does not send a thumbnail request to the physical printer.
+ new MutationObserver(restoreThumbnails).observe(fileList,{childList:true});
+ document.addEventListener("ad4:profiles-changed",()=>{clearThumbnails();restoreThumbnails()});
+ addEventListener("pagehide",clearThumbnails);
  $("ad4-file-list").addEventListener("click",async e=>{
   const row=e.target.closest(".ad4-file-row");if(!row||e.target.tagName==="BUTTON")return;
   const name=row.querySelector("strong")?.textContent;if(!name)return;
-  const listed=await P.api("/files").catch(()=>[]),path=listed.find(p=>p.split('/').pop()===name);
-  if(!path)return;
-  try{const blob=await P.api("/tools/preview?file="+encodeURIComponent(path));
-   let img=row.querySelector("img");if(!img){img=document.createElement("img");img.width=80;img.height=60;img.alt="Printer thumbnail for "+name;row.prepend(img)}
-   const url=URL.createObjectURL(blob);img.onload=()=>URL.revokeObjectURL(url);img.src=url;
-  }catch(e){P.say("Thumbnail unavailable: "+e.message,true)}
+  let key;
+  try{
+   const epoch=thumbnailEpoch,printer=identity(await P.api("/session"));key=thumbnailKey(printer,name);
+   if(thumbnails.has(key)){await restoreThumbnails();return}
+   if(pendingThumbnails.has(key))return;pendingThumbnails.add(key);
+   const listed=await P.api("/files"),path=listed.find(p=>p.split('/').pop()===name);if(!path)return;
+   const blob=await P.api("/tools/preview?file="+encodeURIComponent(path));
+   if(identity(await P.api("/session"))!==printer||epoch!==thumbnailEpoch)return;
+   thumbnails.set(key,URL.createObjectURL(blob));
+   if(thumbnails.size>32){const oldest=thumbnails.keys().next().value;URL.revokeObjectURL(thumbnails.get(oldest));thumbnails.delete(oldest)}
+   await restoreThumbnails();
+  }catch(e){P.say("Thumbnail unavailable: "+e.message,true)}finally{if(key)pendingThumbnails.delete(key)}
  });
  const hint=document.createElement("p");hint.className="ad4-help";hint.textContent="Tap a stored filename to load its printer thumbnail.";$("ad4-file-list").before(hint);
  if(demo){for(const item of [...section.querySelectorAll("button,input,select"),...advanced.querySelectorAll("button,input")])item.disabled=true}
 })();
+
