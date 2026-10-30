@@ -1,0 +1,59 @@
+name: Verify native CuraEngine slicing
+on:
+  push:
+    paths:
+      - '.github/workflows/native-engine.yml'
+      - 'scripts/build_engine.sh'
+      - 'scripts/verify_native_slicing.py'
+      - 'server/mosaic_slicer.py'
+      - 'vendor/mosaic-slicer'
+  pull_request:
+    paths:
+      - '.github/workflows/native-engine.yml'
+      - 'scripts/build_engine.sh'
+      - 'scripts/verify_native_slicing.py'
+      - 'server/mosaic_slicer.py'
+      - 'vendor/mosaic-slicer'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-cura-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  native-slice:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/cache@v4
+        with:
+          path: .local/conan2
+          key: native-conan-v1-${{ runner.os }}-${{ hashFiles('vendor/mosaic-slicer/.gitmodules') }}
+      - name: Install isolated application and frontend
+        env:
+          AD4_SKIP_ENGINE_BUILD: '1'
+        run: bash scripts/install.sh
+      - name: Build the pinned native engine with resolved JSON support
+        run: bash scripts/build_engine.sh
+      - name: Slice through the actual browser, HTTP API and native process
+        run: |
+          .venv/bin/python -m pip install 'playwright==1.56.0'
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CHROME_BIN" ]; then .venv/bin/python -m playwright install chromium; fi
+          CHROME_BIN="$CHROME_BIN" .venv/bin/python scripts/verify_native_slicing.py --output-dir "$RUNNER_TEMP/ad4-native-validation"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-slice-validation
+          path: ${{ runner.temp }}/ad4-native-validation
+          retention-days: 14
+          if-no-files-found: ignore
