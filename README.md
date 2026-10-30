@@ -158,7 +158,7 @@ Para acceso remoto, utiliza un túnel privado protegido con autenticación y con
 | [Despliegue protegido](docs/DEPLOY_CLOUDFLARE.md) | Acceso remoto y seguridad |
 | [Auditoría de UI](docs/AD4_UI_REGRESSION_TESTS.md) | Matriz de pruebas y tamaños de pantalla |
 | [Backlog de interfaz](docs/AD4_STUDIO_UI_BACKLOG.md) | Ideas, decisiones y pendientes; no confundir con funciones terminadas |
-| [Instrucciones para agentes](AGENTS.md) | Arquitectura, workflow, reglas de seguridad y validaciones |
+| [Instalación para agentes](AGENTS.md) | Guía breve para instalar, conectar la impresora y arrancar AD4 Studio |
 
 El código de la UI propia está en **<code>overlays/mosaic/</code>**. El directorio **<code>frontend/</code>** se genera con <code>scripts/prepare_mosaic.py</code> a partir del submódulo; **no debe modificarse como código fuente**. La API y CuraEngine están en <code>server/</code>, la lógica de impresora en <code>ffadv4manager/</code>, y los tests en <code>tests/</code>.
 
