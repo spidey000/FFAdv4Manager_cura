@@ -84,6 +84,24 @@ class BridgeChecks(unittest.TestCase):
             response = self.request('/api/printer/diagnostics?kind=doctor')
         self.assertEqual(response['output'], report)
 
+    def test_cancel_and_other_commands_do_not_wait_for_video_encoding(self):
+        import time
+        entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+        def encode(_reason):
+            entered.set()
+            release.wait(3)
+            finished.set()
+        try:
+            with patch.object(bridge, 'command', return_value='ok'), patch.object(bridge.TIMELAPSES, 'stop', side_effect=encode):
+                started = time.monotonic()
+                self.assertEqual(self.request('/api/printer/actions', {'action': 'cancel'}), {'detail': 'ok'})
+                self.assertLess(time.monotonic() - started, 1)
+                self.assertTrue(entered.wait(1))
+                self.assertEqual(self.request('/api/printer/actions', {'action': 'pause'}), {'detail': 'ok'})
+        finally:
+            release.set()
+            self.assertTrue(finished.wait(2))
+
     def test_remote_print_requires_listed_filename(self):
         def cmd(*args, **kwargs):
             if args == ('files', '--json'):

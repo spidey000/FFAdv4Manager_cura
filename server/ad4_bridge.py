@@ -479,6 +479,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_error(404)
         if not self.request_authorized(write=True):
             return self.json(401 if ACCESS_CONFIG else 403, {'error': 'Unauthorized request'})
+        # Server-only recording/encoding must not hold the physical-printer write lock.
+        if path in ('/api/printer/timelapse', '/api/printer/timelapses/delete', '/api/printer/notifications'):
+            return self.printer_post(path, url)
         # Pin the connection and serialize writes through the whole transaction.
         with PRINTER_WRITE_LOCK:
             return self.printer_post(path, url)
@@ -576,7 +579,8 @@ class Handler(SimpleHTTPRequestHandler):
                 else:
                     raise ValueError('Acción no admitida')
                 if action == 'cancel':
-                    TIMELAPSES.stop('print_cancelled')
+                    threading.Thread(target=TIMELAPSES.stop, args=('print_cancelled',),
+                                     daemon=True, name='AD4-cancel-encode').start()
                 return self.json(200, {'detail': output[-1000:]})
             if path == '/api/printer/selection':
                 profile = body.get('profile')
