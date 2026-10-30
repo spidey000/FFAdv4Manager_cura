@@ -28,6 +28,8 @@ def build():
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
+    for name in ("ad4-manager-tools.js", "ad4-manager-tools.css"):
+        shutil.copy2(OV/"public"/name, DEST/"public"/name)
     shutil.copy2(OV/"public/ad4.css",DEST/"public/ad4.css")
     shutil.copy2(OV/"public/ad4-settings.css",DEST/"public/ad4-settings.css")
     shutil.copy2(OV/"public/ad4-studio.css",DEST/"public/ad4-studio.css")
@@ -408,7 +410,8 @@ export function ad4_delete_model(uuid) {
     <pre id="ad4-diagnostic-result"></pre>
   </details>
 </dialog>
-<script type="module" src="ad4-manager.js"></script>\n<script type="module" src="ad4-studio.js"></script>\n<script src="ad4-slide-ruler.js"></script><script type="module" src="ad4-v3.js"></script>\n<script type="module" src="ad4-printer-dashboard.js"></script>
+<link rel="stylesheet" href="ad4-manager-tools.css">
+<script type="module" src="ad4-manager.js"></script><script type="module" src="ad4-manager-tools.js"></script>\n<script type="module" src="ad4-studio.js"></script>\n<script src="ad4-slide-ruler.js"></script><script type="module" src="ad4-v3.js"></script>\n<script type="module" src="ad4-printer-dashboard.js"></script>
 """
     html.write_text(source.replace("</body>",dialog+"</body>"))
     built=html.read_text()

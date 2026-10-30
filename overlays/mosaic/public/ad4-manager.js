@@ -79,7 +79,7 @@ function renderFiles(){
   small.textContent=[duration(file.estimated_seconds),file.hotend!=null?file.hotend+"°C / "+fmt(file.bed,"°C"):"",date(file.uploaded_at)].filter(x=>x&&x!=="—").join(" · ")||"Stored on printer";
   meta.append(title,small);
   const start=document.createElement("button");start.textContent="Print";start.disabled=busy||!hardwareConnected||activeJob;
-  start.addEventListener("click",async()=>{if(await confirmPrint({filename:file.name,time:duration(file.estimated_seconds),start:true})) task("Starting stored print",()=>post("/actions",{
+  start.addEventListener("click",async()=>{if(await confirmPrint({filename:file.name,time:duration(file.estimated_seconds),nozzle:file.hotend,bed:file.bed,remoteFile:file.path,start:true})) task("Starting stored print",()=>post("/actions",{
    action:"print",file:file.path,timelapse:el("ad4-auto-timelapse").checked,timelapse_mode:el("ad4-capture-mode").value
   }))});
   line.append(meta,start);holder.append(line);
@@ -198,7 +198,7 @@ el("ad4-camera").addEventListener("error",()=>{if(isLive){closeVideo();say("Live
 el("ad4-gallery-refresh").addEventListener("click",()=>loadGallery().catch(e=>say(e.message,true)));
 el("ad4-timelapse-start").addEventListener("click",()=>task("Starting timelapse",()=>post("/timelapse",{action:"start",mode:el("ad4-capture-mode").value})));
 el("ad4-timelapse-stop").addEventListener("click",()=>task("Finalizing MP4",async()=>{const result=await post("/timelapse",{action:"stop"});await loadGallery();return result}));
-async function confirmPrint({filename,material="Artillery PLA Basic",nozzle="Unknown",bed="Unknown",time="Unknown",start=true}){
+async function confirmPrint({filename,material="Artillery PLA Basic",nozzle="Unknown",bed="Unknown",time="Unknown",remoteFile=null,start=true}){
  const dlg=document.createElement("dialog");dlg.className="ad4-print-confirm";
  const heading=document.createElement("h3");heading.textContent=start?"Confirm real print":"Confirm printer upload";
  const details=document.createElement("dl");
@@ -211,9 +211,17 @@ async function confirmPrint({filename,material="Artillery PLA Basic",nozzle="Unk
  const cancel=document.createElement("button");cancel.textContent="Cancel";cancel.type="button";
  const accept=document.createElement("button");accept.textContent=start?"Send & print":"Send only";accept.type="button";accept.className="ad4-primary";
  actions.append(cancel,accept);dlg.append(heading,details,actions);document.body.append(dlg);
+ let thumbnailURL=null;
+ if(remoteFile){
+  api("/tools/preview?file="+encode(remoteFile)).then(blob=>{
+   if(!dlg.isConnected)return;
+   const img=document.createElement("img");thumbnailURL=URL.createObjectURL(blob);
+   img.src=thumbnailURL;img.alt="Printer thumbnail";img.width=160;img.height=120;dlg.insertBefore(img,actions);
+  }).catch(()=>{});
+ }
  return new Promise(resolve=>{
   let done=false;
-  const finish=approved=>{if(done)return;done=true;dlg.close();dlg.remove();resolve(approved)};
+  const finish=approved=>{if(done)return;done=true;if(thumbnailURL)URL.revokeObjectURL(thumbnailURL);dlg.close();dlg.remove();resolve(approved)};
   cancel.onclick=()=>finish(false);accept.onclick=()=>finish(true);
   dlg.addEventListener("cancel",e=>{e.preventDefault();finish(false)});
   dlg.showModal();
@@ -247,23 +255,21 @@ async function upload(start){
 }
 el("ad4-upload").addEventListener("click",()=>upload(false));
 el("ad4-send-print").addEventListener("click",()=>upload(true));
-globalThis.AD4Printer={upload,refresh};
+globalThis.AD4Printer={upload,refresh,api,post,task,confirmPrint,say};
 async function loadProfiles(){
  const [profiles,session]=await Promise.all([api("/profiles"),api("/session")]);
  const select=el("ad4-connection-profiles");select.replaceChildren();
  for(const name of profiles){const op=document.createElement("option");op.value=name;op.textContent=name+(session.profile===name?" · active":"");select.append(op)}
  if(session.profile)select.value=session.profile;
 }
-el("ad4-discover").addEventListener("click",()=>task("Discovering printers",async()=>{
- const devices=await api("/discover");
- say(devices.length?devices.map(d=>d.ip).join(", "):"No printer discovered");return {};
-}));
+el("ad4-discover").addEventListener("click",()=>globalThis.AD4Tools?.discover());
 el("ad4-profile-use").addEventListener("click",()=>task("Selecting connection",()=>post("/selection",{profile:el("ad4-connection-profiles").value})));
 el("ad4-profile-delete").addEventListener("click",async()=>{
  const name=el("ad4-connection-profiles").value;
  if(name&&confirm("Delete connection profile "+name+"?")){await task("Deleting connection",()=>post("/profiles/delete",{name}));await loadProfiles()}
 });
 el("ad4-profile-add").addEventListener("click",async()=>{
+ if(globalThis.AD4Tools)return globalThis.AD4Tools.saveProfile("add");
  await task("Adding connection",()=>post("/profiles",{name:el("ad4-profile-name").value.trim(),host:el("ad4-profile-host").value.trim()}));
  await loadProfiles().catch(()=>{});
 });
@@ -274,3 +280,4 @@ for(const kind of ["doctor","info","position"])el("ad4-diagnostic-"+kind).addEve
 });
 dialog.addEventListener("toggle",()=>{if(dialog.open)loadProfiles().catch(()=>{})});
 el("ad4-open-manager").addEventListener("click",()=>loadProfiles().catch(()=>{}));
+document.addEventListener("ad4:profiles-changed",()=>loadProfiles().catch(()=>{}));
