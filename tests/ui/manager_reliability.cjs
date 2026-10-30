@@ -5,7 +5,7 @@ function controller(machine,recording){
  function el(id){if(!nodes.has(id))nodes.set(id,{id,disabled:false,open:false,dataset:{},value:'10',handlers:{},textContent:'',
   addEventListener(n,f){(this.handlers[n]??=[]).push(f)},setAttribute(){},removeAttribute(){},pause(){},load(){},replaceChildren(){},append(){},showModal(){this.open=true},
   click(){if(!this.disabled)for(const f of this.handlers.click??[])f({})}});return nodes.get(id)}
- const context={document:{getElementById:el,createElement:()=>el('generated')},URL,URLSearchParams,encodeURIComponent,
+ const context={document:{getElementById:el,createElement:()=>el('generated'),addEventListener(){}},URL,URLSearchParams,encodeURIComponent,
   setInterval:()=>1,clearInterval(){},confirm:()=>true,fetch:async url=>{
    const value=url.endsWith('/status')?machine:url.endsWith('/timelapse')?recording:[];
    if(value instanceof Error)throw value;

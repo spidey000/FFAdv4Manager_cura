@@ -407,6 +407,9 @@ class Handler(SimpleHTTPRequestHandler):
         url = urlsplit(self.path)
         path = url.path
         try:
+            if path.startswith('/api/printer/tools/'):
+                from server import manager_tools
+                return manager_tools.get(self, path.rsplit('/', 1)[-1], url, sys.modules[__name__])
             if path == '/api/printer/session':
                 with STATE_LOCK:
                     selection = dict(SELECTED)
@@ -471,6 +474,15 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         url = urlsplit(self.path)
         path = url.path
+        if path.startswith('/api/printer/tools/'):
+            if not self.request_authorized(write=True):
+                return self.json(401 if ACCESS_CONFIG else 403, {'error': 'Unauthorized request'})
+            from server import manager_tools
+            with PRINTER_WRITE_LOCK:
+                try:
+                    return manager_tools.post(self, path.rsplit('/', 1)[-1], url, sys.modules[__name__])
+                except (OSError, ValueError, RuntimeError, TypeError, subprocess.TimeoutExpired) as error:
+                    return self.json(422, {'error': str(error)})
         if path not in ('/api/printer/jobs', '/api/printer/upload', '/api/printer/actions',
                         '/api/printer/selection', '/api/printer/profiles',
                         '/api/printer/profiles/delete', '/api/printer/timelapse',

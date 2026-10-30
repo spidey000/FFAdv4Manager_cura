@@ -1,0 +1,8 @@
+#ad4-manager,#ad4-manager *{box-sizing:border-box}
+#ad4-manager .ad4-tools>*{min-width:0;max-width:100%}
+.ad4-tool-output{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font-size:12px}
+#ad4-manager .ad4-tools label{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#ad4-manager input[type=number]{width:76px;max-width:100%}
+#ad4-manager input[type=file]{max-width:240px;width:100%}
+#ad4-manager .ad4-file-row img{object-fit:contain;flex-shrink:0}
+#ad4-manager .ad4-section details{margin-block:12px}
