@@ -51,6 +51,26 @@ Abre **http://127.0.0.1:8765/** en el propio equipo Linux. Para comprobar que el
 
 El servidor solo es accesible localmente por defecto. Para acceso remoto, consulta la [guía de despliegue protegido](docs/DEPLOY_CLOUDFLARE.md); no publiques directamente los puertos de la impresora.
 
+## 5. Acceso remoto con Cloudflare Tunnel (opcional)
+
+Para acceder desde fuera de casa **sin abrir puertos en el router**, utiliza **Cloudflare Tunnel + Cloudflare Access**. Necesitas un dominio gestionado por Cloudflare, una cuenta de Cloudflare Zero Trust y `cloudflared` instalado en el equipo Linux.
+
+1. **Proteger la web:** en **Cloudflare Zero Trust → Access controls → Applications**, crea una aplicación **Self-hosted** para el dominio completo, por ejemplo `impresora.example.com`. Añade una política **Allow** solo para tu correo o usuarios autorizados (preferiblemente con MFA), sin excepciones públicas. Guarda el **AUD** de la aplicación y el dominio de equipo `mi-equipo.cloudflareaccess.com`.
+2. **Crear el túnel:** en **Cloudflare → Networking → Tunnels**, crea un túnel administrado desde el panel o reutiliza uno existente. Instala `cloudflared` siguiendo el comando que proporciona Cloudflare; si es un túnel nuevo y aún no existe el servicio, el comando habitual es `sudo cloudflared service install TOKEN_DEL_TUNEL`. **Nunca publiques ni incluyas el token en Git.** Configura una ruta **Published application** desde `impresora.example.com` hacia **`http://127.0.0.1:8765`**. Mantén intacto el encabezado Host público.
+3. **Activar la validación de Access en AD4 Studio:** establece estas variables en el entorno del proceso (para un servicio permanente, guárdalas en un archivo privado de entorno de systemd, no en el repositorio):
+
+```bash
+export CF_ACCESS_TEAM_DOMAIN="mi-equipo.cloudflareaccess.com"
+export CF_ACCESS_AUD="AUD_DE_LA_APLICACION"
+export CF_ACCESS_EMAIL="correo-autorizado@example.com"
+export CF_ACCESS_PUBLIC_ORIGIN="https://impresora.example.com"
+.venv/bin/ffadv4manager-cura --require-access
+```
+
+4. **Comprobar desde fuera:** abre `https://impresora.example.com` desde una red externa. Debe solicitar autenticación con Cloudflare Access; después de entrar, comprueba que el editor y el estado de la impresora se muestran correctamente. Haz solo comprobaciones de lectura, **sin subir archivos ni iniciar impresiones**.
+
+El servidor debe seguir escuchando **solo en 127.0.0.1**. **No abras ni redirijas los puertos 8765, 8899 o 8080**. Si el túnel ya tiene un servicio `cloudflared` instalado, reutilízalo sin crear otro. Para una instalación persistente con `systemd`, consulta [la guía de Cloudflare](docs/DEPLOY_CLOUDFLARE.md). Documentación oficial: [Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/get-started/) y [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/).
+
 ## Si algo falla
 
 - **No arranca:** verifica que `bash scripts/install.sh` terminó y que Node.js cumple la versión requerida.
