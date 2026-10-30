@@ -82,6 +82,9 @@ def verify(output):
                 page.locator('#ad4-v3-nav-slice').click()
                 page.wait_for_function('globalThis.AD4GCodePreview?.count > 1 && document.body.dataset.ad4Screen === "sliced"')
                 browser_layers = page.evaluate('globalThis.AD4GCodePreview.count')
+                bounds = page.evaluate('globalThis.AD4GCodePreview.bounds')
+                for axis in (0, 2):
+                    assert abs((bounds['min'][axis] + bounds['max'][axis]) / 2) < 1, 'Native preview shifted off the centered bed'
                 page.screenshot(path=str(output / 'native-slice.png'), full_page=True)
                 browser.close()
             source = output / 'native-cube.gcode'
@@ -97,6 +100,7 @@ def verify(output):
                       'gx_sha256': hashlib.sha256(gx.read_bytes()).hexdigest(),
                       'layers': toolpath['layer_total'], 'deposited_segments': toolpath['segment_count'],
                       'browser_preview_layers': browser_layers,
+                      'browser_preview_bounds': bounds,
                       'time_seconds': payload['time_seconds'], 'filament_mm': payload['filament_mm'],
                       'hardware_commands_sent': False}
             (output / 'verification.json').write_text(json.dumps(report, indent=2))
