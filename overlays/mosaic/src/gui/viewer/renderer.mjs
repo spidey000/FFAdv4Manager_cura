@@ -75,8 +75,8 @@ export function animate() {
   document.addEventListener("visibilitychange", () => { if (!document.hidden) invalidate(); });
   document.addEventListener("ad4:models-changed", invalidate);
   // Controls written through the compact mobile input panel also change meshes.
-  for (const name of ["input", "change"]) {
-    viewport.addEventListener(name, invalidate, true);
+  for (const name of ["input", "change", "pointerup"]) {
+    document.addEventListener(name, invalidate, {passive: true, capture: true});
   }
   invalidate();
 }
