@@ -3,7 +3,7 @@ const root="./api/printer";
 const el=id=>document.getElementById(id);
 const dialog=el("ad4-manager"), status=el("ad4-manager-status");
 let files=[], page=0, poll=null, isLive=false, gallery=[], playing=null, busy=false;
-let hardwareConnected=false;
+let hardwareConnected=false, activeJob=false, recordingState=null, refreshPromise=null;
 const encode=encodeURIComponent;
 function say(msg,isError=false){status.textContent=msg;status.dataset.error=String(isError)}
 function fmt(v,suffix=""){return v==null||v===""?"—":String(v)+suffix}
@@ -27,16 +27,18 @@ async function task(label,fn){
   await refresh().catch(()=>{});
   return result;
  }catch(e){say(e.message,true)}
- finally{busy=false}
+ finally{busy=false;setHardwareAvailability(hardwareConnected);renderFiles()}
 }
 const isPrinting=s=>/BUILDING|PRINTING|PAUSED/i.test(s||"");
 const printerIsAvailable=s=>Boolean(s?.machine_status&&!/OFFLINE|DISCONNECT|UNAVAILABLE|ERROR|UNKNOWN|NOT CONNECTED/i.test(String(s.machine_status)));
 function setHardwareAvailability(available){
  hardwareConnected=available;
- for(const id of ["ad4-fan_on","ad4-fan_off","ad4-snapshot","ad4-live-toggle","ad4-upload",
-  "ad4-send-print","ad4-timelapse-start","ad4-timelapse-stop"]){
+ for(const id of ["ad4-fan_on","ad4-fan_off","ad4-snapshot","ad4-live-toggle"]){
   const button=el(id);if(button)button.disabled=!available;
  }
+ for(const id of ["ad4-upload","ad4-send-print"]){el(id).disabled=!available||activeJob||busy}
+ el("ad4-timelapse-start").disabled=!available||!recordingState||recordingState.running||recordingState.encoding;
+ el("ad4-timelapse-stop").disabled=!recordingState?.running||recordingState?.encoding;
  if(!available){
   for(const id of ["ad4-machine","ad4-nozzle","ad4-bed","ad4-progress","ad4-layer","ad4-file"]){
    const field=el(id);if(field)field.textContent="—";
@@ -76,7 +78,7 @@ function renderFiles(){
   const small=document.createElement("small");
   small.textContent=[duration(file.estimated_seconds),file.hotend!=null?file.hotend+"°C / "+fmt(file.bed,"°C"):"",date(file.uploaded_at)].filter(x=>x&&x!=="—").join(" · ")||"Stored on printer";
   meta.append(title,small);
-  const start=document.createElement("button");start.textContent="Print";start.disabled=busy||!hardwareConnected;
+  const start=document.createElement("button");start.textContent="Print";start.disabled=busy||!hardwareConnected||activeJob;
   start.addEventListener("click",async()=>{if(await confirmPrint({filename:file.name,time:duration(file.estimated_seconds),start:true})) task("Starting stored print",()=>post("/actions",{
    action:"print",file:file.path,timelapse:el("ad4-auto-timelapse").checked,timelapse_mode:el("ad4-capture-mode").value
   }))});
@@ -123,9 +125,15 @@ function renderGallery(){
 }
 async function loadGallery(){gallery=await api("/timelapses");renderGallery()}
 async function refresh(){
+ if(refreshPromise)return refreshPromise;
+ refreshPromise=refreshNow();
+ try{return await refreshPromise}finally{refreshPromise=null}
+}
+async function refreshNow(){
  const responses=await Promise.allSettled([api("/status"),api("/files?details=1"),api("/timelapse")]);
  const [state,remote,recording]=responses;
  const available=state.status==="fulfilled"&&printerIsAvailable(state.value);
+ activeJob=available&&isPrinting(state.value.machine_status);
  if(available)updateState(state.value);
  setHardwareAvailability(available);
  if(remote.status==="fulfilled"&&available)files=Array.isArray(remote.value)?remote.value:[];
@@ -133,14 +141,15 @@ async function refresh(){
  renderFiles();
  if(recording.status==="fulfilled"){
   const r=recording.value;
+  recordingState=r;
   el("ad4-timelapse-status").textContent=r.encoding?"Encoding MP4…":r.running?
    "● Recording "+r.frames+" frames · "+(r.mode==="layer"?"Z layers (experimental)":"10-second interval"):
    r.error?"Recording error: "+r.error:"No active recording";
   el("ad4-timelapse-start").disabled=r.running||r.encoding;
   el("ad4-timelapse-stop").disabled=!r.running;
- }
+ }else recordingState=null;
  setHardwareAvailability(available);
- if(!available)el("ad4-timelapse-status").textContent="Unavailable · Printer disconnected";
+ if(!available&&!recordingState?.running&&!recordingState?.encoding)el("ad4-timelapse-status").textContent="Printer disconnected";
  if(responses.every(x=>x.status==="rejected"))throw state.reason;
 }
 function closeVideo(){
@@ -211,6 +220,8 @@ async function confirmPrint({filename,material="Artillery PLA Basic",nozzle="Unk
  });
 }
 async function upload(start){
+ try{await refresh()}catch(e){return say(e.message,true)}
+ if(!hardwareConnected||activeJob)return say(activeJob?"A print is already active (including paused jobs)":"Printer unavailable",true);
  const gcode=globalThis.app?.gui?.slicer?.exported_gcode;
  if(typeof gcode!=="string"||!gcode.trim())return say("Slice a model on the server first",true);
  const model=globalThis.app?.gui?.file?.stl_file_name||"MosaicSlicer.stl";
@@ -236,6 +247,7 @@ async function upload(start){
 }
 el("ad4-upload").addEventListener("click",()=>upload(false));
 el("ad4-send-print").addEventListener("click",()=>upload(true));
+globalThis.AD4Printer={upload,refresh};
 async function loadProfiles(){
  const [profiles,session]=await Promise.all([api("/profiles"),api("/session")]);
  const select=el("ad4-connection-profiles");select.replaceChildren();

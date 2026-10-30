@@ -823,8 +823,8 @@ function updateLayerViewButton(){
 }
 updateLayerViewButton();
 const exportGcode=actionButton("ad4-v3-export","Export G-code",()=>$("export-gcode-button")?.click());
-const upload=actionButton("ad4-v3-send","Send to printer",()=>{if(!staticPreview)openPrinter("files");$("ad4-upload")?.click()});
-const print=actionButton("ad4-v3-print","Send and print now",()=>{if(!staticPreview)openPrinter("files");$("ad4-send-print")?.click()},true);
+const upload=actionButton("ad4-v3-send","Send to printer",()=>{if(!staticPreview)openPrinter("files");globalThis.AD4Printer?.upload(false)});
+const print=actionButton("ad4-v3-print","Send and print now",()=>{if(!staticPreview)openPrinter("files");globalThis.AD4Printer?.upload(true)},true);
 const runSlice=actionButton("ad4-v3-run-slice","Slice model",()=>{if(!staticPreview)$("ad4-dock-slice")?.click();else notify("Slicing requires the private CuraEngine server")},true);
 function renderTools(){
  action.replaceChildren();

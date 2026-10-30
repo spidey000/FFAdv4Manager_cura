@@ -82,7 +82,7 @@ def test_convert_cli_local_output_and_upload_conversion(monkeypatch, tmp_path, c
             pass
 
         def status(self):
-            return type("Status", (), {"is_printing": False})()
+            return type("Status", (), {"is_printing": False, "has_active_job": False})()
 
         def upload_and_confirm_listed(self, path, remote_name, **_kwargs):
             assert path.read_bytes()[GCODE_OFFSET:] == original

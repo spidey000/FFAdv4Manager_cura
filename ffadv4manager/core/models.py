@@ -23,6 +23,10 @@ class PrinterStatus:
         return self.machine_status in {"BUILDING_FROM_SD", "BUILDING", "PRINTING"}
 
     @property
+    def has_active_job(self) -> bool:
+        return self.is_printing or self.machine_status == "PAUSED"
+
+    @property
     def progress_percent(self) -> float | None:
         if self.sd_total and self.sd_total > 0 and self.sd_current is not None:
             return min(100.0, max(0.0, (self.sd_current / self.sd_total) * 100.0))

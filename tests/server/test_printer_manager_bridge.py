@@ -12,6 +12,14 @@ from http.server import ThreadingHTTPServer
 from server import ad4_bridge as bridge
 
 
+def valid_test_gx():
+    from ffadv4manager.core.gx_converter.gx_writer import encode_gx
+    from ffadv4manager.core.gx_converter.metadata import PrintMetadata
+    from ffadv4manager.core.gx_converter.thumbnail import extract_thumbnail_bmp
+    return encode_gx(PrintMetadata(nozzle_right=205, bed_temp=55),
+                     extract_thumbnail_bmp([]), "M104 S205\nG1 X1\n")
+
+
 class BridgeChecks(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -68,6 +76,38 @@ class BridgeChecks(unittest.TestCase):
             self.request('/api/printer/actions', {'action': 'home'})
         self.assertEqual(ctx.exception.code, 502)
 
+    def test_doctor_returns_failed_checks_as_structured_report(self):
+        import subprocess
+        report = {'checks': [{'name': 'camera_http', 'ok': False, 'error': 'offline'}]}
+        result = subprocess.CompletedProcess([], 1, json.dumps(report), '')
+        with patch.object(bridge.subprocess, 'run', return_value=result):
+            response = self.request('/api/printer/diagnostics?kind=doctor')
+        self.assertEqual(response['output'], report)
+
+    def test_cancel_and_other_commands_do_not_wait_for_video_encoding(self):
+        import time
+        entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+        def encode(_reason):
+            entered.set()
+            release.wait(3)
+            finished.set()
+        try:
+            with patch.object(bridge, 'command', return_value='ok'), patch.object(bridge.TIMELAPSES, 'stop', side_effect=encode):
+                started = time.monotonic()
+                self.assertEqual(self.request('/api/printer/actions', {'action': 'cancel'}), {'detail': 'ok'})
+                self.assertLess(time.monotonic() - started, 1)
+                self.assertTrue(entered.wait(1))
+                self.assertEqual(self.request('/api/printer/actions', {'action': 'pause'}), {'detail': 'ok'})
+        finally:
+            release.set()
+            self.assertTrue(finished.wait(2))
+
+    def test_urgent_controls_bypass_a_slow_transfer_lock(self):
+        with patch.object(bridge, 'command', return_value='ok'):
+            with bridge.PRINTER_WRITE_LOCK:
+                for action in ('pause', 'resume'):
+                    self.assertEqual(self.request('/api/printer/actions', {'action': action}), {'detail': 'ok'})
+
     def test_remote_print_requires_listed_filename(self):
         def cmd(*args, **kwargs):
             if args == ('files', '--json'):
@@ -123,9 +163,7 @@ class BridgeChecks(unittest.TestCase):
         headers = {'Origin': base, 'Content-Type': 'application/octet-stream'}
         with patch.object(bridge, 'command', side_effect=fake_cli):
             req = Request(base + '/api/printer/upload?name=my-part.gx',
-                          data=(b'xgcode 1.0\n\0' + struct.pack('<4i', 0, 58, 0, 0) +
-                                struct.pack('<iiih', 120, 0, 0, 1) +
-                                struct.pack('<8h', 200, 0, 2, 60, 55, 205, 0, 1)),
+                          data=valid_test_gx(),
                           headers=headers, method='POST')
             with urlopen(req, timeout=4) as response:
                 self.assertEqual(json.load(response)['remote_name'], '00_33_0.54m_my-part.gx')

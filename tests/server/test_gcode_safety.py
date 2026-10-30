@@ -23,11 +23,33 @@ def test_comments_not_interpreted_as_commands():
 
 
 def test_gx_requires_valid_metadata_and_safe_temperatures():
-    def gx(nozzle, bed):
-        return (b"xgcode 1.0\n\0" + struct.pack("<4i", 0, 58, 0, 0)
-                + struct.pack("<iiih", 120, 0, 0, 1)
-                + struct.pack("<8h", 200, 0, 2, 60, bed, nozzle, 0, 1))
+    from ffadv4manager.core.gx_converter.gx_writer import encode_gx
+    from ffadv4manager.core.gx_converter.metadata import PrintMetadata
+    from ffadv4manager.core.gx_converter.thumbnail import extract_thumbnail_bmp
+    def gx(nozzle, bed, body="G1 X1\n"):
+        return encode_gx(PrintMetadata(nozzle_right=nozzle, bed_temp=bed),
+                         extract_thumbnail_bmp([]), body)
     check(gx(205, 55), "part.gx")
     for payload in (gx(240, 55), gx(205, 105), b"xgcode 1.0\n\0"):
         with pytest.raises(ValueError):
             check(payload, "part.gx")
+
+
+def test_gx_checks_executable_body_and_offsets():
+    from ffadv4manager.core.gx_converter.gx_writer import encode_gx
+    from ffadv4manager.core.gx_converter.metadata import PrintMetadata
+    from ffadv4manager.core.gx_converter.thumbnail import extract_thumbnail_bmp
+    payload = encode_gx(PrintMetadata(nozzle_right=205, bed_temp=55),
+                        extract_thumbnail_bmp([]), "M104S240\nM140 S105\n")
+    with pytest.raises(ValueError, match="Artillery PLA"):
+        check(payload, "part.gx")
+    broken = bytearray(payload)
+    struct.pack_into('<I', broken, 20, 0)
+    with pytest.raises(ValueError, match="offsets"):
+        check(bytes(broken), "part.gx")
+
+
+@pytest.mark.parametrize("body", [b"M104S240", b"N12M190R105", b"M104 (comment) S240"])
+def test_compact_heater_commands_are_checked(body):
+    with pytest.raises(ValueError, match="Artillery PLA"):
+        check(body, "part.gcode")

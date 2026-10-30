@@ -5,7 +5,7 @@ def test_no_duplicate_profiles_or_catalog_button():
     js=(ROOT/"overlays/mosaic/src/gui/ad4-settings.mjs").read_text()
     css=(ROOT/"overlays/mosaic/public/ad4-settings.css").read_text()
     assert "All Cura settings" not in js
-    assert "All Cura categories" in js
+    assert 'const categories=["All",...Object.keys(GROUPS)]' in js
     assert "legacy.hidden=true" in js
     assert "#profile-selector-div{display:none!important}" in css
 def test_group_and_controls():

@@ -41,6 +41,7 @@ MAX_GCODE = 100 * 1024 * 1024
 FILE_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9_. -]{0,119}\Z')
 PROFILE_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9_. -]{0,63}\Z')
 STATE_LOCK = threading.RLock()
+PRINTER_WRITE_LOCK = threading.RLock()
 SELECTED = {'host': None, 'profile': None}
 DISCOVERED = {}
 WORKERS = {'notifications': None}
@@ -72,10 +73,10 @@ def cli_argv(*args, selected=True):
     return argv
 
 
-def command(*args, timeout=30, selected=True):
+def command(*args, timeout=30, selected=True, accepted_codes=(0,)):
     result = subprocess.run(cli_argv(*args, selected=selected), capture_output=True,
                             text=True, timeout=timeout, check=False)
-    if result.returncode:
+    if result.returncode not in accepted_codes:
         raise RuntimeError((result.stderr or result.stdout).strip()[:1000]
                            or 'CLI exit ' + str(result.returncode))
     return result.stdout
@@ -431,8 +432,9 @@ class Handler(SimpleHTTPRequestHandler):
                 kind = parse_qs(url.query).get('kind', ['doctor'])[0]
                 if kind not in ('doctor', 'info', 'position'):
                     raise ValueError('Diagnóstico no compatible')
-                output = command(kind, *(['--json'] if kind in ('info', 'position') else []), timeout=45)
-                return self.json(200, {'output': json.loads(output) if kind != 'doctor' else output})
+                output = command(kind, *(['--json'] if kind in ('info', 'position') else []),
+                                 timeout=45, accepted_codes=(0, 1) if kind == 'doctor' else (0,))
+                return self.json(200, {'output': json.loads(output)})
             if path == '/api/printer/timelapse':
                 return self.json(200, timelapse_state())
             if path == '/api/printer/timelapses':
@@ -467,7 +469,6 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        global TIMELAPSE_DIR
         url = urlsplit(self.path)
         path = url.path
         if path not in ('/api/printer/jobs', '/api/printer/upload', '/api/printer/actions',
@@ -478,6 +479,24 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_error(404)
         if not self.request_authorized(write=True):
             return self.json(401 if ACCESS_CONFIG else 403, {'error': 'Unauthorized request'})
+        # Server-only recording/encoding must not hold the physical-printer write lock.
+        if path in ('/api/printer/timelapse', '/api/printer/timelapses/delete', '/api/printer/notifications'):
+            return self.printer_post(path, url)
+        body = None
+        if path == '/api/printer/actions':
+            try:
+                body = self.data()
+            except (ValueError, TypeError) as error:
+                return self.json(422, {'error': str(error)})
+            # Urgent job controls use their own TCP command connection. They must
+            # remain responsive during uploads, source downloads and MP4 encoding.
+            if isinstance(body, dict) and body.get('action') in ('pause', 'resume', 'cancel'):
+                return self.printer_post(path, url, body)
+        # Pin the connection and serialize writes through the whole transaction.
+        with PRINTER_WRITE_LOCK:
+            return self.printer_post(path, url, body)
+
+    def printer_post(self, path, url, body=None):
         try:
             if path in ('/api/printer/jobs', '/api/printer/upload'):
                 size = int(self.headers.get('Content-Length', '0'))
@@ -539,7 +558,7 @@ class Handler(SimpleHTTPRequestHandler):
                                        'timelapse': timelapse_capture,
                                        'timelapse_error': timelapse_error,
                                        'detail': output[-1000:]})
-            body = self.data()
+            body = self.data() if body is None else body
             if not isinstance(body, dict):
                 raise ValueError('Formato JSON no válido')
             if path == '/api/printer/actions':
@@ -570,7 +589,8 @@ class Handler(SimpleHTTPRequestHandler):
                 else:
                     raise ValueError('Acción no admitida')
                 if action == 'cancel':
-                    TIMELAPSES.stop('print_cancelled')
+                    threading.Thread(target=TIMELAPSES.stop, args=('print_cancelled',),
+                                     daemon=True, name='AD4-cancel-encode').start()
                 return self.json(200, {'detail': output[-1000:]})
             if path == '/api/printer/selection':
                 profile = body.get('profile')

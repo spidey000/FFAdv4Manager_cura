@@ -7,6 +7,6 @@ def test_real_lower_upper_visibility_and_reference():
     assert 'globalThis.AD4GCodePreview' in prep
     assert 'mesh.visible=index+1>=a&&index+1<=b' in prep
     assert 'globalThis.AD4GCodePreview' in shell
-    assert 'ad4-v3-layer-ruler' in shell
+    assert 'ad4-v3-double-range' in shell
     assert 'type="range" min="1" max="1"' not in shell
-    assert 'kind==="lower"' in shell
+    assert 'bound==="lower"' in shell
