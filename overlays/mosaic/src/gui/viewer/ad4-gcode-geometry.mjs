@@ -34,9 +34,10 @@ export async function buildGcodeLayers(parsedData) {
   const categories = new Set();
   const segmentCount = parsedData.reduce((sum, layer) => sum + layer.length, 0);
   const stride = Math.max(1, Math.ceil(segmentCount / PREVIEW_SEGMENT_BUDGET));
-  let previous = null, index = 0, displayed = 0, processed = 0;
+  let index = 0, displayed = 0, processed = 0;
 
   for (const layer of parsedData) {
+    let previous = null; // never link a layer to the prior one
     const layerGroup = new THREE.Group();
     const byCategory = new Map();
     let capturedLayerSegment = false;
