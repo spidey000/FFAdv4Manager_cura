@@ -67,6 +67,42 @@ with sync_playwright() as p:
                     })
                     page.wait_for_function("() => Object.keys(app.gui.model_viewer.models).length>=2",timeout=8000)
                     print("USER FILE UPLOAD LOADED AS 3D MODEL",flush=True)
+                    # File tab must not expose layer controls; loaded models get
+                    # their own dock tab, connected to the real Three.js registry.
+                    assert page.locator('#ad4-v3-show-layers:visible').count()==0, "Layer action leaked into File"
+                    assert page.locator('#ad4-v3-bottom button').count()==3, "Missing Models dock item"
+                    models_button=page.locator("#ad4-v3-nav-models")
+                    assert models_button.is_enabled(), "Models button should enable with an STL"
+                    models_button.click()
+                    menu=page.locator("#ad4-v3-models-menu")
+                    assert menu.is_visible(), "Models menu did not open"
+                    items=menu.locator(".ad4-v3-models-row")
+                    assert items.count()>=2
+                    names=menu.locator(".ad4-v3-model-name").all_inner_texts()
+                    assert "AD4_demo_cube_20mm.stl" in names, names
+                    assert "user_imported_cube.stl" in names, names
+                    import_row=items.filter(has_text="user_imported_cube.stl")
+                    model_uuid=import_row.get_attribute("data-model-uuid")
+                    import_row.locator(".ad4-v3-model-select").click()
+                    assert page.evaluate("(uuid)=>app.gui.model_viewer.focused===uuid",model_uuid), "Model selection did not reach native scene"
+                    exported_before=page.evaluate("app.gui.model_viewer.export_stl().byteLength")
+                    import_row=menu.locator('.ad4-v3-models-row[data-model-uuid="'+model_uuid+'"]')
+                    import_row.locator(".ad4-v3-model-visible").click()
+                    assert page.evaluate("(uuid)=>app.gui.model_viewer.models[uuid].mesh.visible===false",model_uuid), "Model preview was not hidden"
+                    assert page.evaluate("app.gui.model_viewer.export_stl().byteLength")==exported_before, "Hidden model was excluded from slicing export"
+                    import_row=menu.locator('.ad4-v3-models-row[data-model-uuid="'+model_uuid+'"]')
+                    page.once("dialog",lambda dialog:dialog.accept())
+                    import_row.locator(".ad4-v3-model-remove").click()
+                    page.wait_for_function("() => Object.keys(app.gui.model_viewer.models).length===1",timeout=5000)
+                    assert menu.is_visible(), "Deleting a model closed its list unexpectedly"
+                    models_button.click()
+                    assert not menu.is_visible(), "Models button did not toggle menu closed"
+                    models_button.click()
+                    assert menu.is_visible()
+                    page.locator('#ad4-v3-top [data-route="preview"]').click()
+                    assert not menu.is_visible(), "Outside focus did not close the Models menu"
+                    print("MODEL LIST SELECTION / VISIBILITY / DELETE / OUTSIDE CLOSE PASSED",flush=True)
+
             except Exception as error:
                 failures.append(f"{width}: STL preview/upload: {error}")
         if page.locator("#ad4-v3-top").count()==0:
