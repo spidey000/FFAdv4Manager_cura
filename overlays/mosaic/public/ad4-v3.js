@@ -156,72 +156,95 @@ setInterval(refreshSelectionBrackets,120);
 
 
 const layerUI=make("section","ad4-v3-layer-card");layerUI.id="ad4-v3-layer-card";
-layerUI.innerHTML='<div class="ad4-v3-card-title"><strong>Sliced preview</strong><span id="ad4-v3-preview-status">Slice a model to preview layers</span></div>'+
-'<div class="ad4-v3-legend"><span><i class="wall"></i>Walls</span><span><i class="skin"></i>Top/Bottom</span><span><i class="infill"></i>Infill</span><span><i class="travel"></i>Travel</span></div>'+
-'<div class="ad4-v3-layer-range" aria-label="Actual Cura G-code layer bounds"><div class="ad4-v3-layer-bound" data-bound="lower"><label for="ad4-v3-layer-from">From layer</label><input id="ad4-v3-layer-from" type="number" min="1" max="1" value="1" inputmode="numeric"><div class="ad4-v3-layer-ruler" data-bound="lower" role="slider" tabindex="0" aria-label="First visible layer" aria-valuemin="1" aria-valuenow="1"><span class="ad4-v3-ruler-needle"></span></div></div><div class="ad4-v3-layer-bound" data-bound="upper"><label for="ad4-v3-layer-to">To layer</label><input id="ad4-v3-layer-to" type="number" min="1" max="1" value="1" inputmode="numeric"><div class="ad4-v3-layer-ruler" data-bound="upper" role="slider" tabindex="0" aria-label="Last visible layer" aria-valuemin="1" aria-valuenow="1"><span class="ad4-v3-ruler-needle"></span></div></div><output id="ad4-v3-layer-number">Layers 1–1</output></div>'+
-'<div class="ad4-v3-estimates"><span>'+svg("clock")+' <b id="ad4-v3-time">—</b><small>Estimated time</small></span><span>'+svg("filament")+' <b id="ad4-v3-material">—</b><small>Filament</small></span></div>';
+layerUI.innerHTML='<div class="ad4-v3-card-title"><strong id="ad4-v3-panel-title">Sliced preview</strong><span id="ad4-v3-preview-status">G-code layers</span></div>'+
+'<div id="ad4-v3-range-panel"><div class="ad4-v3-range-labels"><label>From <input id="ad4-v3-layer-from" type="number" min="1" value="1"></label><label>To <input id="ad4-v3-layer-to" type="number" min="1" value="1"></label></div>'+
+'<div class="ad4-v3-double-range" id="ad4-v3-double-range"><div class="ad4-v3-range-track"></div><div class="ad4-v3-range-selected" id="ad4-v3-range-selected"></div><input id="ad4-v3-range-min" type="range" min="1" max="100" value="1" aria-label="First visible layer"><input id="ad4-v3-range-max" type="range" min="1" max="100" value="100" aria-label="Last visible layer"></div>'+
+'<output id="ad4-v3-layer-number">Layers 1–1</output><div class="ad4-v3-estimates"><span>'+svg("clock")+' <b id="ad4-v3-time">—</b><small>Estimated print time</small></span><span>'+svg("filament")+' <b id="ad4-v3-material">—</b><small>Filament usage</small></span></div></div>'+
+'<div id="ad4-v3-types-panel" hidden><div class="ad4-v3-type-heading">Toolpath visibility <small>Times approximate · G-code feedrates</small></div><div id="ad4-v3-type-list"></div></div>';
 root.append(layerUI);
-const layerRulers=new Map();
-let layerFrom=1,layerTo=1,layerCount=0,layerSync=false;
-function commitLayerRange(bound,raw){
- const api=globalThis.AD4GCodePreview;
- const count=api?.count||0;if(!count)return;
- const value=Math.max(1,Math.min(count,Math.round(Number(raw)||1)));
- if(bound==="lower")layerFrom=Math.min(value,layerTo);
- else layerTo=Math.max(value,layerFrom);
- api.setRange(layerFrom,layerTo);
- for(const kind of ["lower","upper"]){
-  const value=kind==="lower"?layerFrom:layerTo;
-  const field=$(kind==="lower"?"ad4-v3-layer-from":"ad4-v3-layer-to");
-  field.value=String(value);field.max=String(count);
-  const ruler=document.querySelector('.ad4-v3-layer-ruler[data-bound="'+kind+'"]');
-  ruler.setAttribute("aria-valuenow",String(value));ruler.setAttribute("aria-valuemax",String(count));
-  const inst=layerRulers.get(kind);
-  if(inst&&inst.options.currentValue!==value){
-   layerSync=true;inst.options.currentValue=value;
-   try{inst.dreawCanvas()}finally{layerSync=false}
-  }
+let layerFrom=1,layerTo=1,layerCount=0,showTypes=false,typesGcodeCache="";
+const typeLabels={"WALL-OUTER":"Outer wall","WALL-INNER":"Inner wall","SKIN":"Top / Bottom","FILL":"Infill","SUPPORT":"Support","SUPPORT-INTERFACE":"Support interface","SKIRT":"Skirt","BRIM":"Brim","RAFT":"Raft","TRAVEL":"Travel","OTHER":"Other"};
+const typeColors={"WALL-OUTER":"#ff443d","WALL-INNER":"#37cf74","SKIN":"#ffdc46","FILL":"#ffa526","SUPPORT":"#8c80ff","SUPPORT-INTERFACE":"#bd88ff","SKIRT":"#00c6bb","BRIM":"#38cbad","RAFT":"#64ba9f","TRAVEL":"#13dbe9","OTHER":"#98a6a1"};
+function updateRangeVisual(){
+ const max=Math.max(1,layerCount),left=(layerFrom-1)/Math.max(1,max-1)*100,right=(layerTo-1)/Math.max(1,max-1)*100;
+ const selected=$("ad4-v3-range-selected");
+ selected.style.left=left+"%";selected.style.width=(right-left)+"%";
+ for(const [id,value] of [["ad4-v3-layer-from",layerFrom],["ad4-v3-layer-to",layerTo],["ad4-v3-range-min",layerFrom],["ad4-v3-range-max",layerTo]]){
+  const el=$(id);if(document.activeElement!==el)el.value=String(value);el.max=String(max);
  }
- $("ad4-v3-layer-number").textContent="Layers "+layerFrom+"–"+layerTo+" of "+count;
+ $("ad4-v3-layer-number").textContent="Layers "+layerFrom+"–"+layerTo+" of "+max;
+}
+function commitLayerRange(bound,raw){
+ if(!layerCount)return;
+ const value=Math.max(1,Math.min(layerCount,Math.round(Number(raw)||1)));
+ if(bound==="lower")layerFrom=Math.min(value,layerTo);
+ else layerTo=Math.max(layerFrom,value);
+ globalThis.AD4GCodePreview?.setRange(layerFrom,layerTo);
+ updateRangeVisual();
 }
 function initLayerRulers(){
- const api=globalThis.AD4GCodePreview,count=api?.count||0;
+ const count=globalThis.AD4GCodePreview?.count||0;
  if(!count||current!=="sliced")return;
- const Class=globalThis.SlideRuler?.default||globalThis.SlideRuler;
- if(count!==layerCount){layerFrom=1;layerTo=count;layerCount=count;layerRulers.clear();
-  for(const mount of layerUI.querySelectorAll(".ad4-v3-layer-ruler"))mount.querySelector("canvas")?.remove()}
- for(const kind of ["lower","upper"]){
-  const mount=layerUI.querySelector('.ad4-v3-layer-ruler[data-bound="'+kind+'"]');
-  const width=Math.max(130,mount.clientWidth);
-  const prev=layerRulers.get(kind),old=prev?.options;
-  if(prev&&old.canvasWidth===width&&old.maxValue===count)continue;
-  mount.querySelector("canvas")?.remove();layerRulers.delete(kind);
-  if(typeof Class==="function"){
-   layerSync=true;
-   try{
-    const obj=new Class({el:mount,canvasWidth:width,canvasHeight:50,
-      minValue:1,maxValue:count,currentValue:kind==="lower"?layerFrom:layerTo,
-      precision:1,divide:13,fontSize:11,fontColor:"#b3c6bd",
-      colorDecimal:"#a4c5ad",colorDigit:"#5b7267",
-      heightDecimal:18,heightDigit:9,
-      handleValue:value=>{if(!layerSync)commitLayerRange(kind,value)}});
-    layerRulers.set(kind,obj);
-   }finally{layerSync=false}
-  }
- }
- commitLayerRange("upper",layerTo);
+ if(count!==layerCount){layerCount=count;layerFrom=1;layerTo=count}
+ updateRangeVisual();
+ refreshTypes();
 }
-for(const kind of ["lower","upper"]){
- const input=$(kind==="lower"?"ad4-v3-layer-from":"ad4-v3-layer-to");
- input.addEventListener("change",()=>commitLayerRange(kind,input.value));
- const mount=layerUI.querySelector('.ad4-v3-layer-ruler[data-bound="'+kind+'"]');
- mount.addEventListener("keydown",event=>{
-  if(!["ArrowLeft","ArrowRight","Home","End"].includes(event.key))return;
-  event.preventDefault();const current=kind==="lower"?layerFrom:layerTo;
-  const next=event.key==="Home"?1:event.key==="End"?layerCount:
-    current+(event.key==="ArrowLeft"?-1:1);
-  commitLayerRange(kind,next);
- });
+for(const [kind,numeric,slider] of [["lower","ad4-v3-layer-from","ad4-v3-range-min"],["upper","ad4-v3-layer-to","ad4-v3-range-max"]]){
+ $(numeric).addEventListener("change",e=>commitLayerRange(kind,e.target.value));
+ $(slider).addEventListener("input",e=>commitLayerRange(kind,e.target.value));
+}
+function estimateTypeTimes(gcode){
+ // Feedrate-based approximation only; accelerations and firmware pauses omitted.
+ const totals=new Map(),lines=gcode.split(/\r?\n/);
+ let xyz={X:0,Y:0,Z:0,E:0},feed=1800,absolute=true,absoluteE=true,kind="OTHER";
+ for(const raw of lines){
+  const comment=raw.split(";")[1]?.trim()||"";
+  if(comment.startsWith("TYPE:"))kind=comment.slice(5).toUpperCase()||"OTHER";
+  const cmd=raw.split(";")[0].trim(),op=cmd.split(/\s+/)[0];
+  if(op==="G90"){absolute=true;continue}if(op==="G91"){absolute=false;continue}
+  if(op==="M82"){absoluteE=true;continue}if(op==="M83"){absoluteE=false;continue}
+  if(op==="G92"){for(const m of cmd.matchAll(/([XYZE])(-?\d+(?:\.\d+)?)/g))xyz[m[1]]=Number(m[2]);continue}
+  if(op!=="G0"&&op!=="G1")continue;
+  const next={...xyz};let extrude=false;
+  for(const m of cmd.matchAll(/([XYZEF])(-?\d+(?:\.\d+)?)/g)){
+   const key=m[1],value=Number(m[2]);
+   if(key==="F")feed=value;
+   else{next[key]=(key==="E"?absoluteE:absolute)?value:xyz[key]+value;if(key==="E")extrude=next.E>xyz.E}
+  }
+  const distance=Math.hypot(next.X-xyz.X,next.Y-xyz.Y,next.Z-xyz.Z);
+  if(distance>0&&feed>0){
+   const category=extrude?kind:"TRAVEL";
+   totals.set(category,(totals.get(category)||0)+distance/feed*60);
+  }
+  xyz=next;
+ }
+ return totals;
+}
+function formatDuration(seconds){if(!Number.isFinite(seconds))return "—";const mins=Math.round(seconds/60);return mins>=60?Math.floor(mins/60)+"h "+String(mins%60).padStart(2,"0")+"m":mins+" min"}
+function refreshTypes(){
+ const api=globalThis.AD4GCodePreview,gcode=globalThis.app?.gui?.slicer?.exported_gcode;
+ if(!api?.count||!gcode||!showTypes)return;
+ if(typesGcodeCache===gcode)return;typesGcodeCache=gcode;
+ const times=estimateTypeTimes(gcode),categories=api.types||[],list=$("ad4-v3-type-list");
+ list.replaceChildren();
+ for(const key of [...new Set([...categories,...times.keys()])]){
+  const row=make("label","ad4-v3-type-row");
+  const swatch=make("i","ad4-v3-type-swatch");swatch.style.background=typeColors[key]||typeColors.OTHER;
+  const name=make("span","ad4-v3-type-name",typeLabels[key]||key);
+  const duration=make("small","ad4-v3-type-time",formatDuration(times.get(key)));
+  const toggle=make("input");toggle.type="checkbox";toggle.checked=!api.hiddenTypes?.has(key);toggle.setAttribute("aria-label","Show "+(typeLabels[key]||key));
+  toggle.addEventListener("change",()=>api.setTypeVisible(key,toggle.checked));
+  row.append(swatch,name,duration,toggle);list.append(row);
+ }
+}
+function toggleLayerTypePanel(){
+ showTypes=!showTypes;
+ $("ad4-v3-range-panel").hidden=showTypes;
+ $("ad4-v3-types-panel").hidden=!showTypes;
+ $("ad4-v3-panel-title").textContent=showTypes?"Layer types":"Sliced preview";
+ $("ad4-v3-show-layers").setAttribute("aria-pressed",String(showTypes));
+ $("ad4-v3-show-layers").textContent=showTypes?"Layer range":"Layer types";
+ if(showTypes){typesGcodeCache="";refreshTypes()}
 }
 
 const transform=make("section","ad4-v3-transform");transform.id="ad4-v3-transform";
@@ -655,10 +678,10 @@ const removeModel=actionButton("ad4-v3-remove-model","Remove model",()=>{
   setTimeout(()=>{refreshState();renderTools()},150);
 });
 const demoModel=actionButton("ad4-v3-demo","Demo STL",()=>$("ad4-dock-demo")?.click());
-const previewLayers=actionButton("ad4-v3-show-layers","Layers",()=>activate("sliced"));
+const previewLayers=actionButton("ad4-v3-show-layers","Layer types",toggleLayerTypePanel);
 const exportGcode=actionButton("ad4-v3-export","Export G-code",()=>$("export-gcode-button")?.click());
 const upload=actionButton("ad4-v3-send","Send to printer",()=>{if(!staticPreview)openPrinter("files");$("ad4-upload")?.click()});
-const print=actionButton("ad4-v3-print","Print now",()=>{if(!staticPreview)openPrinter("files");$("ad4-send-print")?.click()},true);
+const print=actionButton("ad4-v3-print","Send and print now",()=>{if(!staticPreview)openPrinter("files");$("ad4-send-print")?.click()},true);
 const runSlice=actionButton("ad4-v3-run-slice","Slice model",()=>{if(!staticPreview)$("ad4-dock-slice")?.click();else notify("Slicing requires the private CuraEngine server")},true);
 function renderTools(){
  action.replaceChildren();
