@@ -743,3 +743,13 @@ body[data-ad4-screen=filament] #sidebar-container{
 .ad4-v3-type-row input[type=checkbox]:checked{background:var(--v3-green,#20d983);border-color:var(--v3-green,#20d983)}
 .ad4-v3-type-row input[type=checkbox]::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;background:white;border-radius:50%;transition:transform .12s}
 .ad4-v3-type-row input[type=checkbox]:checked::after{transform:translateX(14px)}
+
+/* Single-line, accessible dual-thumb layer control. */
+#ad4-v3-double-range{position:relative;height:64px;margin:12px 21px 1px;touch-action:none;user-select:none}
+#ad4-v3-double-range .ad4-v3-range-track,#ad4-v3-double-range .ad4-v3-range-selected{position:absolute;top:35px;height:7px;border-radius:999px}
+#ad4-v3-double-range .ad4-v3-range-track{left:0;right:0;background:#485b51}
+#ad4-v3-double-range .ad4-v3-range-selected{background:var(--v3-green,#20d983)}
+#ad4-v3-double-range .ad4-v3-range-thumb{position:absolute;top:23px;transform:translateX(-50%);width:31px;height:31px;padding:0;border:3px solid #113a24;border-radius:50%;background:var(--v3-green,#20d983);box-shadow:0 2px 7px #0008;cursor:ew-resize;touch-action:none;z-index:2}
+#ad4-v3-double-range .ad4-v3-range-thumb:focus-visible{outline:2px solid white;outline-offset:3px}
+#ad4-v3-double-range .ad4-v3-range-thumb span{position:absolute;bottom:35px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:700;color:#d6ffdf;white-space:nowrap;pointer-events:none}
+#ad4-v3-range-panel .ad4-v3-range-labels{display:none!important}
