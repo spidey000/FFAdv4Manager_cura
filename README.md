@@ -30,7 +30,7 @@
   <p><sub>Capturas auténticas generadas con Chromium durante la publicación de GitHub Pages: escritorio, visor móvil y ajustes móviles. Muestran la demo estática, sin hardware conectado.</sub></p>
 </div>
 
-**[Abrir demo interactiva →](https://spidey000.github.io/FFAdv4Manager_cura/)** Puedes cargar STL/3MF, explorar la escena, modificar modelos y recorrer el catálogo de ajustes. Se incluye un cubo de calibración de 20 mm; la vista de G-code de ejemplo es una **simulación no imprimible**, no el resultado del motor CuraEngine.
+**[Abrir demo interactiva →](https://spidey000.github.io/FFAdv4Manager_cura/)** Puedes cargar STL/3MF, explorar la escena, modificar modelos y recorrer el catálogo de ajustes. Se incluye un 3DBenchy original de alta resolución (225.706 triángulos); la vista de G-code de ejemplo es un **toolpath auténtico de 3DBenchy, solo para visualización y no apto para imprimir en la Adventurer 4**, no el resultado del motor CuraEngine.
 
 ## Qué puedes hacer
 
