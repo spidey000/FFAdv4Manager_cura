@@ -228,6 +228,25 @@ globalThis.AD4GCodePreview = {
     centered ? 0 : stack.resolve_setting("machine_depth") / 2
   );""")
 
+    # An external 3DBenchy toolpath was sliced for a different printer bed;
+    # center ONLY its visualization in static Pages. Do not mutate G-code.
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          "  mesh.rotation.set(-Math.PI / 2, 0, 0);",
+          """  mesh.rotation.set(-Math.PI / 2, 0, 0);
+  if (globalThis.__AD4_STATIC_PREVIEW__ && globalThis.AD4DemoBenchyLoaded) {
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for (const layer of parsed_data) for (const point of layer) {
+      if (point.type !== "print") continue;
+      const p=point.vector;
+      minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);
+      minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);
+    }
+    if (Number.isFinite(minX) && Number.isFinite(minY)) {
+      mesh.position.x=-(minX+maxX)/2;
+      mesh.position.z=(minY+maxY)/2;
+    }
+  }""")
+
     patch("src/gui/viewer/viewer.mjs",
           '    let res = await fetch("resources/meshes/" + model_filename);',
           """    if (!model_filename) {
