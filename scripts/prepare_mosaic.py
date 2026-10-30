@@ -167,27 +167,28 @@ main().catch(error => {
   const categoryKeys=new Set();
   for(const layer of parsed_data){
     const group=new THREE.Group();
-    const pointsByType=new Map();
-    let previous=null;
-    for(const point of layer){
-      const key=point.type==="travel"?"TRAVEL":(point.subtype||"OTHER").trim().toUpperCase();
-      if(!pointsByType.has(key))pointsByType.set(key,[]);
-      if(previous)pointsByType.get(key).push([previous,point]);
-      previous=point;
-    }
-    for(const [key,segments] of pointsByType){
-      const geometry=new LayerLineGeometry(4);
-      const color=new THREE.Color(categoryColors[key]??categoryColors.OTHER);
-      for(const [from,to] of segments){
-        geometry.add({point:from.vector,color,radius:key==="TRAVEL"?0.025:0.2});
-        geometry.add({point:to.vector,color,radius:key==="TRAVEL"?0.025:0.2});
-      }
-      if(!segments.length)continue;
+    let previous=null,activeType=null,geometry=null,segments=0;
+    const finishRun=()=>{
+      if(!geometry||!segments)return;
       geometry.finish();
       const part=new THREE.Mesh(geometry,new THREE.MeshPhysicalMaterial({vertexColors:true}));
-      part.userData.ad4Category=key;
-      group.add(part);categoryKeys.add(key);
+      part.userData.ad4Category=activeType;
+      group.add(part);categoryKeys.add(activeType);
+    };
+    for(const point of layer){
+      const key=point.type==="travel"?"TRAVEL":(point.subtype||"OTHER").trim().toUpperCase();
+      if(key!==activeType){
+        finishRun();activeType=key;geometry=new LayerLineGeometry(4);segments=0;
+      }
+      if(previous){
+        const color=new THREE.Color(categoryColors[key]??categoryColors.OTHER);
+        geometry.add({point:previous.vector,color,radius:key==="TRAVEL"?0.025:0.2});
+        geometry.add({point:point.vector,color,radius:key==="TRAVEL"?0.025:0.2});
+        segments++;
+      }
+      previous=point;
     }
+    finishRun();
     mesh.add(group);layers.push(group);
   }
   globalThis.__AD4_GCODE_CATEGORIES__=[...categoryKeys].sort();
