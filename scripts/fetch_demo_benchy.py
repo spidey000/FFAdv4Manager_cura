@@ -36,7 +36,7 @@ ASSETS = {
 
 
 def git_blob_sha(data: bytes) -> str:
-    return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\\0" + data).hexdigest()
+    return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
 
 
 def validate(name: str, data: bytes) -> None:
@@ -49,9 +49,9 @@ def validate(name: str, data: bytes) -> None:
         if count < 100_000:
             raise ValueError("Expected the full-resolution original 3DBenchy")
     else:
-        if not re.search(rb"(?mi)^;\\s*(LAYER\\s*:\\s*\\d+|LAYER_CHANGE)\\b", data):
+        if not re.search(rb"(?mi)^;\s*(LAYER\s*:\s*\d+|LAYER_CHANGE)\b", data):
             raise ValueError("Benchy G-code has no recognized layer changes")
-        if not re.search(rb"(?m)^G[01]\\s+.*?\\bE[-+\\d.]+", data):
+        if not re.search(rb"(?m)^G[01]\s+.*?\bE[-+\d.]+", data):
             raise ValueError("Benchy G-code has no extrusion toolpaths")
 
 
@@ -61,7 +61,7 @@ def download_demo(dest: Path) -> None:
     for filename, (url, expected, maximum) in ASSETS.items():
         target = dest / filename
         if target.is_file() and git_blob_sha(target.read_bytes()) == expected:
-            print(f"Bench y demo asset verified: {target}")
+            print(f"Benchy demo asset verified: {target}")
             continue
         cached = cache / filename if cache else None
         if cached and cached.is_file():
