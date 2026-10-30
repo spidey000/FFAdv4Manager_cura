@@ -1,80 +1,184 @@
-# FFAdv4Manager Cura · MosaicSlicer · Adventurer 4
+<div align="center">
 
-The old React/Symple interface has been **completely replaced by [MosaicSlicer](https://github.com/ading2210/MosaicSlicer)**. The upstream source is pinned as a git submodule; our modifications live in `overlays/mosaic/` and are applied reproducibly by `scripts/prepare_mosaic.py`.
+# 🖨️ AD4 Studio
+### Un espacio de trabajo para tu FlashForge Adventurer 4
 
-**CuraEngine slicing takes place only on the local Linux server.** The browser displays MosaicSlicer's model editor, settings, and G-code preview, but never loads or runs a CuraEngine WASM worker. The printer manager still uses the original FFAdv4Manager LAN CLI.
+**Prepara modelos · Ajusta Cura · Lamina en Linux · Envía a la impresora · Supervisa la impresión**
 
-## Requirements and installation
+[![CI](https://github.com/spidey000/FFAdv4Manager_cura/actions/workflows/ci.yml/badge.svg)](https://github.com/spidey000/FFAdv4Manager_cura/actions/workflows/ci.yml)
+[![Native CuraEngine](https://github.com/spidey000/FFAdv4Manager_cura/actions/workflows/native-engine.yml/badge.svg)](https://github.com/spidey000/FFAdv4Manager_cura/actions/workflows/native-engine.yml)
+[![GitHub Pages](https://github.com/spidey000/FFAdv4Manager_cura/actions/workflows/pages.yml/badge.svg)](https://spidey000.github.io/FFAdv4Manager_cura/)
+[![License: GPLv3 / AGPLv3](https://img.shields.io/badge/license-GPLv3%20%2B%20AGPLv3-informational)](#licencias-y-créditos)
 
-- Linux machine on the same LAN as the printer, Python 3.10+, Node.js 20+, npm and git.
-- **Native MosaicSlicer/CuraEngine** executable with support for `-r` resolved settings JSON (ordinary CuraEngine binaries might not support it).
-- For building the native engine: a C++20 compiler (GCC 12+), CMake 3.20+, Ninja, and network access to GitHub, Conan Center and SourceForge.
+[**Probar la interfaz**](https://spidey000.github.io/FFAdv4Manager_cura/) ·
+[**Instalar**](#instalación-en-linux) ·
+[**Funciones**](#qué-puedes-hacer) ·
+[**Documentación**](#documentación-y-desarrollo)
 
-```bash
-git clone https://github.com/spidey000/FFAdv4Manager_cura.git
+</div>
+
+> **Un proyecto para Adventurer 4, no un slicer genérico.** Interfaz web basada en [MosaicSlicer](https://github.com/ading2210/MosaicSlicer), motor CuraEngine **nativo en el servidor Linux** y gestor de impresora integrado mediante FFAdv4Manager. La demo pública es interactiva, pero **no lamina ni imprime**.
+
+## Así se ve
+
+[![AD4 Studio: visor 3D real en escritorio](https://spidey000.github.io/FFAdv4Manager_cura/screenshots/ad4-studio-desktop.png)](https://spidey000.github.io/FFAdv4Manager_cura/)
+
+<div align="center">
+  <img src="https://spidey000.github.io/FFAdv4Manager_cura/screenshots/ad4-studio-mobile.png" alt="AD4 Studio en móvil: visor 3D y herramientas" width="43%" />
+  &nbsp;
+  <img src="https://spidey000.github.io/FFAdv4Manager_cura/screenshots/ad4-studio-settings-mobile.png" alt="AD4 Studio en móvil: ajustes de impresión de Cura" width="43%" />
+  <p><sub>Capturas auténticas generadas con Chromium durante la publicación de GitHub Pages: escritorio, visor móvil y ajustes móviles. Muestran la demo estática, sin hardware conectado.</sub></p>
+</div>
+
+**[Abrir demo interactiva →](https://spidey000.github.io/FFAdv4Manager_cura/)** Puedes cargar STL/3MF, explorar la escena, modificar modelos y recorrer el catálogo de ajustes. Se incluye un cubo de calibración de 20 mm; la vista de G-code de ejemplo es una **simulación no imprimible**, no el resultado del motor CuraEngine.
+
+## Qué puedes hacer
+
+| Área | Funciones |
+| --- | --- |
+| **Editor 3D** | Importación STL/3MF, varios modelos, selección, ocultar/mostrar, mover, girar, escalar proporcionalmente, controles táctiles y vistas de cámara. |
+| **Ajustes de Cura** | Catálogo de parámetros de Mosaic/Cura, filtros All/Basic/Advanced/Expert, categorías Quality/Strength/Speed/Support/Material, búsqueda, presets locales y restauración de valores. Ayuda contextual de [SettingsGuide](https://github.com/Ghostkeeper/SettingsGuide). |
+| **Slicing real** | Exportación de geometría y ajustes resueltos al servidor; CuraEngine nativo genera G-code. Vista previa de trayectorias por capas, rangos de capas, tiempo y material estimados. |
+| **Archivos y envío** | Inspección de G-code/GX, conversión a GX con miniatura y metadatos, subida a almacenamiento de la impresora o envío con inicio de impresión tras confirmación. |
+| **Gestor de impresora** | Detección LAN, conexiones y perfiles, estado, temperaturas, archivos almacenados, miniaturas M662, diagnósticos, cámara MJPEG, ventilador, pausa/reanudación/cancelación y avisos. |
+| **Timelapse** | Captura de la cámara por intervalo o por capa Z **estimada** cuando hay datos disponibles; inicio opcional asociado a una impresión, MP4 persistentes y galería para ver, descargar o borrar. |
+| **Impresión actual** | Cámara y representación 3D lado a lado, posición M114 y capa estimada a partir de alturas de depósito de material. Diferenciación explícita de la procedencia del G-code. |
+
+La interfaz es adaptable a móvil y escritorio. Los controles que pueden alterar la impresora se ejecutan **exclusivamente en el servidor local**, nunca desde la demo de GitHub Pages.
+
+## Instalación en Linux
+
+Pensado principalmente para **Ubuntu 24.04** u otra distribución Linux reciente. La máquina Linux debe poder alcanzar la impresora en la **misma red local**.
+
+**Requisitos:** Python 3.10 o superior (incluido <code>venv</code>), Git, Node.js **20+**, npm, CMake **3.20+**, Ninja y compilador **C++20** (por ejemplo GCC 12+). La compilación inicial del motor requiere Internet para obtener dependencias de GitHub, Conan Center y SourceForge.
+
+### 1. Prepara el sistema
+
+En Ubuntu instala las dependencias de compilación. Comprueba también que tu Node.js sea 20 o superior:
+
+~~~bash
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-pip build-essential cmake ninja-build
+node --version
+npm --version
+~~~
+
+Si Node.js es antiguo, instala una versión LTS 20+ antes de continuar.
+
+### 2. Descarga e instala
+
+~~~bash
+git clone --recurse-submodules https://github.com/spidey000/FFAdv4Manager_cura.git
 cd FFAdv4Manager_cura
-bash scripts/install.sh  # also attempts the native CuraEngine build
-.venv/bin/ffadv4manager config set --host YOUR_ADVENTURER4_LAN_IP
+bash scripts/install.sh
+~~~
+
+El instalador prepara **<code>.venv/</code>** para Python, construye **<code>frontend/</code>** a partir del submódulo fijado de MosaicSlicer y, salvo configuración contraria, compila un CuraEngine compatible en **<code>.local/curaengine/</code>**. No instala paquetes Python globalmente. La primera compilación del motor puede ser considerable.
+
+### 3. Configura tu Adventurer 4
+
+Con la impresora encendida y conectada a la LAN:
+
+~~~bash
+.venv/bin/ffadv4manager discover
+.venv/bin/ffadv4manager config set --host 192.168.1.50
 .venv/bin/ffadv4manager status --json
+~~~
+
+Sustituye <code>192.168.1.50</code> por la IP real de tu impresora. El puerto TCP habitual de control es **8899** y la cámara MJPEG usa normalmente **8080**; ambos son configurables.
+
+### 4. Arranca AD4 Studio
+
+~~~bash
 .venv/bin/ffadv4manager-cura
-```
+~~~
 
-Open `http://127.0.0.1:8765/` on the Linux server. Installation creates `.venv/` for all Python packages, `frontend/node_modules/` for MosaicSlicer dependencies, and `.local/curaengine/` for the natively compiled engine. No Python packages are installed globally.
+Abre **http://127.0.0.1:8765/** en el navegador del propio servidor. Por defecto el servicio escucha solo en loopback: no expongas el puerto directamente a Internet. Comprueba la disponibilidad del motor en **http://127.0.0.1:8765/api/slice/engine**.
 
-`scripts/build_engine.sh` compiles the pinned engine with C++20 and public UltiMaker recipes pinned by revision; it does not depend on the retired Cura JFrog remote. The native build is checked on Ubuntu 24.04 in CI. If building fails, the web server can still display MosaicSlicer but will **not** slice until a compatible binary is installed. Retry with `bash scripts/build_engine.sh`, or set `AD4_CURAENGINE_BIN=/absolute/path/to/CuraEngine` to a verified compatible executable. The HTTP endpoint `/api/slice/engine` reports whether the executable is configured.
+<details>
+<summary><strong>Opciones de instalación y resolución de problemas</strong></summary>
 
-## What runs where
+- Si necesitas repetir solo la compilación nativa: <code>bash scripts/build_engine.sh</code>.
+- Para usar un ejecutable ya verificado con soporte de ajustes resueltos <code>-r</code>: <code>export AD4_CURAENGINE_BIN=/ruta/absoluta/CuraEngine</code> antes de arrancar el servidor.
+- Para preparar solo la UI sin motor (pruebas o demo): <code>AD4_SKIP_ENGINE_BUILD=1 bash scripts/install.sh</code>. En ese modo **Slice no funciona**.
+- Para limitar trabajos simultáneos durante la compilación: <code>AD4_BUILD_JOBS=2 bash scripts/build_engine.sh</code>.
+- Si se queda en Loading, comprueba que se hayan inicializado ambos submódulos y que <code>scripts/install.sh</code> haya terminado, incluido el build del frontend.
+- Si el motor devuelve HTTP 503 en <code>/api/slice/engine</code>, revisa la compilación y la variable <code>AD4_CURAENGINE_BIN</code>; instalar un CuraEngine convencional no garantiza compatibilidad.
+- Si no hay comunicación con la impresora, ejecuta <code>.venv/bin/ffadv4manager doctor</code> y revisa host, red y puertos. El visor y los ajustes pueden seguir funcionando sin impresora.
 
-```text
-Browser: MosaicSlicer viewer · editable Cura settings · G-code preview
-  POST /api/slice (STL + resolved Cura settings)
-      ↓
-Local Linux server: Python API in .venv → native CuraEngine -r → G-code
-      ↓
-Browser: preview and optional export
-      ↓ upload / print from Printer manager
-FFAdv4Manager CLI → GX (thumbnail + metadata) → FlashForge Adventurer 4 LAN
-```
+</details>
 
-Only the **Adventurer 4**, 220 × 200 × 250 mm with a 0.4 mm nozzle, is configured. The starting filament settings correspond to **Artillery PLA Basic**: 205 °C nozzle, 210 °C first layer, and 55 °C bed. Other printer models are not selectable. The server locks the machine dimensions, single extruder and firmware start/end G-code and applies safety limits to temperatures and speeds.
+## De STL a una impresión
 
-The **Printer manager** provides read-only status and diagnostics plus the supported existing CLI controls for stored files, camera, fan, pause/resume/cancel, timelapse, upload-only and send & print.
+1. **Modelo:** importa un STL/3MF y ajusta su posición, orientación y tamaño en la plataforma virtual.
+2. **Material y proceso:** selecciona el perfil y revisa los parámetros Cura. El proyecto está configurado para **Adventurer 4** (220 × 200 × 250 mm, boquilla de 0,4 mm) con **Artillery PLA Basic** como punto de partida.
+3. **Slice:** el servidor procesa la geometría con el motor nativo y devuelve G-code real, material y tiempo estimados. Revisa el recorrido por capas.
+4. **Revisión y envío:** verifica la información del archivo y el estado físico de la impresora; elige **solo enviar** o **enviar e imprimir**. El G-code se encapsula en GX cuando corresponde.
+5. **Seguimiento:** consulta cámara, progreso, temperaturas y, si existe una fuente de trayectorias asociada, visualiza la **capa estimada** de la impresión en curso. Puedes configurar un timelapse.
 
-## AD4 Studio — new mobile user interface
+### Qué sucede por dentro
 
-The viewer-first redesign is built as a small, reproducible overlay on the pinned MosaicSlicer source. It is not a replacement browser slicer; all Cura slicing still happens on the Linux server.
+~~~text
+Navegador (MosaicSlicer + AD4 Studio)
+    │  modelo + parámetros Cura
+    ▼
+API Python local  ──►  CuraEngine nativo (-r)
+    │                       │
+    ◄─────── G-code real + estimaciones
+    │
+    ├── Preview por capas
+    ├── Conversión G-code → GX (miniatura + metadatos)
+    └── FFAdv4Manager CLI → LAN → Adventurer 4
+                                  │
+                                  └── estado, M114, archivos, cámara, timelapse
+~~~
 
-- **Viewer at the top:** responsive build plate, compact move/rotate/scale tools and a single FlashForge Adventurer 4 + Artillery PLA Basic identity.
-- **Persistent quick-action dock at the bottom:** Settings, Add model, Slice, then Preview / Upload only / Print when G-code has been generated by the server.
-- **True bottom-sheet print settings on phones:** scrollable Cura settings, quality profile, search, All / Quality / Strength / Speed / Support quick filters, scrim click, close button and Escape.
-- **Status and safety:** backend CuraEngine availability is checked before enabling Slice. Physical print actions call the existing authenticated FFAdv4Manager API through the printer manager and still require confirmation.
-- **Desktop:** retains a persistent right-side editor with the same aesthetic; mobile layout switches at 767 px and accounts for notches and short landscape screens.
+**La web pública de GitHub Pages solo sirve la primera parte visual.** No ejecuta CuraEngine WASM, no transmite G-code y no accede a tu red.
 
-For mobile: tap **＋ Model**, select an STL/3MF, open **⚙ Settings** if needed, and choose **Slice model**. When the server returns real G-code, choose **Preview**, **Upload only**, or **Print**. The printer manager remains available from **AD4 · Printer** in the header. The GitHub Pages demo intentionally does not print or slice.
+## Estado y límites importantes
 
-Changes live in `overlays/mosaic/public/ad4-studio.css` and `ad4-studio.js`, packaged by `scripts/prepare_mosaic.py`. The pinned MosaicSlicer submodule stays untouched. Both the server build and the GitHub Pages preview use this same interface.
+Este proyecto está en **desarrollo activo (alpha)**. Los PR [#21](https://github.com/spidey000/FFAdv4Manager_cura/pull/21), [#22](https://github.com/spidey000/FFAdv4Manager_cura/pull/22), [#23](https://github.com/spidey000/FFAdv4Manager_cura/pull/23) y [#24](https://github.com/spidey000/FFAdv4Manager_cura/pull/24) introducen mejoras de fiabilidad, conexiones de impresora, visor de trabajo actual y slicing nativo.
 
-## Secure remote usage
+- **Verificado en CI:** carga de STL real en Chromium, interfaz móvil y de escritorio, generación de G-code con CuraEngine compilado en Ubuntu 24.04, conversión a GX, metadatos térmicos, análisis de capas y pruebas de API/CLI con impresora simulada. [Ver workflows](https://github.com/spidey000/FFAdv4Manager_cura/actions).
+- **Pendiente de validar físicamente:** funcionamiento extremo a extremo con tu firmware, impresión real, cámara y algunos comandos del dispositivo. Un test con impresora simulada **no acredita** un resultado físico.
+- **Capa estimada, no telemetría exacta:** Adventurer 4 devuelve posición Z mediante M114 y porcentaje mediante M27; la capa se infiere de alturas depositadas en el archivo. Los Z-hop no crean una capa nueva, pero no se conoce la línea exacta ejecutada ni hay sincronización de fotogramas con la cámara.
+- **Descarga de trabajo activo:** no hay un comando de descarga de G-code confirmado para el protocolo estándar de la AD4. La visualización usa archivos que el servidor conservó, asociación explícita del usuario o un descargador opcional **verificado y configurado por el administrador**. M661 lista archivos y M662 recupera miniaturas, no G-code.
+- **Seguridad:** se aplican comprobaciones térmicas y de archivos, pero el operador debe revisar temperaturas, homing, geometría, superficie y máquina antes de iniciar cualquier impresión. Los límites para el perfil PLA integrado son 220 °C para boquilla y 65 °C para cama.
 
-For remote access, publish the loopback-only service through **Cloudflare Tunnel + Cloudflare Access** and launch `.venv/bin/ffadv4manager-cura --require-access`, with server-side `CF_ACCESS_*` variables set according to [deployment documentation](docs/DEPLOY_CLOUDFLARE.md). Never expose printer TCP port 8899 or camera port 8080 to the public internet.
+Para acceso remoto, utiliza un túnel privado protegido con autenticación y consulta la [guía de Cloudflare Access](docs/DEPLOY_CLOUDFLARE.md). No publiques los puertos **8899/8080** de la impresora ni el servidor local sin la protección prevista.
 
-The [GitHub Pages preview](https://spidey000.github.io/FFAdv4Manager_cura/) publishes the actual MosaicSlicer-based AD4 Studio viewer and advanced settings. **A 20 mm STL calibration cube loads automatically** in the 3D viewer; you can also tap **◈ Demo STL** to load it again, or **＋ Model** to import your own STL/3MF. The full Quality / Strength / Speed / Support / Material sections and named presets work without a slicing server. You can load and manipulate STL/3MF models, test the mobile drawer and saved preset interface, but server Slice, Upload and Print actions are explicitly disabled. Only the local Linux server can execute CuraEngine and reach the Adventurer 4.
+## Documentación y desarrollo
 
-## Tests and provenance
+| Documento | Para qué sirve |
+| --- | --- |
+| [Gestor y visor de impresión actual](docs/PRINTER_INTEGRATION.md) | Conexiones, diagnósticos, origen del archivo, cámara y limitaciones |
+| [Referencia CLI](docs/CLI.md) | Comandos y opciones de <code>ffadv4manager</code> |
+| [API web](docs/WEB_API.md) | Endpoints locales y requisitos de autorización |
+| [Formato GX](docs/AD4_GX_METADATA.md) | Metadatos, miniaturas y validación |
+| [Despliegue protegido](docs/DEPLOY_CLOUDFLARE.md) | Acceso remoto y seguridad |
+| [Auditoría de UI](docs/AD4_UI_REGRESSION_TESTS.md) | Matriz de pruebas y tamaños de pantalla |
+| [Backlog de interfaz](docs/AD4_STUDIO_UI_BACKLOG.md) | Ideas, decisiones y pendientes; no confundir con funciones terminadas |
+| [Instrucciones para agentes](AGENTS.md) | Arquitectura, workflow, reglas de seguridad y validaciones |
 
-The repository ships GitHub Actions checks for the isolated frontend compilation, server-side request validation, CLI/GX regressions and printer bridge smoke tests. Both CI and Pages publishing execute real headless Chromium at the repository subpath; the checks assert that loading finishes, real STL geometry renders, a second STL can be uploaded, Cura categories are accessible, and there are no JavaScript or missing-resource errors. The deployed Pages URL is also browser-tested after publishing. The separate **Verify native CuraEngine slicing** workflow compiles the pinned native engine and sends a 20 mm cube through the actual browser, HTTP API, G-code output, GX conversion, thermal validation and deposited-layer parser. It retains logs, effective settings, generated files, hashes and a screenshot as artifacts. CI sends no commands to printer hardware; physical printing and firmware behavior still require supervised verification on your printer.
+El código de la UI propia está en **<code>overlays/mosaic/</code>**. El directorio **<code>frontend/</code>** se genera con <code>scripts/prepare_mosaic.py</code> a partir del submódulo; **no debe modificarse como código fuente**. La API y CuraEngine están en <code>server/</code>, la lógica de impresora en <code>ffadv4manager/</code>, y los tests en <code>tests/</code>.
 
-MosaicSlicer upstream is AGPL-3.0-only; CuraEngine is AGPL-3.0; the imported FFAdv4Manager CLI retains GPL-3.0-or-later notices. Preserve all upstream attribution and comply with AGPL network-use source obligations.
+Para una comprobación local rápida tras instalar:
 
-## Restored printer dashboard (Mosaic overlay)
+~~~bash
+.venv/bin/python -m pip install pytest
+.venv/bin/python -m pytest -q tests/cli tests/server tests/integration tests/cura tests/ui
+~~~
 
-The MosaicSlicer **Printer manager** includes authenticated on-demand MJPEG video, one-shot JPEG capture, permanent MP4 timelapse gallery with playback/download/delete, manual time/Z-layer (experimental) capture, opt-in automatic timelapse during uploaded and stored prints, paginated and sortable stored file details, discovery, connection profiles, and read-only diagnostics. Browser connections use only the same-origin API (never direct LAN addresses). Timelapses continue running if the browser closes. The printer and single extruder remain fixed to Adventurer 4. Full-screen mobile layout retains Mosaic's own UI.
+Para verificar la cadena con motor real (requiere CuraEngine nativo y Chromium/Playwright):
 
-## Mosaic-native settings parity
+~~~bash
+.venv/bin/python scripts/verify_native_slicing.py --output-dir /tmp/ad4-native-validation
+~~~
 
-The existing MosaicSlicer sidebar now includes category tabs (Quality, Strength, Speed, Support, Material), All/Basic/Advanced/Expert filters, tap-to-explain parameter names, changed-value reset actions, the expandable green **Profiles & filters** panel and saved browser-local process/material presets. Saved parameters are applied to Mosaic's actual active Cura settings containers and sent to the **server**, never a browser WASM engine. **Show all native Cura settings** retains access to the original settings list; **Auto slice** optionally issues a fresh server slicing request after model or parameter changes. Artillery PLA temperature limits now agree between slicing and upload (220°C nozzle, 65°C bed). Machine selection remains locked to Adventurer 4.
+## Licencias y créditos
 
-## AD4 Studio v3: new mobile navigation and visual design
+AD4 Studio integra componentes con **licencias distintas**. El CLI importado mantiene **GPL-3.0-or-later**; [MosaicSlicer](https://github.com/ading2210/MosaicSlicer), CuraEngine y [SettingsGuide](https://github.com/Ghostkeeper/SettingsGuide) mantienen sus respectivas obligaciones **AGPL-3.0**. Conserva avisos de copyright, atribuciones y las obligaciones de disponibilidad del código fuente (incluida la prestación por red cuando aplique). Consulta [LICENSE](LICENSE), [LICENSES](LICENSES) y [third_party_licenses](third_party_licenses).
 
-The mobile UI now uses a complete dark/emerald workspace inspired by high-contrast handheld slicers. Primary tabs are Preview, Print, Filament, Printer, App. Preview retains the real Mosaic Three.js build plate, model import and server Slice; Sliced Preview uses the real parsed Cura G-code with a linked layer range and estimates; Orientation reuses Mosaic's transform inputs for the actual selected mesh; Print and Filament reuse native Cura settings and the process/material preset store; Printer opens the authenticated controller with Camera, Timelapse, Files and Control panes; App offers preset import/export. The desktop renderer and the server-only CuraEngine are unchanged. The public Pages build showcases the 3D viewer and settings but disables all actions needing a Linux server or printer. The GitHub Pages demo includes a clearly labeled, manually generated, non-printable 20 mm cube G-code fixture used solely to exercise the real G-code layer parser and UI. It is not a CuraEngine slice, and upload/print remain disabled on Pages.
+---
 
+<div align="center"><sub>Proyecto comunitario no afiliado a FlashForge ni a UltiMaker. Operar una impresora 3D exige supervisión y validación en el equipo físico.</sub></div>
