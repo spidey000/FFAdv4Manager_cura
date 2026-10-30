@@ -118,22 +118,24 @@
     if (!editor?.load_file) return;
     demoPending = true;
     try {
-      const res = await fetch("./demo-cube-20mm.stl", {cache:"force-cache"});
+      const res = await fetch("./demo-benchy.stl", {cache:"force-cache"});
       if (!res.ok) throw Error("Demo STL not available (HTTP " + res.status + ")");
       const data = await res.blob();
-      const sample = new File([data], "AD4_demo_cube_20mm.stl", {type:"model/stl"});
+      const sample = new File([data], "3DBenchy.stl", {type:"model/stl"});
       editor.load_file(sample);
-      // A checked-in companion toolpath showcases the *real* G-code parser
+      // An exact, pinned third-party Benchy toolpath showcases the real G-code parser
       // and layer ruler in Pages. It is not CuraEngine output or print-safe.
       if (staticPreview) {
         // Wait for Mosaic to finish replacing the STL before exposing layer preview.
-        for(let attempt=0;attempt<30;attempt++){
-          if(Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length>0)break;
+        for(let attempt=0;attempt<200;attempt++){
+          if(Object.values(globalThis.app?.gui?.model_viewer?.models||{}).some(model=>model.name==="3DBenchy.stl")) break;
           await new Promise(resolve=>setTimeout(resolve,100));
         }
-        const path="./demo-cube-20mm.gcode";
+        if (!Object.values(globalThis.app?.gui?.model_viewer?.models||{}).some(model=>model.name==="3DBenchy.stl"))
+          throw Error("3DBenchy STL did not finish loading");
+        const path="./demo-benchy.gcode";
         const response=await fetch(path,{cache:"force-cache"});
-        if (!response.ok) throw Error("Demo G-code not available");
+        if (!response.ok) throw Error("3DBenchy G-code not available (HTTP "+response.status+")");
         const gcode=await response.text();
         const slicer=globalThis.app?.gui?.slicer;
         if (typeof slicer?.load_demo_gcode!=="function") throw Error("Demo parser bridge not available");
@@ -146,12 +148,12 @@
       }
     } catch (error) {
       console.error("Could not load example STL", error);
-      byId("ad4-dock-state").textContent = "Demo STL could not load";
+      byId("ad4-dock-state").textContent = "3DBenchy demo failed to load";
     } finally {
       demoPending = false;
     }
   }
-  const demoButton = button("ad4-dock-demo", "◈ Demo STL", "ad4-dock-light", loadDemoModel);
+  const demoButton = button("ad4-dock-demo", "◈ 3DBenchy", "ad4-dock-light", loadDemoModel);
   demoButton.hidden = !staticPreview;
   const previewButton = button("ad4-dock-preview", "◫ Preview", "ad4-dock-light",
     () => byId("preview-tab-button")?.click());

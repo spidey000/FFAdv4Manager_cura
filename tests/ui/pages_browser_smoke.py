@@ -48,11 +48,22 @@ with sync_playwright() as p:
             try:
                 page.wait_for_function("""() => {
                   const gui=globalThis.app?.gui;
-                  return gui?.file?.stl_file_name==="AD4_demo_cube_20mm.stl"
+                  return gui?.file?.stl_file_name==="3DBenchy.stl"
                     && Object.keys(gui.model_viewer?.models||{}).length>0;
                 }""",timeout=18000)
                 count=page.evaluate("Object.keys(app.gui.model_viewer.models).length")
                 print("DEMO STL GEOMETRY LOADED",count,flush=True)
+                # The bundled demo must also load the REAL 3DBenchy G-code,
+                # not just a placeholder or generated illustrative cube.
+                page.wait_for_function(
+                    "() => app.gui.slicer.exported_gcode?.length > 100000",
+                    timeout=45000
+                )
+                assert page.evaluate(
+                    "app.gui.slicer.exported_gcode.includes(';LAYER_CHANGE') || "
+                    "app.gui.slicer.exported_gcode.includes(';LAYER:')"
+                )
+                print("AUTOMATIC REAL 3DBENCHY G-CODE READY",flush=True)
                 assert count>=1
                 assert page.locator("#ad4-dock-demo").count()==1
                 # Public documentation shots must show the REAL loaded Three.js model,
@@ -67,12 +78,15 @@ with sync_playwright() as p:
                 assert page.locator("#slice-button").is_disabled()
                 assert page.locator("#ad4-dock-slice").is_disabled()
                 if width<500:
-                    sample=page.request.get(url.rstrip("/")+"/demo-cube-20mm.stl")
-                    assert sample.ok, "Demo STL was not served"
+                    # Tiny second fixture: never import the 11 MiB Benchy twice
+                    # in a mobile viewport just to test the model list.
+                    import struct
+                    tiny = (b"Second model".ljust(80,b" ") + struct.pack("<I",1)
+                            + struct.pack("<12fH",0,0,1,0,0,0,10,0,0,0,10,0,0))
                     page.locator("#stl-file").set_input_files({
-                        "name":"user_imported_cube.stl",
+                        "name":"user_imported_test.stl",
                         "mimeType":"model/stl",
-                        "buffer":sample.body()
+                        "buffer":tiny
                     })
                     page.wait_for_function("() => Object.keys(app.gui.model_viewer.models).length>=2",timeout=8000)
                     print("USER FILE UPLOAD LOADED AS 3D MODEL",flush=True)
@@ -88,9 +102,9 @@ with sync_playwright() as p:
                     items=menu.locator(".ad4-v3-models-row")
                     assert items.count()>=2
                     names=menu.locator(".ad4-v3-model-name").all_inner_texts()
-                    assert "AD4_demo_cube_20mm.stl" in names, names
-                    assert "user_imported_cube.stl" in names, names
-                    import_row=items.filter(has_text="user_imported_cube.stl")
+                    assert "3DBenchy.stl" in names, names
+                    assert "user_imported_test.stl" in names, names
+                    import_row=items.filter(has_text="user_imported_test.stl")
                     model_uuid=import_row.get_attribute("data-model-uuid")
                     import_row.locator(".ad4-v3-model-select").click()
                     assert page.evaluate("(uuid)=>app.gui.model_viewer.focused===uuid",model_uuid), "Model selection did not reach native scene"

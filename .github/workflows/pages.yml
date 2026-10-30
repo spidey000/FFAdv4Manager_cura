@@ -42,7 +42,8 @@ jobs:
           assert (root/"ad4-studio.js").is_file()
           assert (root/"ad4-studio.css").is_file()
           assert (root/"ad4-v3.js").is_file() and (root/"ad4-v3.css").is_file() and (root/"ad4-printer-dashboard.js").is_file()
-          assert (root/"demo-cube-20mm.stl").is_file()
+          assert (root/"demo-benchy.stl").is_file()
+          assert (root/"demo-benchy.gcode").is_file()
           import json
           guide=json.loads((root/"settings-guide/index.json").read_text())
           assert guide["article_count"]>=600
@@ -132,7 +133,7 @@ jobs:
                       html=response.read().decode("utf-8")
                   assert "__AD4_STATIC_PREVIEW__=true" in html
                   assert "ad4-studio.js" in html
-                  for asset in ("ad4-studio.css","ad4-studio.js","ad4-v3.css","ad4-v3.js","ad4-printer-dashboard.js","demo-cube-20mm.stl","js/app.mjs","resources/cura_data.tar.gz","settings-guide/index.json","settings-guide/articles/resolution/layer_height.md","settings-guide/articles/images/layer_height_0.1.png","screenshots/ad4-studio-desktop.png","screenshots/ad4-studio-mobile.png","screenshots/ad4-studio-settings-mobile.png"):
+                  for asset in ("ad4-studio.css","ad4-studio.js","ad4-v3.css","ad4-v3.js","ad4-printer-dashboard.js","demo-benchy.stl","demo-benchy.gcode","js/app.mjs","resources/cura_data.tar.gz","settings-guide/index.json","settings-guide/articles/resolution/layer_height.md","settings-guide/articles/images/layer_height_0.1.png","screenshots/ad4-studio-desktop.png","screenshots/ad4-studio-mobile.png","screenshots/ad4-studio-settings-mobile.png"):
                       with urllib.request.urlopen(site+asset,timeout=30) as response:
                           assert response.status==200,asset
                   print("Verified live mobile AD4 Studio public preview",site)

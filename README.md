@@ -30,7 +30,7 @@
   <p><sub>Capturas auténticas generadas con Chromium durante la publicación de GitHub Pages: escritorio, visor móvil y ajustes móviles. Muestran la demo estática, sin hardware conectado.</sub></p>
 </div>
 
-**[Abrir demo interactiva →](https://spidey000.github.io/FFAdv4Manager_cura/)** Puedes cargar STL/3MF, explorar la escena, modificar modelos y recorrer el catálogo de ajustes. Se incluye un cubo de calibración de 20 mm; la vista de G-code de ejemplo es una **simulación no imprimible**, no el resultado del motor CuraEngine.
+**[Abrir demo interactiva →](https://spidey000.github.io/FFAdv4Manager_cura/)** Puedes cargar STL/3MF, explorar la escena, modificar modelos y recorrer el catálogo de ajustes. Se incluye un 3DBenchy original de alta resolución (225.706 triángulos); la vista de G-code de ejemplo es un **toolpath auténtico de 3DBenchy, solo para visualización y no apto para imprimir en la Adventurer 4**, no el resultado del motor CuraEngine.
 
 ## Qué puedes hacer
 
@@ -151,7 +151,7 @@ Para acceso remoto, utiliza un túnel privado protegido con autenticación y con
 
 | Documento | Para qué sirve |
 | --- | --- |
-| [Gestor y visor de impresión actual](docs/PRINTER_INTEGRATION.md) | Conexiones, diagnósticos, origen del archivo, cámara y limitaciones |
+| [3DBenchy demo](docs/DEMO_BENCHY.md) | Procedencia del STL original y G-code visual, validación de activos y limitaciones de impresión |\n| [Gestor y visor de impresión actual](docs/PRINTER_INTEGRATION.md) | Conexiones, diagnósticos, origen del archivo, cámara y limitaciones |
 | [Referencia CLI](docs/CLI.md) | Comandos y opciones de <code>ffadv4manager</code> |
 | [API web](docs/WEB_API.md) | Endpoints locales y requisitos de autorización |
 | [Formato GX](docs/AD4_GX_METADATA.md) | Metadatos, miniaturas y validación |

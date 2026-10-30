@@ -28,6 +28,47 @@ SETTING_NAME = re.compile(r"^[a-z][a-zA-Z0-9_]{0,79}$")
 SUPPORTED_GROUPS = {"global", "extruder.0", "/tmp/input/model.stl"}
 LOCK = threading.Lock()
 ACTIVE_PROCESS: subprocess.Popen | None = None
+# One machine/one native engine job at a time. The status is server-observed,
+# never a timer-generated progress guess.
+ACTIVE_PROGRESS = {"job_id": None, "state": "idle", "stage": "", "percent": None, "log_path": None}
+PROGRESS_LINE = re.compile(r"Progress:\s*([a-z+\w-]+):\d+:\d+\s+([\d.]+)%", re.I)
+STAGE_LINE = re.compile(r"Starting (slice|layerparts|inset\+skin|support|export)", re.I)
+
+
+def parse_engine_progress(log: str) -> tuple[str, int | None]:
+    """CuraEngine -v prints fractional completion (e.g. 0.458613%)."""
+    matches = list(PROGRESS_LINE.finditer(log))
+    if matches:
+        final = matches[-1]
+        value = float(final.group(2))
+        # CuraEngine's legacy CLI appends '%' to a fraction in [0, 1].
+        percent = value * 100 if value <= 1 else value
+        return final.group(1), max(0, min(99, int(percent)))
+    phases = list(STAGE_LINE.finditer(log))
+    return (phases[-1].group(1), None) if phases else ("Preparing", None)
+
+
+def progress_snapshot(job_id: str | None = None) -> dict:
+    with LOCK:
+        status = ACTIVE_PROGRESS.copy()
+    if job_id and status["job_id"] != job_id:
+        return {"state": "pending", "stage": "Waiting for CuraEngine", "percent": None}
+    # Read the subprocess log through a second file descriptor; never seek
+    # the writer's file object or hold LOCK while doing filesystem I/O.
+    path = status.get("log_path")
+    if status["state"] == "running" and path:
+        try:
+            with open(path, "rb") as stream:
+                stream.seek(0, os.SEEK_END)
+                stream.seek(max(0, stream.tell() - 131072))
+                raw = stream.read().decode("utf-8", "replace")
+            stage, percent = parse_engine_progress(raw)
+            status["stage"] = stage
+            status["percent"] = percent
+        except OSError:
+            pass
+    return {key: status[key] for key in ("state", "stage", "percent")}
+
 
 # These are the official Adventurer 4 start/end G-code commands as shipped
 # in Ultimaker Cura, not commands supplied by a remote browser.
@@ -158,6 +199,10 @@ def cancel_slice() -> bool:
     with LOCK:
         process = ACTIVE_PROCESS
     if process and process.poll() is None:
+        with LOCK:
+            ACTIVE_PROGRESS["state"] = "cancelled"
+            ACTIVE_PROGRESS["stage"] = "Cancelled"
+            ACTIVE_PROGRESS["percent"] = None
         process.terminate()
         return True
     return False
@@ -181,7 +226,7 @@ def finalized_gcode(gcode: str, engine_log: str) -> str:
     return gcode
 
 
-def slice_model(stl: bytes, settings: dict, *, timeout: int = 240) -> SliceResult:
+def slice_model(stl: bytes, settings: dict, *, timeout: int = 240, job_id: str = "") -> SliceResult:
     global ACTIVE_PROCESS
     executable = engine_binary()
     with tempfile.TemporaryDirectory(prefix="ad4-cura-") as directory:
@@ -195,11 +240,11 @@ def slice_model(stl: bytes, settings: dict, *, timeout: int = 240) -> SliceResul
             for group, values in settings.items()
         }
         settings_path.write_text(json.dumps(resolved, ensure_ascii=False), encoding="utf-8")
-        argv = [executable, "slice", "-r", str(settings_path), "-o", str(output_path)]
+        argv = [executable, "slice", "-v", "-r", str(settings_path), "-o", str(output_path)]
         with LOCK:
             if ACTIVE_PROCESS and ACTIVE_PROCESS.poll() is None:
                 raise SlicingError("Another server-side slice is in progress")
-            engine_log = tempfile.TemporaryFile()
+            engine_log = (root / "engine.log").open("w+b")
             try:
                 proc = subprocess.Popen(
                     argv, cwd=str(root), stdin=subprocess.DEVNULL,
@@ -210,6 +255,9 @@ def slice_model(stl: bytes, settings: dict, *, timeout: int = 240) -> SliceResul
                 engine_log.close()
                 raise
             ACTIVE_PROCESS = proc
+            ACTIVE_PROGRESS.update(job_id=job_id, state="running", stage="Preparing",
+                                   percent=None, log_path=str(root / "engine.log"))
+        succeeded = False
         try:
             try:
                 proc.communicate(timeout=timeout)
@@ -231,10 +279,17 @@ def slice_model(stl: bytes, settings: dict, *, timeout: int = 240) -> SliceResul
             seconds = int(match.group(1)) if match else None
             match = re.search(r"(?mi)^;filament used:\s*([\d.]+)\s*m\b", gcode)
             filament = float(match.group(1)) * 1000 if match else None
+            succeeded = True
             return SliceResult(gcode, seconds, filament)
         finally:
             engine_log.close()
             with LOCK:
                 if ACTIVE_PROCESS is proc:
                     ACTIVE_PROCESS = None
+                if ACTIVE_PROGRESS["job_id"] == job_id:
+                    if ACTIVE_PROGRESS["state"] != "cancelled":
+                        ACTIVE_PROGRESS["state"] = "completed" if succeeded else "failed"
+                        ACTIVE_PROGRESS["stage"] = "Complete" if succeeded else "Failed"
+                        ACTIVE_PROGRESS["percent"] = 100 if succeeded else None
+                    ACTIVE_PROGRESS["log_path"] = None
 

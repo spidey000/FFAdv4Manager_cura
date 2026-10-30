@@ -27,7 +27,11 @@ def build():
         shutil.copy2(UP/f,DEST/f)
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
+    # Keep performant viewer code as tracked overlays, never edit generated frontend.
+    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-stl-worker-client.mjs"):
+        shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
+    shutil.copy2(OV/"public/ad4-stl-worker.js", DEST/"public/ad4-stl-worker.js")
     for name in ("ad4-manager-tools.js", "ad4-manager-tools.css", "ad4-live-job.js", "ad4-live-job.css"):
         shutil.copy2(OV/"public"/name, DEST/"public"/name)
     shutil.copy2(OV/"public/ad4.css",DEST/"public/ad4.css")
@@ -38,8 +42,10 @@ def build():
     shutil.copy2(OV/"public/ad4-printer-dashboard.js",DEST/"public/ad4-printer-dashboard.js")
     shutil.copy2(OV/"public/ad4-v3.css",DEST/"public/ad4-v3.css")
     shutil.copy2(OV/"public/ad4-slide-ruler.js",DEST/"public/ad4-slide-ruler.js")
-    shutil.copy2(OV/"public/demo-cube-20mm.stl",DEST/"public/demo-cube-20mm.stl")
-    shutil.copy2(OV/"public/demo-cube-20mm.gcode",DEST/"public/demo-cube-20mm.gcode")
+    # Download exact full-resolution Benchy from the original creators and the
+    # pinned read-only G-code preview used for independent 3D viewer testing.
+    from fetch_demo_benchy import download_demo
+    download_demo(DEST/"public")
     shutil.copy2(OV/"src/gui/ad4-presets.mjs",DEST/"src/gui/ad4-presets.mjs")
     shutil.copy2(OV/"src/gui/ad4-settings.mjs",DEST/"src/gui/ad4-settings.mjs")
     shutil.copy2(OV/"src/gui/ad4-setting-help.mjs",DEST/"src/gui/ad4-setting-help.mjs")
@@ -160,44 +166,30 @@ main().catch(error => {
     start=viewer_source.index("  for (let layer of parsed_data) {")
     stop=viewer_source.index("  let machine_settings =",start)
     viewer_source=viewer_source[:start]+"""
-  // Separate actual toolpaths by Cura TYPE so visibility toggles affect geometry.
-  const categoryColors={
-    "WALL-OUTER":0xff443d,"WALL-INNER":0x37cf74,
-    "SKIN":0xffdc46,"FILL":0xffa526,"SUPPORT":0x8c80ff,
-    "SUPPORT-INTERFACE":0xbd88ff,"SKIRT":0x00c6bb,
-    "BRIM":0x38cbad,"RAFT":0x64ba9f,"TRAVEL":0x13dbe9,
-    "OTHER":0x98a6a1
-  };
-  const categoryKeys=new Set();
-  for(const layer of parsed_data){
-    const group=new THREE.Group();
-    let previous=null,activeType=null,geometry=null,segments=0;
-    const finishRun=()=>{
-      if(!geometry||!segments)return;
-      geometry.finish();
-      const part=new THREE.Mesh(geometry,new THREE.MeshPhysicalMaterial({vertexColors:true}));
-      part.userData.ad4Category=activeType;
-      group.add(part);categoryKeys.add(activeType);
-    };
-    for(const point of layer){
-      const key=point.type==="travel"?"TRAVEL":(point.subtype||"OTHER").trim().toUpperCase();
-      if(key!==activeType){
-        finishRun();activeType=key;geometry=new LayerLineGeometry(4);segments=0;
-      }
-      if(previous){
-        const color=new THREE.Color(categoryColors[key]??categoryColors.OTHER);
-        geometry.add({point:previous.vector,color,radius:key==="TRAVEL"?0.025:0.2});
-        geometry.add({point:point.vector,color,radius:key==="TRAVEL"?0.025:0.2});
-        segments++;
-      }
-      previous=point;
-    }
-    finishRun();
-    mesh.add(group);layers.push(group);
+  // Batched, GPU-efficient preview with a documented display-only LOD budget.
+  // The original G-code is always kept intact for export and printer upload.
+  const built = await buildGcodeLayers(parsed_data);
+  for (const group of built.layers) {
+    mesh.add(group);
+    layers.push(group);
   }
-  globalThis.__AD4_GCODE_CATEGORIES__=[...categoryKeys].sort();
+  globalThis.__AD4_GCODE_CATEGORIES__ = built.categories;
+  globalThis.AD4GcodePreviewStats = {
+    sourceSegments: built.segmentCount,
+    displayedSegments: built.displayed,
+    simplified: built.simplified
+  };
+  renderer.invalidate();
 """ + viewer_source[stop:]
-    gcode_file.write_text(viewer_source)
+    gcode_file.write_text(
+        'import {buildGcodeLayers, disposeGcodeLayers} from "./ad4-gcode-geometry.mjs";\n'
+        + viewer_source
+    )
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          "  scene.remove(gcode_mesh);\n  gcode_mesh = null;\n  layers = [];",
+          "  scene.remove(gcode_mesh);\n  disposeGcodeLayers(gcode_mesh);\n"
+          "  gcode_mesh = null;\n  layers = [];\n"
+          "  globalThis.AD4GcodePreviewStats = null;\n  renderer.invalidate();")
 
     gcode_file.write_text(gcode_file.read_text()+"""
 // The ranges are 1-based inclusive and operate on parsed Cura G-code groups.
@@ -211,7 +203,7 @@ globalThis.AD4GCodePreview = {
   get types(){return globalThis.__AD4_GCODE_CATEGORIES__||[]},
   hiddenTypes:new Set(),
   setTypeVisible(type,visible){if(visible)this.hiddenTypes.delete(type);else this.hiddenTypes.add(type);this.refreshTypes()},
-  refreshTypes(){for(const group of layers)for(const part of group.children)part.visible=!this.hiddenTypes.has(part.userData.ad4Category)},
+  refreshTypes(){for(const group of layers)for(const part of group.children)part.visible=!this.hiddenTypes.has(part.userData.ad4Category);renderer.invalidate()},
   setRange(from,to){
     const a=Math.max(1,Math.min(layers.length,Math.round(Number(from)||1)));
     const b=Math.max(a,Math.min(layers.length,Math.round(Number(to)||1)));
@@ -235,6 +227,25 @@ globalThis.AD4GCodePreview = {
     0,
     centered ? 0 : stack.resolve_setting("machine_depth") / 2
   );""")
+
+    # An external 3DBenchy toolpath was sliced for a different printer bed;
+    # center ONLY its visualization in static Pages. Do not mutate G-code.
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          "  mesh.rotation.set(-Math.PI / 2, 0, 0);",
+          """  mesh.rotation.set(-Math.PI / 2, 0, 0);
+  if (globalThis.__AD4_STATIC_PREVIEW__ && globalThis.AD4DemoBenchyLoaded) {
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    for (const layer of parsed_data) for (const point of layer) {
+      if (point.type !== "print") continue;
+      const p=point.vector;
+      minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);
+      minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y);
+    }
+    if (Number.isFinite(minX) && Number.isFinite(minY)) {
+      mesh.position.x=-(minX+maxX)/2;
+      mesh.position.z=(minY+maxY)/2;
+    }
+  }""")
 
     patch("src/gui/viewer/viewer.mjs",
           '    let res = await fetch("resources/meshes/" + model_filename);',
@@ -270,6 +281,11 @@ globalThis.AD4GCodePreview = {
           "let excluded_materials = this.parent_meta.exclude_materials ?? [];")
     patch("src/gui/options.mjs","filament_name.innerText = material_name;",
           'filament_name.innerText = "Artillery PLA Basic";')
+    # The GPU must repaint when drag transforms change a heavy mesh; do not
+    # fall back to the old continuous 60 FPS render loop.
+    patch("src/gui/viewer/model_viewer.mjs",
+          "model_controls.enabled = false;",
+          "model_controls.enabled = false;\nmodel_controls.addEventListener('change', renderer.invalidate);")
     # Upstream only removes the Three.js mesh but leaves it registered; fix
     # both the scene bookkeeping and stale imported filename at the source.
     patch("src/gui/viewer/model_viewer.mjs",
@@ -277,6 +293,13 @@ globalThis.AD4GCodePreview = {
           "    scene.remove(models[focused].mesh);\n    delete interactions.scene_objects[focused];\n"
           "    delete models[focused];\n    focused = null;\n"
           "    document.dispatchEvent(new CustomEvent('ad4:models-changed', {detail:{count:Object.keys(models).length}}));")
+    patch("src/gui/viewer/model_viewer.mjs",
+          "    scene.remove(models[focused].mesh);\n    delete interactions.scene_objects[focused];",
+          "    scene.remove(models[focused].mesh);\n"
+          "    models[focused].mesh.geometry.dispose();\n"
+          "    models[focused].mesh.material.dispose();\n"
+          "    renderer.invalidate();\n"
+          "    delete interactions.scene_objects[focused];")
     patch("src/gui/file.mjs",
           "export let stl_file_name = null;",
           "export let stl_file_name = null;\n"
@@ -291,7 +314,14 @@ globalThis.AD4GCodePreview = {
           '    load_model(array_buffer, stl_file_name.endsWith(".stl") ? "stl" : "3mf", reader.file_name);')
     patch("src/gui/viewer/model_viewer.mjs",
           'export function load_model(raw_data, model_type) {',
-          'export function load_model(raw_data, model_type, file_name = "") {')
+          'export async function load_model(raw_data, model_type, file_name = "") {')
+    patch("src/gui/viewer/model_viewer.mjs",
+          'import * as THREE from "three";',
+          'import * as THREE from "three";\n'
+          'import {parseStlGeometry} from "./ad4-stl-worker-client.mjs";')
+    patch("src/gui/viewer/model_viewer.mjs",
+          '      viewer.stl_loader.parse(raw_data),',
+          '      await parseStlGeometry(raw_data, viewer.stl_loader),')
     patch("src/gui/viewer/model_viewer.mjs",
           '  models[mesh.uuid] = {\n    mesh: mesh,\n    data: raw_data\n  };',
           '  mesh.name = file_name || ("Model " + (Object.keys(models).length + 1));\n'
@@ -318,7 +348,7 @@ export function ad4_select_model(uuid) {
 export function ad4_set_model_visible(uuid, visible) {
   const model = models[uuid];
   if (!model) return false;
-  model.mesh.visible = Boolean(visible); // export_stl() still includes all models.
+  model.mesh.visible = Boolean(visible); // export_stl() still includes all models.\n  renderer.invalidate();
   if (!visible && focused === uuid && model_controls.enabled) {
     model_controls.detach();
     scene.remove(model_controls.getHelper());
@@ -355,6 +385,27 @@ export function ad4_delete_model(uuid) {
         '    notify("Server-side CuraEngine unavailable", error?.message || String(error));\n'
         '  }\n'
         '});', 1)
+    # The percentage must come from CuraEngine, not a simulated timer.
+    action_code=action_code.replace(
+        '  slice_progress_bar.style.width = "0%";',
+        '''  slice_progress_bar.style.width = "0%";
+  slice_progress_bar.setAttribute("role", "progressbar");
+  slice_progress_bar.setAttribute("aria-label", "CuraEngine slicing progress");
+  slice_progress_bar.setAttribute("aria-valuemin", "0");
+  slice_progress_bar.setAttribute("aria-valuemax", "100");''', 1)
+    action_code=action_code.replace(
+        '    slice_progress_bar.style.width = `${progress * 100}%`;',
+        '''    if (Number.isFinite(progress)) {
+      const value = Math.round(progress * 100);
+      slice_progress_bar.style.width = value + "%";
+      slice_progress_bar.setAttribute("aria-valuenow", String(value));
+      slice_progress_bar.classList.remove("ad4-indeterminate");
+    } else {
+      slice_progress_bar.removeAttribute("aria-valuenow");
+      slice_progress_bar.classList.add("ad4-indeterminate");
+    }''', 1)
+    if 'classList.add("ad4-indeterminate")' not in action_code:
+        raise RuntimeError("Mosaic progress bar callback changed")
     actions.write_text(action_code)
     html=DEST/"public/index.html"
     source=html.read_text()

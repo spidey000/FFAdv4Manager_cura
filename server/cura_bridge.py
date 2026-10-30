@@ -4,12 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 
 from . import ad4_bridge as bridge
-from .mosaic_slicer import MAX_FRAME, SlicingError, cancel_slice, engine_binary, parse_frame, slice_model
+from .mosaic_slicer import MAX_FRAME, SlicingError, cancel_slice, engine_binary, parse_frame, slice_model, progress_snapshot
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "frontend" / "dist"
@@ -17,6 +18,13 @@ DIST = ROOT / "frontend" / "dist"
 
 class MosaicHandler(bridge.Handler):
     def do_GET(self):
+        if urlsplit(self.path).path == "/api/slice/progress":
+            if not self.request_authorized():
+                return self.json(401 if bridge.ACCESS_CONFIG else 403, {"error": "Unauthorized"})
+            requested = parse_qs(urlsplit(self.path).query).get("job_id", [""])[0]
+            if requested and not re.fullmatch(r"[0-9a-fA-F-]{1,64}", requested):
+                return self.json(400, {"error": "Invalid job identifier"})
+            return self.json(200, progress_snapshot(requested))
         if urlsplit(self.path).path == "/api/slice/engine":
             if not self.request_authorized():
                 return self.json(401 if bridge.ACCESS_CONFIG else 403, {"error": "Unauthorized"})
@@ -42,7 +50,10 @@ class MosaicHandler(bridge.Handler):
             if size < 88 or size > MAX_FRAME:
                 return self.json(413, {"error": "Invalid model or settings size"})
             model, settings = parse_frame(self.rfile.read(size))
-            result = slice_model(model, settings)
+            job_id = self.headers.get("X-AD4-Slice-Id", "")
+            if job_id and not re.fullmatch(r"[0-9a-fA-F-]{1,64}", job_id):
+                return self.json(400, {"error": "Invalid job identifier"})
+            result = slice_model(model, settings, job_id=job_id)
             return self.json(200, {
                 "gcode": result.gcode,
                 "time_seconds": result.seconds,
