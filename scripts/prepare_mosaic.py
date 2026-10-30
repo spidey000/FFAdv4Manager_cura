@@ -264,6 +264,57 @@ globalThis.AD4GCodePreview = {
           "document.addEventListener('ad4:models-changed', event => {\n"
           "  if (event.detail.count === 0) stl_file_name = null;\n"
           "});")
+    # Expose stable named model operations to the mobile model-list UI.
+    # They operate on Mosaic's authoritative registry and selection, not a
+    # second, disconnected UI-side collection.
+    patch("src/gui/file.mjs",
+          '    load_model(array_buffer, stl_file_name.endsWith(".stl") ? "stl" : "3mf");',
+          '    load_model(array_buffer, stl_file_name.endsWith(".stl") ? "stl" : "3mf", reader.file_name);')
+    patch("src/gui/viewer/model_viewer.mjs",
+          'export function load_model(raw_data, model_type) {',
+          'export function load_model(raw_data, model_type, file_name = "") {')
+    patch("src/gui/viewer/model_viewer.mjs",
+          '  models[mesh.uuid] = {\n    mesh: mesh,\n    data: raw_data\n  };',
+          '  mesh.name = file_name || ("Model " + (Object.keys(models).length + 1));\n'
+          '  models[mesh.uuid] = {\n    mesh: mesh,\n    data: raw_data,\n'
+          '    name: mesh.name\n  };')
+    patch("src/gui/viewer/model_viewer.mjs",
+          '  focus_stl(mesh.uuid);\n\n  let sceneobj',
+          "  focus_stl(mesh.uuid);\n"
+          "  document.dispatchEvent(new CustomEvent('ad4:models-changed', {detail:{count:Object.keys(models).length}}));\n\n"
+          "  let sceneobj")
+    model_source = DEST / "src/gui/viewer/model_viewer.mjs"
+    model_source.write_text(model_source.read_text() + """
+// Public model-list operations, bound to Mosaic's own selected mesh.
+export function ad4_select_model(uuid) {
+  if (!Object.prototype.hasOwnProperty.call(models, uuid)) return false;
+  if (focused !== uuid) focus_stl(uuid);
+  return true;
+}
+export function ad4_set_model_visible(uuid, visible) {
+  const model = models[uuid];
+  if (!model) return false;
+  model.mesh.visible = Boolean(visible); // export_stl() still includes all models.
+  if (!visible && focused === uuid && model_controls.enabled) {
+    model_controls.detach();
+    scene.remove(model_controls.getHelper());
+    model_controls.enabled = false;
+  }
+  return true;
+}
+export function ad4_delete_model(uuid) {
+  if (!Object.prototype.hasOwnProperty.call(models, uuid)) return false;
+  if (focused !== uuid) focus_stl(uuid);
+  if (model_controls.enabled) {
+    model_controls.detach();
+    scene.remove(model_controls.getHelper());
+    model_controls.enabled = false;
+  }
+  delete_model(); // existing source-patched deletion also prunes the registry.
+  clear_slice_state();
+  return true;
+}
+""")
     # Network failures/cancellations must restore the Slice button instead of
     # leaving MosaicSlicer's progress state stuck indefinitely.
     actions=DEST/"src/gui/actions.mjs"
