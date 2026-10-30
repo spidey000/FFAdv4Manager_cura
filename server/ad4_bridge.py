@@ -518,11 +518,21 @@ class Handler(SimpleHTTPRequestHandler):
         # Server-only recording/encoding must not hold the physical-printer write lock.
         if path in ('/api/printer/timelapse', '/api/printer/timelapses/delete', '/api/printer/notifications'):
             return self.printer_post(path, url)
+        body = None
+        if path == '/api/printer/actions':
+            try:
+                body = self.data()
+            except (ValueError, TypeError) as error:
+                return self.json(422, {'error': str(error)})
+            # Urgent job controls use their own TCP command connection. They must
+            # remain responsive during uploads, source downloads and MP4 encoding.
+            if isinstance(body, dict) and body.get('action') in ('pause', 'resume', 'cancel'):
+                return self.printer_post(path, url, body)
         # Pin the connection and serialize writes through the whole transaction.
         with PRINTER_WRITE_LOCK:
-            return self.printer_post(path, url)
+            return self.printer_post(path, url, body)
 
-    def printer_post(self, path, url):
+    def printer_post(self, path, url, body=None):
         try:
             if path in ('/api/printer/jobs', '/api/printer/upload'):
                 size = int(self.headers.get('Content-Length', '0'))
@@ -592,7 +602,7 @@ class Handler(SimpleHTTPRequestHandler):
                                        'timelapse_error': timelapse_error,
                                        'preview_error': preview_error,
                                        'detail': output[-1000:]})
-            body = self.data()
+            body = self.data() if body is None else body
             if not isinstance(body, dict):
                 raise ValueError('Formato JSON no válido')
             if path == '/api/printer/actions':

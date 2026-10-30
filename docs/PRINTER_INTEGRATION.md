@@ -21,7 +21,9 @@ The existing Printer manager now includes:
   server and stops after one hour; closing the browser does not cancel it.
 
 All file/tool routes use the bridge's existing same-origin authentication.
-Uploads and connection changes are serialized. Tool routes never accept
+Uploads, new print starts and connection changes are serialized; urgent pause,
+resume and cancel controls remain responsive during a transfer or encoding.
+Tool routes never accept
 arbitrary server file paths or shell commands. Connection forms accept private
 IPv4 printer addresses. Diagnostics remain available if the printer is offline.
 
