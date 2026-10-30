@@ -209,13 +209,18 @@ class FlashForgeClient:
         return select_response + "\n" + start_response
 
     def pause(self) -> str:
-        return self.command("M25")
+        return self._job_action("M25", "pause")
 
     def resume(self) -> str:
-        return self.command("M24")
+        return self._job_action("M24", "resume")
 
     def cancel(self) -> str:
-        return self.command("M26")
+        return self._job_action("M26", "cancel")
+
+    def _job_action(self, code: str, action: str) -> str:
+        response = self.command(code)
+        _require_ack(action, response)
+        return response
 
     def _connect(self, timeout: float | None = None) -> socket.socket:
         sock = socket.create_connection((self.host, self.port), timeout=timeout or self.timeout)

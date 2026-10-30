@@ -333,9 +333,12 @@ def main(argv: list[str] | None = None) -> int:
         return _handle_profiles(args)
 
     if args.command == "slicer":
-        from server.ad4_bridge import serve
+        from server.cura_bridge import serve
 
         try:
+            from server import ad4_bridge
+            if args.profile or args.host:
+                ad4_bridge.SELECTED.update(profile=args.profile, host=None if args.profile else args.host)
             serve(require_access=args.require_access)
             return 0
         except Exception as exc:  # noqa: BLE001
@@ -440,7 +443,7 @@ def main(argv: list[str] | None = None) -> int:
             print((client.set_fan(255) if args.fan_action == "on" else client.fan_off()).rstrip())
         elif args.command == "upload":
             status = client.status()
-            if status.is_printing and not args.force:
+            if status.has_active_job and not args.force:
                 print(
                     "Printer appears to be printing. Use --force to upload anyway.",
                     file=sys.stderr,
@@ -468,7 +471,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(client.print_file(remote, response_callback=response_callback))
         elif args.command == "print":
             status = client.status()
-            if status.is_printing and not args.force:
+            if status.has_active_job and not args.force:
                 print(
                     "Printer appears to be printing. Use --force to start another job anyway.",
                     file=sys.stderr,

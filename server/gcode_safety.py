@@ -6,11 +6,12 @@ guarantee of correct hardware temperature or material selection.
 import re
 import struct
 from pathlib import Path
+from ffadv4manager.core.job_file import executable_gcode
 
 NOZZLE_MAX = 220
 BED_MAX = 65
-COMMAND = re.compile(r"^(?:N\d+\s+)?(M104|M109|M140|M190)\b", re.I)
-PARAM = re.compile(r"\b[SR]\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+))\b", re.I)
+COMMAND = re.compile(r"^(?:N\d+\s*)?(M104|M109|M140|M190)(?=[A-Z\s]|$)", re.I)
+PARAM = re.compile(r"[SR]\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+))", re.I)
 METADATA = re.compile(
     r"^\s*;\s*(nozzle_temperature|first_layer_temperature|"
     r"bed_temperature|first_layer_bed_temperature)\s*[:=]\s*"
@@ -20,6 +21,7 @@ METADATA = re.compile(
 def require_safe_artillery_heating(payload, filename):
     """Raise ValueError before calling the printer CLI for unsafe input."""
     suffix = Path(filename).suffix.lower()
+    code_payload = executable_gcode(payload, filename)
     if suffix == ".gx":
         # FlashForge GX metadata: 8 signed 16-bit slots starting at byte 42.
         # Reject truncated/unrecognized GX payloads; do not trust the extension.
@@ -31,19 +33,18 @@ def require_safe_artillery_heating(payload, filename):
             raise ValueError(
                 f"GX temperatures exceed Artillery PLA limits or are missing "
                 f"(nozzle {nozzle} / {NOZZLE_MAX}, bed {bed} / {BED_MAX} °C)")
-        return
 
     # G-code uploads are text, including Cura's metadata and actual commands.
-    if suffix not in (".gcode", ".gco", ".g"):
+    if suffix not in (".gx", ".gcode", ".gco", ".g"):
         raise ValueError("Unsupported upload format")
-    for index, line in enumerate(payload.decode("utf-8", errors="replace").splitlines(), 1):
+    for index, line in enumerate(code_payload.decode("utf-8", errors="replace").splitlines(), 1):
         meta = METADATA.fullmatch(line)
         if meta:
             key, raw = meta.groups()
             limit = BED_MAX if "bed" in key.lower() else NOZZLE_MAX
             if float(raw) > limit:
                 raise ValueError(f"Artillery PLA: line {index} metadata exceeds {limit} °C")
-        code = line.split(";", 1)[0].strip()
+        code = re.sub(r"\([^)]*\)", "", line.split(";", 1)[0]).strip()
         match = COMMAND.match(code)
         if not match:
             continue

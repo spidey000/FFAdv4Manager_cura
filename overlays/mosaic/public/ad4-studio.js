@@ -161,13 +161,13 @@
     () => {
       if (staticPreview) return;
       byId("ad4-open-manager")?.click();
-      byId("ad4-upload")?.click();
+      globalThis.AD4Printer?.upload(false);
     });
   const printButton = button("ad4-dock-print", "Print", "ad4-dock-primary",
     () => {
       if (staticPreview) return;
       byId("ad4-open-manager")?.click();
-      byId("ad4-send-print")?.click();
+      globalThis.AD4Printer?.upload(true);
     });
   const stateNode = byId("ad4-dock-state");
   const detailNode = byId("ad4-dock-detail");

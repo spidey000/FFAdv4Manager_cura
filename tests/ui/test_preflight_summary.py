@@ -3,7 +3,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 def test_summary_save_reset_and_stale_gcode():
     code=(ROOT/"overlays/mosaic/src/gui/ad4-settings.mjs").read_text()
-    assert "ad4-profile-summary-content" in code
+    assert "ad4-presets-panel" in code
     assert "ad4-settings-footer" in code
     assert 'choose(type,"")' in code
     assert 'new Event("ad4:gcode-stale")' in code

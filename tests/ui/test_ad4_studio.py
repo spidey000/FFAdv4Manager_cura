@@ -39,8 +39,8 @@ def test_drawer_and_accessibility():
 def test_real_slicing_and_printer_only():
     script = (OVERLAY / "ad4-studio.js").read_text()
     assert 'byId("slice-button")?.click()' in script
-    assert 'byId("ad4-upload")?.click()' in script
-    assert 'byId("ad4-send-print")?.click()' in script
+    assert 'globalThis.AD4Printer?.upload(false)' in script
+    assert 'globalThis.AD4Printer?.upload(true)' in script
     assert "AD4_STATIC_PREVIEW" in script
     assert "engineAvailable" in script
     assert 'setAttribute("disabled", "")' in script

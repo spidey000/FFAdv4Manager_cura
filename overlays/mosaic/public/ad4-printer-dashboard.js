@@ -50,7 +50,7 @@
    const section=button.closest("[data-printer-card]")?.dataset.printerCard;
    // Connection profiles and 'Doctor' can work when the printer is offline,
    // provided the private server is available.
-   button.disabled=demo||(!connected&&!(backend&&["connection","diagnostics"].includes(section)));
+   button.disabled=demo||(!connected&&!(backend&&["connection","diagnostics","timelapse"].includes(section)));
    button.title=button.disabled?(demo?"Requires private server":"Printer disconnected or server unavailable"):"";
   }
   $("ad4-printer-refresh").disabled=demo;

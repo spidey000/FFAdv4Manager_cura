@@ -50,6 +50,6 @@ def test_enhanced_printer_features_not_replaced_by_old_manager():
 def test_studio_actions_still_target_enhanced_manager():
     studio = STUDIO.read_text(encoding="utf-8")
     manager = MANAGER.read_text(encoding="utf-8")
-    for control in ("ad4-open-manager", "ad4-upload", "ad4-send-print"):
+    for control in ("ad4-open-manager", "AD4Printer"):
         assert control in studio and control in manager
     assert "exported_gcode" in manager
