@@ -428,8 +428,49 @@ function setTransform(next){
  updateCompactValues();
  requestAnimationFrame(initRulers);
 }
-function updateCompactValues(){if(!activeViewerMode)return;for(const axis of ["x","y","z"]){const row=compactValues.querySelectorAll(".ad4-viewer-value-row")[["x","y","z"].indexOf(axis)];const field=row.querySelector("input");if(document.activeElement!==field){const v=Number(sourceAxis(axis)?.value);field.value=Number.isFinite(v)?String(Number(v.toFixed(3))):""}row.querySelector(".ad4-viewer-value-unit").textContent=units[mode]}}
-setInterval(updateCompactValues,450);
+// Read the live Three.js mesh rather than the native text inputs: upstream
+// updates those inputs only after dragging ends, so they lag the gizmo.
+function liveTransformValue(mesh,axis){
+ if(mode==="scale")return mesh.scale[axis]*100;
+ if(mode==="rotate")return mesh.rotation[axis]*180/Math.PI+(axis==="x"?90:0);
+ if(axis==="x")return mesh.position.x;
+ if(axis==="y")return mesh.position.z;
+ mesh.geometry?.computeBoundingBox?.();
+ const half=(mesh.geometry?.boundingBox?.max?.z-mesh.geometry?.boundingBox?.min?.z)/2||0;
+ return mesh.position.y-half;
+}
+function updateCompactValues(){
+ if(!activeViewerMode)return;
+ const mv=globalThis.app?.gui?.model_viewer;
+ const mesh=mv?.models?.[mv.focused]?.mesh;
+ const rows=compactValues.querySelectorAll(".ad4-viewer-value-row");
+ for(const [i,axis] of ["x","y","z"].entries()){
+  const row=rows[i],field=row.querySelector("input");
+  if(document.activeElement!==field){
+   const value=mesh?liveTransformValue(mesh,axis):Number(sourceAxis(axis)?.value);
+   const next=Number.isFinite(value)?String(Number(value.toFixed(3))):"";
+   if(field.value!==next)field.value=next;
+  }
+  row.querySelector(".ad4-viewer-value-unit").textContent=units[mode];
+ }
+}
+// TransformControls emits objectChange on every drag update, not only mouseUp.
+let liveValueFrame=0;
+function scheduleLiveTransformValues(){
+ if(liveValueFrame)return;
+ liveValueFrame=requestAnimationFrame(()=>{liveValueFrame=0;updateCompactValues()});
+}
+function bindLiveTransformValues(){
+ const controls=globalThis.app?.gui?.model_viewer?.model_controls;
+ if(!controls||controls.__ad4LiveValuesBound)return;
+ controls.__ad4LiveValuesBound=true;
+ controls.addEventListener("objectChange",scheduleLiveTransformValues);
+ controls.addEventListener("mouseDown",scheduleLiveTransformValues);
+ controls.addEventListener("mouseUp",scheduleLiveTransformValues);
+}
+bindLiveTransformValues();
+// Also pick up model selection / programmatic transforms without dragging.
+setInterval(()=>{bindLiveTransformValues();updateCompactValues()},250);
 /* Actual three.js camera, no fake screenshots or alternative model renderer. */
 function cameraView(preset){
  const renderer=globalThis.app?.gui?.renderer;
