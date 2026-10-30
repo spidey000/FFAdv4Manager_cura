@@ -27,6 +27,9 @@ def build():
         shutil.copy2(UP/f,DEST/f)
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
+    # Keep performant viewer code as tracked overlays, never edit generated frontend.
+    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs"):
+        shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     for name in ("ad4-manager-tools.js", "ad4-manager-tools.css", "ad4-live-job.js", "ad4-live-job.css"):
         shutil.copy2(OV/"public"/name, DEST/"public"/name)
@@ -160,44 +163,30 @@ main().catch(error => {
     start=viewer_source.index("  for (let layer of parsed_data) {")
     stop=viewer_source.index("  let machine_settings =",start)
     viewer_source=viewer_source[:start]+"""
-  // Separate actual toolpaths by Cura TYPE so visibility toggles affect geometry.
-  const categoryColors={
-    "WALL-OUTER":0xff443d,"WALL-INNER":0x37cf74,
-    "SKIN":0xffdc46,"FILL":0xffa526,"SUPPORT":0x8c80ff,
-    "SUPPORT-INTERFACE":0xbd88ff,"SKIRT":0x00c6bb,
-    "BRIM":0x38cbad,"RAFT":0x64ba9f,"TRAVEL":0x13dbe9,
-    "OTHER":0x98a6a1
-  };
-  const categoryKeys=new Set();
-  for(const layer of parsed_data){
-    const group=new THREE.Group();
-    let previous=null,activeType=null,geometry=null,segments=0;
-    const finishRun=()=>{
-      if(!geometry||!segments)return;
-      geometry.finish();
-      const part=new THREE.Mesh(geometry,new THREE.MeshPhysicalMaterial({vertexColors:true}));
-      part.userData.ad4Category=activeType;
-      group.add(part);categoryKeys.add(activeType);
-    };
-    for(const point of layer){
-      const key=point.type==="travel"?"TRAVEL":(point.subtype||"OTHER").trim().toUpperCase();
-      if(key!==activeType){
-        finishRun();activeType=key;geometry=new LayerLineGeometry(4);segments=0;
-      }
-      if(previous){
-        const color=new THREE.Color(categoryColors[key]??categoryColors.OTHER);
-        geometry.add({point:previous.vector,color,radius:key==="TRAVEL"?0.025:0.2});
-        geometry.add({point:point.vector,color,radius:key==="TRAVEL"?0.025:0.2});
-        segments++;
-      }
-      previous=point;
-    }
-    finishRun();
-    mesh.add(group);layers.push(group);
+  // Batched, GPU-efficient preview with a documented display-only LOD budget.
+  // The original G-code is always kept intact for export and printer upload.
+  const built = await buildGcodeLayers(parsed_data);
+  for (const group of built.layers) {
+    mesh.add(group);
+    layers.push(group);
   }
-  globalThis.__AD4_GCODE_CATEGORIES__=[...categoryKeys].sort();
+  globalThis.__AD4_GCODE_CATEGORIES__ = built.categories;
+  globalThis.AD4GcodePreviewStats = {
+    sourceSegments: built.segmentCount,
+    displayedSegments: built.displayed,
+    simplified: built.simplified
+  };
+  renderer.invalidate();
 """ + viewer_source[stop:]
-    gcode_file.write_text(viewer_source)
+    gcode_file.write_text(
+        'import {buildGcodeLayers, disposeGcodeLayers} from "./ad4-gcode-geometry.mjs";\n'
+        + viewer_source
+    )
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          "  scene.remove(gcode_mesh);\n  gcode_mesh = null;\n  layers = [];",
+          "  scene.remove(gcode_mesh);\n  disposeGcodeLayers(gcode_mesh);\n"
+          "  gcode_mesh = null;\n  layers = [];\n"
+          "  globalThis.AD4GcodePreviewStats = null;\n  renderer.invalidate();")
 
     gcode_file.write_text(gcode_file.read_text()+"""
 // The ranges are 1-based inclusive and operate on parsed Cura G-code groups.
@@ -211,7 +200,7 @@ globalThis.AD4GCodePreview = {
   get types(){return globalThis.__AD4_GCODE_CATEGORIES__||[]},
   hiddenTypes:new Set(),
   setTypeVisible(type,visible){if(visible)this.hiddenTypes.delete(type);else this.hiddenTypes.add(type);this.refreshTypes()},
-  refreshTypes(){for(const group of layers)for(const part of group.children)part.visible=!this.hiddenTypes.has(part.userData.ad4Category)},
+  refreshTypes(){for(const group of layers)for(const part of group.children)part.visible=!this.hiddenTypes.has(part.userData.ad4Category);renderer.invalidate()},
   setRange(from,to){
     const a=Math.max(1,Math.min(layers.length,Math.round(Number(from)||1)));
     const b=Math.max(a,Math.min(layers.length,Math.round(Number(to)||1)));
@@ -270,6 +259,11 @@ globalThis.AD4GCodePreview = {
           "let excluded_materials = this.parent_meta.exclude_materials ?? [];")
     patch("src/gui/options.mjs","filament_name.innerText = material_name;",
           'filament_name.innerText = "Artillery PLA Basic";')
+    # The GPU must repaint when drag transforms change a heavy mesh; do not
+    # fall back to the old continuous 60 FPS render loop.
+    patch("src/gui/viewer/model_viewer.mjs",
+          "model_controls.enabled = false;",
+          "model_controls.enabled = false;\nmodel_controls.addEventListener('change', renderer.invalidate);")
     # Upstream only removes the Three.js mesh but leaves it registered; fix
     # both the scene bookkeeping and stale imported filename at the source.
     patch("src/gui/viewer/model_viewer.mjs",
@@ -277,6 +271,13 @@ globalThis.AD4GCodePreview = {
           "    scene.remove(models[focused].mesh);\n    delete interactions.scene_objects[focused];\n"
           "    delete models[focused];\n    focused = null;\n"
           "    document.dispatchEvent(new CustomEvent('ad4:models-changed', {detail:{count:Object.keys(models).length}}));")
+    patch("src/gui/viewer/model_viewer.mjs",
+          "    scene.remove(models[focused].mesh);\n    delete interactions.scene_objects[focused];",
+          "    scene.remove(models[focused].mesh);\n"
+          "    models[focused].mesh.geometry.dispose();\n"
+          "    models[focused].mesh.material.dispose();\n"
+          "    renderer.invalidate();\n"
+          "    delete interactions.scene_objects[focused];")
     patch("src/gui/file.mjs",
           "export let stl_file_name = null;",
           "export let stl_file_name = null;\n"
@@ -318,7 +319,7 @@ export function ad4_select_model(uuid) {
 export function ad4_set_model_visible(uuid, visible) {
   const model = models[uuid];
   if (!model) return false;
-  model.mesh.visible = Boolean(visible); // export_stl() still includes all models.
+  model.mesh.visible = Boolean(visible); // export_stl() still includes all models.\n  renderer.invalidate();
   if (!visible && focused === uuid && model_controls.enabled) {
     model_controls.detach();
     scene.remove(model_controls.getHelper());
