@@ -538,7 +538,7 @@ with sync_playwright() as p:
                 if not page.locator("#ad4-pause").is_disabled():
                     failures.append(f"{width}: public preview enables printer pause")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
-                nav.filter(has=page.locator('span:text-is("Files")')).first.click()
+                page.locator('#ad4-v3-printer-page .ad4-printer-nav [data-printer-go="files"]').click()
                 if page.locator("#ad4-v3-printer-page").get_attribute("data-printer-view")!="files":
                     failures.append(f"{width}: files panel route failed")
                 if not page.locator("#ad4-file-search:visible").count():
