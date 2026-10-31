@@ -526,7 +526,8 @@ with sync_playwright() as p:
                 if not expected_features.issubset(features):
                     failures.append(f"{width}: missing printer functions {expected_features-features}")
                 for id in ("ad4-printer-machine","ad4-printer-nozzle","ad4-printer-bed",
-                           "ad4-printer-job-name","ad4-printer-layer","ad4-printer-file-count"):
+                           "ad4-printer-job-name","ad4-printer-file-count","ad4-printer-elapsed","ad4-printer-remaining",
+                           "ad4-live-x","ad4-live-y","ad4-live-z","ad4-live-layer"):
                     if not page.locator("#"+id).is_visible():
                         failures.append(f"{width}: overview item {id} missing")
                 if page.locator('#ad4-printer-progress-track').get_attribute("aria-valuenow") is not None:
@@ -535,6 +536,24 @@ with sync_playwright() as p:
                     failures.append(f"{width}: live job camera pre-enabled without request")
                 if page.locator("#ad4-live-camera").get_attribute("src"):
                     failures.append(f"{width}: public preview started camera")
+                if page.locator("#ad4-live-job > .ad4-printer-current").count()!=1:
+                    failures.append(f"{width}: Current print not integrated with Monitoring")
+                if page.locator('#ad4-live-job details').count():
+                    failures.append(f"{width}: removed layer explanation or G-code association still visible")
+                if page.locator("#ad4-live-associate, #ad4-live-source-file").count():
+                    failures.append(f"{width}: obsolete source association UI still mounted")
+                if page.locator("#ad4-printer-camera-switch:visible, [data-printer-feature=camera]:visible").count():
+                    failures.append(f"{width}: duplicate live camera preview still visible")
+                # Both titles enlarge the original visualization in a native modal.
+                for title,source in (("ad4-live-toolpath-expand","ad4-live-canvas"),
+                                     ("ad4-live-camera-expand","ad4-live-camera")):
+                    page.locator("#"+title).click()
+                    dlg=page.locator("#ad4-printer-monitor-modal")
+                    if not dlg.evaluate("(e)=>e.open") or not dlg.locator("#"+source).count():
+                        failures.append(f"{width}: {title} did not expand original visualization")
+                    page.locator("#ad4-printer-modal-close").click()
+                    if dlg.evaluate("(e)=>e.open") or not page.locator("#ad4-live-job #"+source).count():
+                        failures.append(f"{width}: {title} did not restore visualization on close")
                 if not page.locator("#ad4-pause").is_disabled():
                     failures.append(f"{width}: public preview enables printer pause")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
@@ -552,10 +571,8 @@ with sync_playwright() as p:
                     failures.append(f"{width}: upload action missing or enabled in demo")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-files-{width}.png",full_page=False)
                 page.locator('#ad4-v3-printer-page .ad4-printer-nav [data-printer-go="media"]').click()
-                if not page.locator("#ad4-printer-camera-switch:visible").count():
-                    failures.append(f"{width}: on-demand camera switch missing")
-                if page.locator("#ad4-printer-camera-switch").is_checked() or not page.locator("#ad4-printer-camera-switch").is_disabled():
-                    failures.append(f"{width}: public demo camera switch must be disabled and off")
+                if page.locator("#ad4-printer-camera-switch:visible").count():
+                    failures.append(f"{width}: duplicated standalone camera preview in Timelapses")
                 if not page.locator("#ad4-gallery").is_visible() or not page.locator("#ad4-timelapse-start").is_disabled():
                     failures.append(f"{width}: timelapse gallery/actions missing or unsafe")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-media-{width}.png",full_page=False)

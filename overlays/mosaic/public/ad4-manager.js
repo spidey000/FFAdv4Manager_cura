@@ -213,7 +213,8 @@ function openManagerPanel(){
   // Pages has no server. Keep every control visible but prevent mutations
   // and network attempts from the sample interface.
   // Filtering and sorting cached files are local-only; keep them editable in Pages.
-  const previewOnly=new Set(["ad4-file-search","ad4-file-sort","ad4-page-size"]);
+  const previewOnly=new Set(["ad4-file-search","ad4-file-sort","ad4-page-size",
+   "ad4-live-toolpath-expand","ad4-live-camera-expand"]);
   for(const control of dialog.querySelectorAll("button,input,select"))if(!previewOnly.has(control.id))control.disabled=true;
   say("Public preview · Open the authenticated server to use printer controls");
   return;

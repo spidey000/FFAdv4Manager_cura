@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.7";
+const VERSION_UI = "0.2.8";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -1157,7 +1157,7 @@ $("ad4-v3-profile-file").addEventListener("change",async e=>{
 const manager=$("ad4-manager");
 if(manager){
  const names={
-  "Current print":"live","Print controls":"controls","Printer files":"files","Camera":"camera",
+  "Monitoring":"live","Print controls":"controls","Printer files":"files","Camera":"camera",
   "Timelapses":"timelapse","Printer connections and diagnostics":"connection",
   "Files and diagnostics":"tools"
  };
@@ -1169,10 +1169,10 @@ if(manager){
 }
 function openPrinter(pane="controls"){
  if(current!=="printer")activate("printer");
- const view={live:"overview",control:"overview",files:"files",camera:"media",
+ const view={live:"overview",control:"overview",files:"files",camera:"overview",
   timelapse:"media",connection:"diagnostics",diagnostics:"diagnostics",tools:"files"}[pane]||"overview";
  const target={live:"ad4-live-job",control:"ad4-pause",files:"ad4-file-list",
-  camera:"ad4-camera",timelapse:"ad4-gallery",
+  camera:"ad4-live-camera-expand",timelapse:"ad4-gallery",
   connection:"ad4-connection-profiles",diagnostics:"ad4-diagnostic-doctor",tools:"ad4-local-job"}[pane];
  requestAnimationFrame(()=>document.dispatchEvent(new CustomEvent("ad4:printer-navigate",{
   detail:{view,target}

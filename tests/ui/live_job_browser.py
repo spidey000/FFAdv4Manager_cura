@@ -83,6 +83,30 @@ def run():
                 box = page.locator('.ad4-live-pair').evaluate('(e)=>({width:e.clientWidth,overflow:e.scrollWidth,cols:getComputedStyle(e).gridTemplateColumns})')
                 assert box['overflow'] <= box['width'] + 1
                 assert len(box['cols'].split()) == 2, box
+                assert page.locator('#ad4-live-job > .ad4-printer-current').count()==1
+                assert page.locator('#ad4-live-x').inner_text().endswith('mm')
+                assert page.locator('#ad4-live-y').inner_text().endswith('mm')
+                assert page.locator('#ad4-live-z').inner_text().endswith('mm')
+                assert page.locator('#ad4-live-layer').inner_text()=='2 / 3'
+                assert page.locator('#ad4-live-job details').count()==0
+                assert page.locator('#ad4-live-associate, #ad4-live-source-file').count()==0
+                assert not page.locator('[data-printer-feature="camera"]').is_visible()
+                # The same WebGL canvas and MJPEG image are moved into a modal
+                # and back, without cloning or restarting their data streams.
+                canvas_identity=page.locator('#ad4-live-canvas canvas').evaluate('(el)=>{el.dataset.testIdentity="same-webgl";return el.dataset.testIdentity}')
+                assert canvas_identity=='same-webgl'
+                page.locator('#ad4-live-toolpath-expand').click()
+                assert page.locator('#ad4-printer-monitor-modal').evaluate('(el)=>el.open')
+                assert page.locator('#ad4-printer-monitor-modal #ad4-live-canvas canvas').get_attribute('data-test-identity')=='same-webgl'
+                page.locator('#ad4-printer-modal-close').click()
+                assert page.locator('#ad4-live-job #ad4-live-canvas canvas').get_attribute('data-test-identity')=='same-webgl'
+                cameras_modal_before=requests.count('/camera/live')
+                page.locator('#ad4-live-camera-expand').click()
+                assert page.locator('#ad4-printer-monitor-modal #ad4-live-camera').get_attribute('src') is not None
+                page.keyboard.press('Escape')
+                assert not page.locator('#ad4-printer-monitor-modal').evaluate('(el)=>el.open')
+                assert page.locator('#ad4-live-job #ad4-live-camera').get_attribute('src') is not None
+                assert requests.count('/camera/live')==cameras_modal_before
                 page.locator('#ad4-live-right').click()
                 assert page.evaluate('globalThis.app.gui.slicer.exported_gcode') == original
                 assert page.evaluate('document.body.dataset.ad4Screen') == 'printer'
