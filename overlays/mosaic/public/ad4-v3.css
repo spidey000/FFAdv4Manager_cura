@@ -1026,3 +1026,15 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
 #ad4-v3-layer-card .ad4-v3-mode-selector{min-height:30px!important;padding-bottom:2px!important}
 #ad4-v3-type-list .ad4-v3-type-row{height:31px!important;min-height:31px!important}
 #ad4-v3-layer-card .ad4-v3-type-pages{height:24px!important}
+
+/* Build identifiers: a quiet, legible single-line overlay in both 3D and G-code views. */
+#viewer #ad4-version-stamp {
+ position:absolute!important;right:max(8px,env(safe-area-inset-right))!important;bottom:7px!important;
+ z-index:26;display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px 11px;
+ max-width:calc(100% - 16px);padding:2px 4px;box-sizing:border-box;
+ background:rgba(11,15,16,.36);border-radius:4px;
+ color:#a2afb0;font:500 10px/1.25 ui-monospace,SFMono-Regular,Consolas,monospace;
+ letter-spacing:0;opacity:.8;pointer-events:none;user-select:text;text-shadow:0 1px 2px #101516;
+}
+#viewer #ad4-version-stamp span{white-space:nowrap;max-width:100%}
+@media(max-width:360px){#viewer #ad4-version-stamp{font-size:9px;gap:4px 7px}}

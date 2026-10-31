@@ -2,7 +2,10 @@
 """Reproducibly replace legacy frontend with the pinned MosaicSlicer + overlays."""
 from pathlib import Path
 import json
+import os
+import re
 import shutil
+import subprocess
 
 ROOT=Path(__file__).resolve().parents[1]
 UP=ROOT/"vendor/mosaic-slicer"
@@ -485,6 +488,25 @@ export function ad4_delete_model(uuid) {
     if 'classList.add("ad4-indeterminate")' not in action_code:
         raise RuntimeError("Mosaic progress bar callback changed")
     actions.write_text(action_code)
+    # Stamp the UI with the source revision actually being compiled, not the
+    # running Python backend's version. Source installations without git still
+    # show the independently maintained UI semantic version.
+    frontend_js = DEST / "public/ad4-v3.js"
+    revision = os.environ.get("GITHUB_SHA", "")
+    if not re.fullmatch(r"[0-9a-fA-F]{7,40}", revision):
+        try:
+            result = subprocess.run(["git", "rev-parse", "--verify", "HEAD"],
+                                    cwd=ROOT, capture_output=True, text=True,
+                                    timeout=3, check=False)
+            revision = result.stdout.strip() if result.returncode == 0 else ""
+        except (OSError, subprocess.TimeoutExpired):
+            revision = ""
+    revision = revision[:8] if re.fullmatch(r"[0-9a-fA-F]{7,40}", revision) else "unavailable"
+    frontend_source = frontend_js.read_text(encoding="utf-8")
+    if frontend_source.count("__AD4_FRONTEND_REV__") != 1:
+        raise RuntimeError("Missing unique frontend revision placeholder")
+    frontend_js.write_text(frontend_source.replace("__AD4_FRONTEND_REV__", revision),
+                           encoding="utf-8")
     html=DEST/"public/index.html"
     source=html.read_text()
     if "</body>" not in source or "<h1>MosaicSlicer</h1>" not in source:

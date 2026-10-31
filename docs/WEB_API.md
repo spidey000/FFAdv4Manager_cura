@@ -122,3 +122,25 @@ Los nombres de las acciones son allowlists, no ejecución de comandos arbitrario
 - Probar con `tests/server`, `tests/integration`, `tests/ui/printer_manager_browser.py` y `tests/ui/live_job_browser.py` usando transporte simulado. La impresión física no está cubierta por esas pruebas.
 
 **Referencia de implementación:** para los formatos exactos de solicitudes/respuestas y códigos de error consulta `server/cura_bridge.py`, `server/ad4_bridge.py`, `server/manager_tools.py` y `server/current_job.py`: sus contratos y validaciones prevalecen sobre ejemplos incompletos de esta guía.
+
+
+### Runtime build versions
+
+`GET /api/version` (authenticated, read-only, no printer connection required)
+returns the **running backend** build, for example:
+
+```json
+{"version":"0.2.0","revision":"abc12345"}
+```
+
+`version` is the Python package version from `pyproject.toml` / installed
+package metadata; `revision` is the running backend Git commit prefix, or
+`null` if the deployed source is not a Git checkout. In packaged deployments,
+`AD4_BACKEND_REVISION` may explicitly supply the build commit.
+
+The UI has a separately maintained `VERSION_UI` in
+`overlays/mosaic/public/ad4-v3.js`. `scripts/prepare_mosaic.py` embeds the
+frontend checkout revision at **build time**. The bottom-right viewer overlay
+shows both running versions, with `API offline` on connection failures and
+`API —` on the static GitHub Pages preview. A new commit changes the build
+revision automatically; bump the UI semantic version deliberately on UI releases.
