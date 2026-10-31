@@ -15,7 +15,7 @@ def test_build_installs_authoritative_collision_guard():
     assert "if (!ad4Plate.isValid()) throw new Error" in PREP
     assert "export const ad4_auto_arrange" in PREP
     assert "export const ad4_clone_selected" in PREP
-    assert "model.mesh.geometry === models[focused].mesh.geometry" in PREP
+    assert "m.mesh.geometry === models[focused].mesh.geometry" in PREP
 
 
 def test_clone_is_fully_registered_and_rejected_when_full():
