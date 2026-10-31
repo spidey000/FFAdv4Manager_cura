@@ -53,6 +53,40 @@ with sync_playwright() as p:
       if (types.length) AD4GCodePreview.setTypeVisible(types[0],true);
       return range.count===count && range.to===count;
     }"""), "Layer and Cura feature controls stopped working"
+    # Regression: the external Benchy uses Prusa-style ;TYPE: names, not
+    # Cura's WALL-OUTER/FILL names. The GPU mesh and the mobile legend must
+    # use the SAME colors rather than a monochrome OTHER fallback.
+    page.locator("#ad4-v3-show-layers").click()
+    page.wait_for_function(
+        "() => document.querySelectorAll('#ad4-v3-type-list .ad4-v3-type-row').length >= 4",
+        timeout=10000
+    )
+    palette = page.evaluate("""() => {
+      const wanted=["PERIMETER","OVERHANG PERIMETER","INTERNAL INFILL","SOLID INFILL"];
+      const rows=[...document.querySelectorAll("#ad4-v3-type-list .ad4-v3-type-row")];
+      const api=globalThis.AD4GCodePreview;
+      const rendered=api.renderedColors;
+      const swatches={};
+      for(const type of wanted){
+        const row=rows.find(row => row.dataset.toolpathType===type);
+        if(!row) continue;
+        const color=getComputedStyle(row.querySelector(".ad4-v3-type-swatch")).backgroundColor;
+        const rgb=(color.match(/\\d+/g)||[]).slice(0,3);
+        swatches[type]="#" + rgb.map(x=>Number(x).toString(16).padStart(2,"0")).join("");
+      }
+      return {types:api.types,swatches,rendered,
+        expected:Object.fromEntries(wanted.map(type=>[type,api.colorForType(type)]))};
+    }""")
+    assert len(palette["swatches"]) == 4, "Missing Benchy categories from mobile legend: " + str(palette)
+    assert len(set(palette["expected"].values())) == 4, "The Benchy palette is monochromatic"
+    for category,color in palette["expected"].items():
+        assert palette["swatches"].get(category) == color, (
+            f"Legend and palette differ: {category} {palette}"
+        )
+        assert palette["rendered"].get(category) == color, (
+            f"Actual Three.js material and swatch differ: {category} {palette}"
+        )
+    print("Verified actual Benchy GPU material and mobile legend colors:", palette["expected"],flush=True)
     print("Real third-party 3DBenchy browser preview:", result, stats)
     page.close()
     browser.close()
