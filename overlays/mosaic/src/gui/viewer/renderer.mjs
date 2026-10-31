@@ -2,7 +2,6 @@
 // This is installed over pinned Mosaic's renderer by prepare_mosaic.py.
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import {updateGcodePixelScale} from "./ad4-gpu-seams.mjs";
 
 export const viewport = document.getElementById("viewer");
 export const canvas = document.getElementById("stl-viewer");
@@ -54,7 +53,9 @@ function frame() {
   // frames needed for the camera to settle after user input.
   controls.update();
   // O(1) shader uniform update: no per-segment or per-layer CPU work on zoom.
-  updateGcodePixelScale(camera, view_height, controls.target);
+  // ThreeSlicer chooses genuine geometric LOD using camera projection;
+  // in a cut-layer view full detail is retained.
+  if(scene_name==="gcode")globalThis.AD4GCodePreview?.updateLod(camera,view_height);
   if (current_scene) renderer.render(current_scene, camera);
 }
 

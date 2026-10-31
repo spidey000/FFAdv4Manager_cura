@@ -30,6 +30,11 @@ def build():
     # Keep performant viewer code as tracked overlays, never edit generated frontend.
     for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-bevel-profile.mjs", "ad4-gpu-seams.mjs", "ad4-stl-worker-client.mjs"):
         shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
+    # MIT-licensed ThreeSlicer viewer only, never its AGPL slicer kernel.
+    shutil.copytree(OV/"src/gui/viewer/ad4-three-slicer",
+                    DEST/"src/gui/viewer/ad4-three-slicer")
+    shutil.copy2(OV/"src/gui/viewer/ad4-three-slicer/LICENSE",
+                 DEST/"public/three-slicer-viewer-LICENSE.txt")
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     shutil.copy2(OV/"public/ad4-stl-worker.js", DEST/"public/ad4-stl-worker.js")
     for name in ("ad4-manager-tools.js", "ad4-manager-tools.css", "ad4-live-job.js", "ad4-live-job.css"):
@@ -166,26 +171,25 @@ main().catch(error => {
     start=viewer_source.index("  for (let layer of parsed_data) {")
     stop=viewer_source.index("  let machine_settings =",start)
     viewer_source=viewer_source[:start]+"""
-  // Batched, GPU-efficient preview with a documented display-only LOD budget.
-  // The original G-code is always kept intact for export and printer upload.
+  // True MIT ThreeSlicer GPU renderer: 8-vertex mitered bead template,
+  // Lambert face lighting, zero-cost layer range and 2/4 LOD.
+  // G-code itself remains untouched and printable only through CuraEngine.
   const built = await buildGcodeLayers(parsed_data);
-  for (const group of built.layers) {
-    mesh.add(group);
-    layers.push(group);
-  }
+  mesh.add(built.mesh);
+  mesh.userData.ad4Toolpath = built;
+  layers = built.layers;
   globalThis.__AD4_GCODE_CATEGORIES__ = built.categories;
   globalThis.AD4GcodePreviewStats = {
     sourceSegments: built.segmentCount,
     displayedSegments: built.displayed,
     solidSegments: built.solidSegments,
     solidPreview: built.solidPreview,
-    bevelPreview: built.bevelPreview,
-    bevelShade: built.bevelShade,
+    threeSlicerViewer: built.threeSlicerViewer,
     gpuInstanced: built.gpuInstanced,
     instanceBytes: built.instanceBytes,
     minLayerHeight: Math.min(...built.layerHeights),
     maxLayerHeight: Math.max(...built.layerHeights),
-    simplified: built.simplified
+    simplified: false
   };
   renderer.invalidate();
 """ + viewer_source[stop:]
@@ -201,8 +205,10 @@ main().catch(error => {
           "  globalThis.AD4GcodePreviewStats = null;\n  renderer.invalidate();")
 
     gcode_file.write_text(gcode_file.read_text()+"""
-// The ranges are 1-based inclusive and operate on parsed Cura G-code groups.
+// Mirror the Mosaic and AD4 layer controls over the single ThreeSlicer
+// instanced mesh. All cuts and filters are GPU uniforms/colors, not 853 draws.
 globalThis.AD4GCodePreview = {
+  get handle(){return gcode_mesh?.userData?.ad4Toolpath||null},
   get count(){return layers.length},
   get bounds(){
     if(!gcode_mesh)return null;
@@ -211,71 +217,68 @@ globalThis.AD4GCodePreview = {
   },
   get types(){return globalThis.__AD4_GCODE_CATEGORIES__||[]},
   colorForType(type){return colorForToolpathType(type)},
-  get bevelMeshStats(){
-    let bevelMeshes=0,shadeBytes=0,vertices=0,indexCount=0,
-      instanceBytes=0,instances=0,broken=0;
-    for(const group of layers)for(const part of group.children){
-      if(part.userData.ad4Category==="TRAVEL")continue;
-      const geo=part.geometry,shade=geo.getAttribute("ad4Shade");
-      const start=geo.getAttribute("iStart");
-      const end=geo.getAttribute("iEnd");
-      const dimension=geo.getAttribute("iDimensions");
-      const layer=geo.getAttribute("iLayer");
-      if(!geo.isInstancedBufferGeometry || !shade?.normalized ||
-         !start || !end || !dimension || !layer ||
-         start.count!==geo.instanceCount ||
-         end.count!==geo.instanceCount ||
-         dimension.count!==geo.instanceCount ||
-         layer.count!==geo.instanceCount){broken++;continue}
-      bevelMeshes++;
-      shadeBytes+=shade.array.byteLength;
-      vertices+=geo.getAttribute("position").count;
-      indexCount+=geo.index.count;
-      instanceBytes+=start.array.byteLength+end.array.byteLength+
-        dimension.array.byteLength+layer.array.byteLength;
-      instances+=geo.instanceCount;
-    }
-    return {bevelMeshes,shadeBytes,vertices,indexCount,
-      instanceBytes,instances,broken};
+  get renderedColors(){
+    return Object.fromEntries(this.types.map(t=>[t,colorForToolpathType(t)]));
+  },
+  get hiddenTypes(){return this.handle?.hiddenTypes||new Set()},
+  get viewMode(){return this.handle?.viewMode||"feature"},
+  get moveCount(){
+    const data=this.handle?.handle?.data;
+    if(!data)return 0;
+    const top=Math.min(data.layerCount-1,Math.max(0,Number(layer_slider.value)-1));
+    return data.movePrefix[top+1]-data.movePrefix[top];
+  },
+  setMoveRange(at){
+    const result=this.handle?.handle?.setMoveRange(at);
+    renderer.invalidate();
+    return result;
+  },
+  setViewMode(mode){this.handle?.setViewMode(mode);renderer.invalidate()},
+
+  get threeSlicerStats(){
+    const h=this.handle, data=h?.handle?.data;
+    if(!data)return null;
+    const mesh=h.handle.mesh;
+    return {segments:data.nSeg,layers:data.layerCount,
+      vertices:mesh.geometry.getAttribute("tpl").count,
+      indices:mesh.geometry.index.count,
+      instances:mesh.geometry.instanceCount,
+      drawMeshes:1,lod:h.handle.lodLevel(),
+      instanceBytes:h.instanceBytes,
+      hasNaN:data.hasNaN,
+      shader:mesh.material.isRawShaderMaterial};
   },
   get solidMeshStats(){
-    let indexed=0,solid=0,minThickness=Infinity,maxThickness=0;
-    for(const group of layers)for(const part of group.children){
-      if(part.userData.ad4Category==="TRAVEL")continue;
-      const geo=part.geometry;
-      if(!geo.index)continue;
-      indexed++;
-      if(!geo.boundingBox)geo.computeBoundingBox();
-      const height=geo.boundingBox.max.z-geo.boundingBox.min.z;
-      if(height>0.001){
-        solid++;
-        minThickness=Math.min(minThickness,height);
-        maxThickness=Math.max(maxThickness,height);
-      }
+    const data=this.handle?.handle?.data;
+    if(!data)return {indexed:0,solid:0,minThickness:0,maxThickness:0};
+    const heights=data.meta.vHeight;
+    let min=Infinity,max=0;
+    for(let i=0;i<heights.length;i++){
+      min=Math.min(min,heights[i]);max=Math.max(max,heights[i]);
     }
-    return {indexed,solid,
-      minThickness:Number.isFinite(minThickness)?minThickness:0,
-      maxThickness};
+    return {indexed:1,solid:1,minThickness:min===Infinity?0:min,maxThickness:max};
   },
-  get renderedColors(){
-    const colors={};
-    for(const group of layers)for(const part of group.children){
-      colors[part.userData.ad4Category]="#"+part.material.color.getHexString();
-    }
-    return colors;
+  setTypeVisible(type,visible){
+    this.handle?.setTypeVisible(type,visible);
+    renderer.invalidate();
   },
-  hiddenTypes:new Set(),
-  setTypeVisible(type,visible){if(visible)this.hiddenTypes.delete(type);else this.hiddenTypes.add(type);this.refreshTypes()},
-  refreshTypes(){for(const group of layers)for(const part of group.children)part.visible=!this.hiddenTypes.has(part.userData.ad4Category);renderer.invalidate()},
+  refreshTypes(){renderer.invalidate()},
   setRange(from,to){
     const a=Math.max(1,Math.min(layers.length,Math.round(Number(from)||1)));
     const b=Math.max(a,Math.min(layers.length,Math.round(Number(to)||1)));
-    layers.forEach((mesh,index)=>{mesh.visible=index+1>=a&&index+1<=b});
-    globalThis.AD4GCodePreview.refreshTypes();
+    this.handle?.setRange(a-1,b-1);
     layer_slider.value=String(b);
+    renderer.invalidate();
     return {from:a,to:b,count:layers.length};
-  }
+  },
+  updateLod(camera,height){this.handle?.updateLod(camera,height)}
 };
+// Preserve Mosaic's own single-ended layer slider as a GPU uniform update.
+layer_slider.addEventListener("input",()=>{
+  const target=Math.max(1,Math.min(layers.length,Number(layer_slider.value)||1));
+  gcode_mesh?.userData?.ad4Toolpath?.setRange(0,target-1);
+  renderer.invalidate();
+});
 """)
     patch("src/gui/viewer/gcode_viewer.mjs", """  mesh.position.set(
     -machine_settings.machine_width.default_value / 2,
