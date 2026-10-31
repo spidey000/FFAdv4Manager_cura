@@ -492,6 +492,14 @@ layer_slider.addEventListener("input",()=>{
     document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
       detail:{code:"GCODE_MISSING",message:"There is no G-code yet. Slice a model first."}
     }));''')
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          "    show_gcode_viewer();",
+          '''    show_gcode_viewer().catch(error => {
+      document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+        detail:{code:"LAYER_RENDER_FAILED",
+          message:"Unable to build layer preview: "+(error?.message || String(error))}
+      }));
+    });''')
     model_source = DEST / "src/gui/viewer/model_viewer.mjs"
     model_source.write_text(model_source.read_text() + """
 // Install plate rules in Mosaic's real model registry, not in the visual shell.
