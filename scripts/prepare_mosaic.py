@@ -222,6 +222,17 @@ globalThis.AD4GCodePreview = {
   },
   get hiddenTypes(){return this.handle?.hiddenTypes||new Set()},
   get viewMode(){return this.handle?.viewMode||"feature"},
+  get moveCount(){
+    const data=this.handle?.handle?.data;
+    if(!data)return 0;
+    const top=Math.min(data.layerCount-1,Math.max(0,Number(layer_slider.value)-1));
+    return data.movePrefix[top+1]-data.movePrefix[top];
+  },
+  setMoveRange(at){
+    const result=this.handle?.handle?.setMoveRange(at);
+    renderer.invalidate();
+    return result;
+  },
   setViewMode(mode){this.handle?.setViewMode(mode);renderer.invalidate()},
 
   get threeSlicerStats(){
