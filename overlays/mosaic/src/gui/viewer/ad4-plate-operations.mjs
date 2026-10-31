@@ -90,7 +90,8 @@ export function installPlateOperations({
     emit("plate-valid");
     return true;
   }
-  function acceptNewModel(mesh) {
+  function acceptNewModel(mesh,fileName="") {
+    if(fileName)mesh.name=fileName;
     const current=activeMeshes();
     for (const existing of current) if (!saved.has(existing)) remember(existing);
     remember(mesh);
