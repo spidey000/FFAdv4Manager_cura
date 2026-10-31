@@ -59,7 +59,7 @@ else: raise RuntimeError(args)
         assert live['layer_total'] == 3
         geometry = request('/api/printer/current-job/toolpath?token=' + live['job_token'])
         assert geometry['layers'][1]['z'] == .5
-        time.sleep(.55)  # A genuinely separate observation, not two immediate reads.
+        time.sleep(2.6)  # Real-time stability debounce must expire across separate observations.
         assert request('/api/printer/current-job')['layer_current'] == 2
         assert request('/api/printer/actions', b'{"action":"cancel"}')['detail'] == 'ok\n'
         stopped = request('/api/printer/current-job')
