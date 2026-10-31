@@ -200,6 +200,13 @@ document.addEventListener("ad4:slice-progress",event=>{
   "Slicing failed");
 });
 document.addEventListener("ad4:demo-gcode-ready",()=>clearViewerError("layers"));
+document.addEventListener("ad4:viewer-recovered",event=>{
+ const code=String(event.detail?.code||"");
+ if(code.startsWith("GCODE")||code.startsWith("LAYER"))clearViewerError("layers");
+ if(code.startsWith("MODEL")||code.startsWith("FILE"))clearViewerError("model");
+ if(code.startsWith("ENGINE"))clearViewerError("engine");
+});
+document.addEventListener("ad4:models-changed",()=>{clearViewerError("model");updatePlateError()});
 function notify(message){
  $("ad4-v3-toast-message").textContent=message;note.hidden=false;clearTimeout(noteHandle);
  noteHandle=setTimeout(()=>note.hidden=true,4200);
@@ -282,7 +289,11 @@ function activate(name){
  }
  if(name==="preview"||name==="transform"||name==="slice-info")$("prepare-tab-button")?.click();
  if(name==="sliced"){
-  if(!sliceReady()){notify("Slice a model on the server to view actual layers");current="preview";root.dataset.ad4Screen="preview";$("prepare-tab-button")?.click()}
+  if(!sliceReady()){
+   showViewerError("layers","GCODE_MISSING",
+    "Slice a model on the server before opening the layer preview.",
+    "No layer preview available");
+   notify("Slice a model on the server to view actual layers");current="preview";root.dataset.ad4Screen="preview";$("prepare-tab-button")?.click()}
   else $("preview-tab-button")?.click();
  }
  if(name==="app"||name==="printer"||name==="slice-info")closeSheet();
@@ -617,7 +628,10 @@ function setAxis(axis,raw,{exact=false}={}){
  if(!hasSelection()){notify("Tap a model to select it before transforming");return}
  const snap=$("ad4-v3-snap").checked;
  const value=normalized(mode,raw,snap,exact);
- if(value===null){notify("Enter a valid numeric value");return}
+ if(value===null){
+  showViewerError("operation","INVALID_TRANSFORM_VALUE",
+   "Enter a finite number within the permitted "+mode+" range.",
+   "Invalid transform value");return}
  const old=Number(sourceAxis(axis)?.value)|| (mode==="scale"?100:0);
  const locked=mode==="scale"&&$("ad4-v3-resize-lock").checked;
  if(mode==="scale")lockLabel.querySelector("input").checked=locked;
