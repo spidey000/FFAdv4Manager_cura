@@ -167,7 +167,12 @@ function closeVideo(){
  if(img.dataset.blob){URL.revokeObjectURL(img.dataset.blob);delete img.dataset.blob}
 }
 el("ad4-open-manager").addEventListener("click",()=>{
- if(!dialog.open)dialog.showModal();setHardwareAvailability(false);say("Loading printer status…");
+ if(!dialog.open)dialog.show();setHardwareAvailability(false);
+ if(globalThis.__AD4_STATIC_PREVIEW__===true){
+  say("Public preview · Open the authenticated server to use printer controls");
+  return;
+ }
+ say("Loading printer status…");
  refresh().catch(e=>say(e.message,true));loadGallery().catch(e=>say(e.message,true));
  clearInterval(poll);poll=setInterval(()=>{
   if(!dialog.open){clearInterval(poll);return}
