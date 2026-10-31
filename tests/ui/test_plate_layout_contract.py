@@ -45,6 +45,9 @@ def test_invalid_drag_and_compound_numeric_edits_remain_editable():
     assert 'document.addEventListener("ad4:plate-status"' in VIEWER
     assert 'if (!ad4Plate.isValid()) throw new Error' in PREP
     assert 'nativeSlice.disabled=staticPreview||!model||!plateValid' in VIEWER
+    assert "models[focused].mesh.position.x = Number(movement_x_value.value)" in PREP
+    assert "models[focused].mesh.position.z = Number(movement_y_value.value)" in PREP
+    assert 'drop_model();\\n  movement_z_value.value' in PREP
     assert 'const MAX_EDIT_MM=100000;' in VIEWER
 
 
