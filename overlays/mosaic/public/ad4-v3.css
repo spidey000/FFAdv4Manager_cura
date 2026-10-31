@@ -1080,6 +1080,7 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
  background:#1a2220!important;border:1px solid #313d35!important;
  border-radius:14px!important;scroll-margin-top:12px;overflow-wrap:anywhere}
 #ad4-v3-printer-page #ad4-manager>.ad4-section[hidden]{display:none!important}
+#ad4-v3-printer-page #ad4-manager>.ad4-section[data-printer-feature=live],
 #ad4-v3-printer-page #ad4-manager>.ad4-section[data-printer-feature=files],
 #ad4-v3-printer-page #ad4-manager>.ad4-section[data-printer-feature=timelapse],
 #ad4-v3-printer-page #ad4-manager>.ad4-section[data-printer-feature=connection]{grid-column:span 2}
