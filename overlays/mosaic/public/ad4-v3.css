@@ -2289,3 +2289,11 @@ body[data-ad4-screen=printer] #ad4-v3-printer-page{
   min-width:43px!important;flex-basis:43px!important
  }
 }
+
+
+@media(max-width:375px){
+ /* Reclaim one icon width instead of cutting "Live camera" to an ellipsis. */
+ #ad4-v3-printer-page #ad4-manager #ad4-live-job #ad4-live-camera-expand>span:first-child{
+  display:none!important
+ }
+}
