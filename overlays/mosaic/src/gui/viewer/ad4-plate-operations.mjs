@@ -52,12 +52,17 @@ export function installPlateOperations({
   }
   const activeMeshes=()=>Object.values(models).map(record=>record.mesh);
   const check=meshes=>validatePlate(meshes.map(entry),AD4_BED);
-  const status=()=>activeMeshes().length?check(activeMeshes()):{
-    valid:false,code:"EMPTY_PLATE",reason:"Add an STL or 3MF model before slicing"
+  const status=()=>{
+    const meshes=activeMeshes();
+    if(!meshes.length)return {valid:false,code:"EMPTY_PLATE",reason:"Add an STL or 3MF model before slicing"};
+    try{return check(meshes)}
+    catch(error){return {valid:false,code:"PLATE_CHECK_FAILED",
+      reason:"Unable to verify build plate geometry: "+(error?.message || String(error))}}
   };
   const isValid=()=>status().valid;
 
   function arrange(meshes=activeMeshes()) {
+    if(!meshes.length)return fail("Load at least one model before arranging");
     const pieces=meshes.map(mesh=>{
       const p=entry(mesh);
       return {...p,outline:p.outline.map(([x,z])=>[x-mesh.position.x,z-mesh.position.z])};
