@@ -131,9 +131,10 @@ def source_layer_heights(mode):
     return layer_heights
 
 
-def start_print_timelapse(mode='interval', layer_height=0.2, fps=10, interval=10):
+def start_print_timelapse(mode='interval', layer_height=0.2, fps=10, interval=10, layer_heights=None):
     argv = cli_argv()
-    layer_heights = source_layer_heights(mode)
+    if layer_heights is None:
+        layer_heights = source_layer_heights(mode)
     return TIMELAPSES.start(argv, selected_status_reader(argv), auto=True,
                             mode=mode, layer_height=layer_height, fps=fps, interval=interval,
                             **({'layer_heights': layer_heights} if layer_heights else {}))
@@ -571,6 +572,15 @@ class Handler(SimpleHTTPRequestHandler):
                     TIMELAPSES.require_encoder()
                     if TIMELAPSES.state()['id'] or TIMELAPSES.state()['encoding']:
                         raise ValueError('A timelapse session is already active')
+                # Extract heights from THIS upload before starting the print. Querying
+                # M114/current_file immediately after M24 may still return the old job.
+                upload_layer_heights = []
+                if auto_timelapse and capture_mode == 'layer':
+                    try:
+                        from server.job_tracking import parse_toolpath
+                        upload_layer_heights = [layer['z'] for layer in parse_toolpath(data, name)['layers']]
+                    except ValueError:
+                        pass  # Explicit uniform-height fallback, never the previous job.
                 with tempfile.TemporaryDirectory() as directory:
                     filename = Path(directory) / name
                     filename.write_bytes(data)
@@ -597,7 +607,7 @@ class Handler(SimpleHTTPRequestHandler):
                     try:
                         timelapse_capture = start_print_timelapse(mode=capture_mode,
                             layer_height=estimated_layer_height(data), fps=capture_fps,
-                            interval=capture_interval)
+                            interval=capture_interval, layer_heights=upload_layer_heights)
                     except (OSError, ValueError, RuntimeError) as exc:
                         # The physical print already started; report capture failure honestly.
                         timelapse_error = str(exc)

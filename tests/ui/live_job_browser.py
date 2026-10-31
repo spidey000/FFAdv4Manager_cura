@@ -22,6 +22,9 @@ def run():
              'position': {'X': 10, 'Y': 0, 'Z': .5}, 'active': True, 'source': source, 'job_token': 'fixture',
              'layer_current': 2, 'layer_total': 3, 'layer_estimated': True, 'geometry_available': True, 'download_supported': False}
     geometry = {**parse_toolpath(CODE, 'part.gcode'), 'job_token': 'fixture', 'source': source}
+    live_renderer_source = (ROOT / 'overlays/mosaic/src/gui/ad4-live-renderer.mjs').read_text()
+    assert 'new THREE.ConeGeometry(4,12,18)' in live_renderer_source
+    assert 'color:0xff3344,depthTest:false' in live_renderer_source
     picture = io.BytesIO()
     Image.new('RGB', (320, 240), (33, 63, 51)).save(picture, 'JPEG')
     requests = []

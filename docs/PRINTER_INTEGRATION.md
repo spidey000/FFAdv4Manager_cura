@@ -69,10 +69,16 @@ The existing editor model, slicing settings and exported G-code are not changed.
 The parser extracts deposited layer heights from G-code/GX, supports absolute and
 relative moves/extrusion, extrusion resets, FlashPrint A extrusion, and XY arcs.
 Travel Z-hops do not create layers. The estimator requires separated stable M114
-observations, handles variable layer heights, and resets when the file/progress
-changes. It cannot identify the exact executed G-code line. The camera stream
+observations over at least 2.5 seconds, handles variable layer heights, avoids
+advancing during PAUSED, and resets when the file/progress changes. Brief Z-hop
+travels are filtered, but sustained Z-hop or parking within the model's Z range
+can still overestimate the deposited layer. It cannot identify the exact
+executed G-code line. The reported XYZ nozzle position is shown using a
+high-contrast red downward-pointing cone whose tip marks the M114 coordinates. The camera stream
 and position polling are not frame-synchronized. Timelapse by estimated layer can
-use the same source layer heights for automatic print sessions when available.
+use the exact uploaded G-code layer heights for automatic print sessions before
+starting M24; if the uploaded file cannot be parsed, it explicitly falls back
+to a uniform height, not the previous job's source.
 
 Large toolpaths use disclosed rendering sampling, retaining the complete layer
 height table. Non-planar jobs, more than one million lines/two million deposited

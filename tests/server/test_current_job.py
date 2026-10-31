@@ -75,7 +75,7 @@ def test_layer_tracker_requires_separated_stable_observations_and_resets_job(mon
     layers = [{'z': .3}, {'z': .5}, {'z': .8}]
     assert tracker.update('a', layers, {'Z': .5}) is None
     assert tracker.update('a', layers, {'Z': .5}) is None
-    now[0] += 1
+    now[0] += 3
     assert tracker.update('a', layers, {'Z': .5}) == 2
     now[0] += 1
     assert tracker.update('a', layers, {'Z': 50}) == 2  # Parked head isn't layer 3.
@@ -89,12 +89,44 @@ def test_same_filename_restarted_job_resets_on_progress_drop(monkeypatch):
     tracker = tracking.LayerTracker()
     layers = [{'z': .3}, {'z': .5}]
     tracker.update('same-file', layers, {'Z': .5}, progress=98)
-    now[0] += 1
+    now[0] += 3
     assert tracker.update('same-file', layers, {'Z': .5}, progress=98) == 2
     now[0] += 1
     assert tracker.update('same-file', layers, {'Z': .3}, progress=1) is None
-    now[0] += 1
+    now[0] += 3
     assert tracker.update('same-file', layers, {'Z': .3}, progress=1) == 1
+
+
+def test_short_zhop_and_paused_park_do_not_advance_layer(monkeypatch):
+    now = [10.]
+    monkeypatch.setattr(tracking.time, 'monotonic', lambda: now[0])
+    tracker = tracking.LayerTracker()
+    layers = [{'z': .3}, {'z': .5}, {'z': .8}]
+    assert tracker.update('job', layers, {'Z': .3}) is None
+    now[0] += 3
+    assert tracker.update('job', layers, {'Z': .3}) == 1
+    now[0] += 1
+    assert tracker.update('job', layers, {'Z': .8}) == 1
+    now[0] += 1
+    assert tracker.update('job', layers, {'Z': .3}) == 1  # travel returned
+    now[0] += 1
+    assert tracker.update('job', layers, {'Z': .8}, printing=False) == 1
+    now[0] += 3
+    assert tracker.update('job', layers, {'Z': .8}) == 1  # fresh candidate
+    now[0] += 3
+    assert tracker.update('job', layers, {'Z': .8}) == 3
+
+
+def test_automatic_timelapse_prefers_uploaded_layer_heights(monkeypatch):
+    monkeypatch.setattr(bridge, 'cli_argv', lambda: ['ffadv4manager'])
+    monkeypatch.setattr(bridge, 'source_layer_heights',
+                        lambda _: (_ for _ in ()).throw(AssertionError('must not inspect previous job')))
+    monkeypatch.setattr(bridge, 'selected_status_reader', lambda _: lambda: {})
+    monkeypatch.setattr(bridge.TIMELAPSES, 'start', lambda *args, **kwargs: kwargs)
+    capture = bridge.start_print_timelapse(mode='layer', layer_heights=[.3, .5, .8])
+    assert capture['layer_heights'] == [.3, .5, .8]
+    fallback = bridge.start_print_timelapse(mode='layer', layer_heights=[])
+    assert 'layer_heights' not in fallback
 
 
 @pytest.fixture

@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.0";
+const VERSION_UI = "0.2.1";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");

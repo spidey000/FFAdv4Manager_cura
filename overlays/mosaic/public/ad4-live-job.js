@@ -11,7 +11,7 @@
  <div class="ad4-live-pair"><div><div class="ad4-live-caption">Toolpath · right wall view</div><div id="ad4-live-canvas" class="ad4-live-canvas"></div></div>
  <div><div class="ad4-live-caption">Camera · live</div><div class="ad4-live-camera-wrap"><img id="ad4-live-camera" alt="Current physical print from the right-side camera" hidden><span id="ad4-live-camera-state">Camera stopped</span></div></div></div>
  <p id="ad4-live-position" role="status">XYZ — · Estimated layer —</p>
- <details><summary>Layer estimate and colors</summary><p class="ad4-help">Amber: estimated current layer and reported nozzle position. Green: lower layers. Gray: later layers. Z-hop and polling can affect the estimate; camera and position are not frame-synchronized.</p></details>
+ <details><summary>Layer estimate and colors</summary><p class="ad4-help">Red cone: reported XYZ nozzle position (tip at Z). Amber: estimated current layer. Green: lower layers. Gray: later layers. Z-hop and polling can affect the estimate; camera and position are not frame-synchronized.</p></details>
  <div class="ad4-tools"><button id="ad4-live-right" type="button">Right wall view</button>
  <label><input id="ad4-live-camera-toggle" type="checkbox" role="switch" checked>Live camera</label>
  <button id="ad4-live-stop" type="button">Stop viewing</button>
