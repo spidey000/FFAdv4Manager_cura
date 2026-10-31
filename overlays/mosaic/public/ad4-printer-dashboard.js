@@ -9,16 +9,16 @@
  const $=id=>document.getElementById(id);
  const demo=window.__AD4_STATIC_PREVIEW__===true;
  const cards=[
-  ["status","Machine status","Machine","—","control","Print controls"],
-  ["temperatures","Temperatures","Nozzle / bed","— / —","control","Temperature & fan controls"],
+  ["status","Machine status","Machine","—","control","Controls"],
+  ["temperatures","Temperatures","Nozzle / bed","— / —","control","Controls"],
   ["progress","Print progress","Completion / layer","— / —","control","Print controls"],
-  ["job","Current file","Job filename","—","live","View current print"],
-  ["camera","Camera","Snapshot / live feed","Unavailable","camera","Open camera"],
-  ["files","Stored printer files","Files on printer","—","files","Browse files"],
-  ["timelapse","Timelapses","Recording and gallery","Unavailable","timelapse","View timelapses"],
-  ["controls","Print & fan controls","Pause, resume, cancel, fan","Unavailable","control","Open controls"],
-  ["connection","Connection profiles","Selected profile","—","control","Manage connections"],
-  ["diagnostics","Diagnostics","Doctor, printer info, M114","Unavailable","control","Open diagnostics"]
+  ["job","Current file","Job filename","—","live","View print"],
+  ["camera","Camera","Snapshot / live feed","Unavailable","camera","Camera"],
+  ["files","Stored printer files","Files on printer","—","files","Files"],
+  ["timelapse","Timelapses","Recording and gallery","Unavailable","timelapse","Timelapses"],
+  ["controls","Print & fan controls","Pause, resume, cancel, fan","Unavailable","control","Controls"],
+  ["connection","Connection profiles","Selected profile","—","control","Connections"],
+  ["diagnostics","Diagnostics","Doctor, printer info, M114","Unavailable","control","Diagnostics"]
  ];
  const escape=text=>String(text).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
  page.innerHTML='<div class="ad4-printer-overview"><div><h2>Adventurer 4</h2>'+
