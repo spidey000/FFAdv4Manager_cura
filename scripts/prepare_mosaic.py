@@ -33,6 +33,8 @@ def build():
     # MIT-licensed ThreeSlicer viewer only, never its AGPL slicer kernel.
     shutil.copytree(OV/"src/gui/viewer/ad4-three-slicer",
                     DEST/"src/gui/viewer/ad4-three-slicer")
+    shutil.copy2(OV/"src/gui/viewer/ad4-three-slicer/LICENSE",
+                 DEST/"public/three-slicer-viewer-LICENSE.txt")
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     shutil.copy2(OV/"public/ad4-stl-worker.js", DEST/"public/ad4-stl-worker.js")
     for name in ("ad4-manager-tools.js", "ad4-manager-tools.css", "ad4-live-job.js", "ad4-live-job.css"):
