@@ -510,6 +510,19 @@ with sync_playwright() as p:
                 page.locator('#ad4-v3-top [data-route="printer"]').click()
                 if page.evaluate("document.body.dataset.ad4Screen")!="printer":failures.append(f"{width}: Printer tab does not navigate")
                 if not page.locator("#ad4-v3-printer-page:visible").count():failures.append(f"{width}: Printer page empty")
+                # Visual reference: compact card and expandable header, no second palette.
+                shell=page.locator("#ad4-printer-shell")
+                if not shell.is_visible() or shell.get_attribute("open") is not None:
+                    failures.append(f"{width}: Printer header is not initially compact/collapsed")
+                if page.locator("#ad4-printer-shell .ad4-printer-logo svg").count()!=1:
+                    failures.append(f"{width}: Printer header Lucide icon missing")
+                summary_css=shell.evaluate("""e=>{
+                  const card=getComputedStyle(e),header=getComputedStyle(e.querySelector("summary"));
+                  return {bg:card.backgroundColor,radius:card.borderRadius,
+                          padding:header.paddingLeft,border:card.borderTopWidth};
+                }""")
+                if summary_css["border"]!="1px" or float(summary_css["radius"].replace("px",""))<12:
+                    failures.append(f"{width}: Printer reference card tokens/rounding invalid: {summary_css}")
                 # New Printer workspace: four internal routes, native controller retained.
                 nav=page.locator('#ad4-v3-printer-page .ad4-printer-nav [data-printer-go]')
                 routes=set(nav.evaluate_all("(nodes)=>nodes.map(n=>n.dataset.printerGo)"))
@@ -525,6 +538,7 @@ with sync_playwright() as p:
                 expected_features={"live","controls","files","camera","timelapse","connection","tools"}
                 if not expected_features.issubset(features):
                     failures.append(f"{width}: missing printer functions {expected_features-features}")
+                shell.locator(":scope > summary").click()
                 for id in ("ad4-printer-machine","ad4-printer-nozzle","ad4-printer-bed",
                            "ad4-printer-job-name","ad4-printer-file-count","ad4-printer-elapsed","ad4-printer-remaining",
                            "ad4-live-x","ad4-live-y","ad4-live-z","ad4-live-layer"):
@@ -556,7 +570,20 @@ with sync_playwright() as p:
                         failures.append(f"{width}: {title} did not restore visualization on close")
                 if not page.locator("#ad4-pause").is_disabled():
                     failures.append(f"{width}: public preview enables printer pause")
+                if not page.locator("#ad4-printer-current-title, .ad4-printer-current-title").count():
+                    failures.append(f"{width}: Current print title hierarchy missing")
+                if not page.locator("#ad4-printer-progress-inline, .ad4-printer-progress-inline").count():
+                    failures.append(f"{width}: progress bar and percent not presented inline")
+                if page.locator('#ad4-manager [data-printer-feature="controls"] .ad4-tools button').count()!=3:
+                    failures.append(f"{width}: Printer action row must contain only Pause/Resume/Cancel")
+                for button in ("ad4-pause","ad4-resume","ad4-cancel"):
+                    if page.locator("#"+button+" .ad4-printer-action-glyph svg").count()!=1:
+                        failures.append(f"{width}: consistent Lucide icon missing for {button}")
+                shell.locator(":scope > summary").click()
+                if shell.get_attribute("open") is not None:
+                    failures.append(f"{width}: Printer reference header did not collapse")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
+                shell.locator(":scope > summary").click()
                 page.locator('#ad4-v3-printer-page .ad4-printer-nav [data-printer-go="files"]').click()
                 if page.locator("#ad4-v3-printer-page").get_attribute("data-printer-view")!="files":
                     failures.append(f"{width}: files panel route failed")
