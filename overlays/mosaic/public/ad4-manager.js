@@ -124,6 +124,15 @@ function renderGallery(){
   const art=document.createElement("span");art.className="ad4-timelapse-placeholder";
   art.innerHTML='<span data-ad4-icon="play" aria-hidden="true"></span>';
   art.title="No recording thumbnail available";
+  // Saved recording frames are real JPEGs served through the protected bridge.
+  // Failed/missing frames keep the neutral placeholder, never a fabricated shot.
+  if(Number(item.frames)>0){
+   const frame=document.createElement("img");frame.loading="lazy";
+   frame.alt="First frame of recording "+date(item.created_at);
+   frame.src=root+"/timelapses/frame?id="+encode(item.id)+"&index=0";
+   frame.addEventListener("error",()=>frame.remove());
+   art.append(frame);
+  }
   const meta=document.createElement("div");meta.className="ad4-file-meta";
   const title=document.createElement("strong");title.textContent=date(item.created_at);
   const small=document.createElement("small");
