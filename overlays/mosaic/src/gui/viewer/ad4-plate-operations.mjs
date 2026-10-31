@@ -89,6 +89,8 @@ export function installPlateOperations({
     const current=activeMeshes();
     for (const existing of current) if (!saved.has(existing)) remember(existing);
     remember(mesh);
+    const individual=check([mesh]);
+    if(!individual.valid)return fail(individual.reason);
     if (check([...current,mesh]).valid) return true;
     return arrange([...current,mesh]);
   }
