@@ -38,9 +38,19 @@ with sync_playwright() as p:
     stats = page.evaluate("""() => ({
       layers: AD4GCodePreview.count,
       ...AD4GcodePreviewStats,
+      solidMesh: AD4GCodePreview.solidMeshStats,
       canvasWidth: document.getElementById('stl-viewer').getBoundingClientRect().width
     })""")
     assert stats["displayedSegments"] > 500, stats
+    # The screenshot bug was zero-thickness, two-triangle ribbons: assert
+    # that actual rendered meshes are closed indexed 3D solids, not lines.
+    assert stats["solidPreview"] is True, stats
+    assert stats["solidSegments"] > 500, stats
+    assert stats["solidMesh"]["solid"] > 100, stats
+    assert stats["solidMesh"]["indexed"] == stats["solidMesh"]["solid"], stats
+    assert 0.04 < stats["solidMesh"]["minThickness"] < 0.81, stats
+    assert 0.04 < stats["solidMesh"]["maxThickness"] < 0.81, stats
+    page.screenshot(path="/tmp/ad4-solid-3dbenchy-mobile.png", full_page=False)
     assert stats["canvasWidth"] > 0, stats
     assert not failures, failures
     # Layer scrubbing and Cura feature visibility still operate on the
