@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.1";
+const VERSION_UI = "0.2.2";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -138,6 +138,21 @@ function notify(message){
  $("ad4-v3-toast-message").textContent=message;note.hidden=false;clearTimeout(noteHandle);
  noteHandle=setTimeout(()=>note.hidden=true,4200);
 }
+document.addEventListener("ad4:plate-rejected",event=>{
+ notify(event.detail?.reason || "Invalid position: model restored");
+});
+document.addEventListener("ad4:plate-arranged",event=>{
+ notify(event.detail?.count===1?"Model positioned safely":"Models arranged without collisions");
+});
+// Reject print/slice actions even if another component bypasses this UI.
+document.addEventListener("click",event=>{
+ if (!event.target?.closest?.("#slice-button,#ad4-v3-run-slice,#ad4-dock-slice")) return;
+ const plate=globalThis.app?.gui?.model_viewer;
+ if (plate?.ad4_plate_valid?.() === false) {
+   event.preventDefault();event.stopImmediatePropagation();
+   notify("Resolve overlapping or out-of-bounds models before slicing");
+ }
+},true);
 function closeSheet(){
  if(root.classList.contains("ad4-sheet-open"))$("ad4-sheet-close")?.click();
 }
@@ -540,6 +555,8 @@ function setAxis(axis,raw,{exact=false}={}){
  const locked=mode==="scale"&&$("ad4-v3-resize-lock").checked;
  if(mode==="scale")lockLabel.querySelector("input").checked=locked;
  const factor=locked&&old!==0?value/old:1;
+ const plate=globalThis.app?.gui?.model_viewer;
+ plate?.ad4_begin_transform?.();
  for(const key of locked?["x","y","z"]:[axis]){
   const source=sourceAxis(key);if(!source)continue;
   const prior=Number(source.value);
@@ -547,6 +564,8 @@ function setAxis(axis,raw,{exact=false}={}){
   source.value=String(target);
   source.dispatchEvent(new Event("input",{bubbles:true}));
  }
+ const accepted=plate?.ad4_commit_transform?.();
+ if(accepted===false) updateCompactValues();
  $("slice-export-container")?.setAttribute("data-active","false");
  refreshAxis();
  updateCompactValues();
@@ -591,6 +610,32 @@ for(const [type,iconName,label] of [["translate","move","Move"],["rotate","rotat
  btn.dataset.viewerMode=type;btn.setAttribute("aria-label",label+" selected model");
  viewerTransform.append(btn);
 }
+// Permanent plate tools beside Move / Rotate / Scale. Clone always repacks.
+const arrangeButton=navButton("layout-grid","Arrange",()=>{
+ const plate=globalThis.app?.gui?.model_viewer;
+ if(!plate?.ad4_auto_arrange){notify("Model editor is still loading");return}
+ plate.ad4_auto_arrange();
+});
+arrangeButton.id="ad4-v3-auto-arrange";
+arrangeButton.setAttribute("aria-label","Auto arrange all models without collisions");
+arrangeButton.title="Auto Arrange · keep every model inside the build plate";
+viewerTransform.append(arrangeButton);
+const cloneButton=navButton("copy-plus","Clone",()=>{
+ const plate=globalThis.app?.gui?.model_viewer;
+ if(!plate?.ad4_clone_selected){notify("Model editor is still loading");return}
+ plate.ad4_clone_selected();
+});
+cloneButton.id="ad4-v3-clone";
+cloneButton.setAttribute("aria-label","Clone selected model and auto arrange");
+cloneButton.title="Clone selected model and arrange all without collisions";
+viewerTransform.append(cloneButton);
+function updatePlateButtons(){
+ arrangeButton.disabled=modelCount()===0;
+ cloneButton.disabled=!hasSelection();
+}
+document.addEventListener("ad4:models-changed",updatePlateButtons);
+setInterval(updatePlateButtons,300);
+updatePlateButtons();
 let activeViewerMode=null;
 const compactValues=make("div","ad4-viewer-values");compactValues.id="ad4-viewer-values";compactValues.hidden=true;
 for(const axis of ["x","y","z"]){const label=make("label","ad4-viewer-value-row");label.innerHTML='<span>'+axis.toUpperCase()+'</span><input type="number" inputmode="decimal" step="any" aria-label="'+axis.toUpperCase()+' transform value"><span class="ad4-viewer-value-unit"></span>';const input=label.querySelector("input");input.addEventListener("change",()=>setAxis(axis,Number(input.value),{exact:true}));input.addEventListener("keydown",e=>{if(e.key==="Enter")input.blur()});compactValues.append(label)}
