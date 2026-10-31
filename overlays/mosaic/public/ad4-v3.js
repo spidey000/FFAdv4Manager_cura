@@ -956,7 +956,7 @@ function updateCompactValues(){
  for(const [i,axis] of ["x","y","z"].entries()){
   const row=rows[i],field=row.querySelector("input");
   if(document.activeElement!==field){
-   const value=mesh?liveTransformValue(mesh,axis):Number(sourceAxis(axis)?.value);
+   const value=mesh?liveTransformValue(mesh,axis):(mode==="scale"?NaN:Number(sourceAxis(axis)?.value));
    const next=Number.isFinite(value)?String(Number(value.toFixed(3))):"";
    if(field.value!==next)field.value=next;
   }
