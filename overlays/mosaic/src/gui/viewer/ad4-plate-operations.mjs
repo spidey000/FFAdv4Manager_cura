@@ -109,10 +109,7 @@ export function installPlateOperations({
     focusModel(mesh.uuid);
     clearSliceState();
     renderer.invalidate();
-    emit("models-changed",{count:Object.keys(models).length}); // compatibility event below
-    document.dispatchEvent(new CustomEvent("ad4:models-changed",{
-      detail:{count:Object.keys(models).length}
-    }));
+    emit("models-changed",{count:Object.keys(models).length});
     return true;
   }
   // Native focus is an ES module live binding, so obtain it at call time.
