@@ -1747,3 +1747,5 @@ body[data-ad4-screen=printer] #ad4-v3-printer-page{
  #ad4-v3-printer-page #ad4-manager .ad4-tools{grid-template-columns:minmax(0,1fr)!important}
  #ad4-v3-printer-page #ad4-manager .ad4-file-filters{flex-direction:column}
 }
+
+#ad4-v3-printer-page:not([data-printer-view=overview]) .ad4-printer-overview-content{display:none!important}
