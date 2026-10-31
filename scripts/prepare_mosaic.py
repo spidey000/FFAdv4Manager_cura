@@ -391,8 +391,14 @@ layer_slider.addEventListener("input",()=>{
     # They operate on Mosaic's authoritative registry and selection, not a
     # second, disconnected UI-side collection.
     patch("src/gui/file.mjs",
+          "    stl_file_name = reader.file_name;\n",
+          "")
+    patch("src/gui/file.mjs",
           '    load_model(array_buffer, stl_file_name.endsWith(".stl") ? "stl" : "3mf");',
-          '    load_model(array_buffer, stl_file_name.endsWith(".stl") ? "stl" : "3mf", reader.file_name);')
+          '    Promise.resolve(load_model(array_buffer, reader.file_name.toLowerCase().endsWith(".stl") ? "stl" : "3mf", reader.file_name))\n'
+          '      .then(mesh => { if (mesh) stl_file_name = reader.file_name; })\n'
+          '      .catch(error => document.dispatchEvent(new CustomEvent("ad4:viewer-error",\n'
+          '        {detail:{code:"MODEL_LOAD_FAILED",message:"Could not load “"+reader.file_name+"”: "+error.message}})));\n')
     patch("src/gui/viewer/model_viewer.mjs",
           'export function load_model(raw_data, model_type) {',
           'export async function load_model(raw_data, model_type, file_name = "") {')
@@ -450,6 +456,7 @@ ad4Plate.setFocusedGetter(()=>focused);
 export const ad4_auto_arrange = () => ad4Plate.arrange();
 export const ad4_clone_selected = () => ad4Plate.cloneSelected();
 export const ad4_plate_valid = () => ad4Plate.isValid();
+export const ad4_plate_status = () => ad4Plate.status();
 export const ad4_begin_transform = () => ad4Plate.beginTransform();
 export const ad4_commit_transform = () => ad4Plate.commitTransform();
 
