@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.6";
+const VERSION_UI = "0.2.7";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -319,6 +319,7 @@ function activate(name){
  const embeddedManager=$("ad4-manager");
  if(name==="printer"){
   if(embeddedManager&&!embeddedManager.open)document.dispatchEvent(new Event("ad4:printer-enter"));
+  document.dispatchEvent(new Event("ad4:printer-reset"));
   // On every entry, including repeated clicks on Printer, start at the overview.
   const printerScroll=$("ad4-v3-printer-page");
   if(printerScroll){
@@ -1168,13 +1169,14 @@ if(manager){
 }
 function openPrinter(pane="controls"){
  if(current!=="printer")activate("printer");
- const key={live:"live",control:"controls",files:"files",camera:"camera",
-  timelapse:"timelapse",connection:"connection",diagnostics:"connection",tools:"tools"}[pane]||"controls";
- requestAnimationFrame(()=>{
-  const target=manager?.querySelector('[data-printer-feature="'+key+'"]');
-  if(target?.tagName==="DETAILS")target.open=true;
-  target?.scrollIntoView({block:"start",behavior:"smooth"});
- });
+ const view={live:"overview",control:"overview",files:"files",camera:"media",
+  timelapse:"media",connection:"diagnostics",diagnostics:"diagnostics",tools:"files"}[pane]||"overview";
+ const target={live:"ad4-live-job",control:"ad4-pause",files:"ad4-file-list",
+  camera:"ad4-camera",timelapse:"ad4-gallery",
+  connection:"ad4-connection-profiles",diagnostics:"ad4-diagnostic-doctor",tools:"ad4-local-job"}[pane];
+ requestAnimationFrame(()=>document.dispatchEvent(new CustomEvent("ad4:printer-navigate",{
+  detail:{view,target}
+ })));
 }
 
 function toolBtn(symbol,label,fn,id){
