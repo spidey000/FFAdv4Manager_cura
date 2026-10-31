@@ -1169,10 +1169,10 @@ if(manager){
 }
 function openPrinter(pane="controls"){
  if(current!=="printer")activate("printer");
- const view={live:"overview",control:"overview",files:"files",camera:"media",
+ const view={live:"overview",control:"overview",files:"files",camera:"overview",
   timelapse:"media",connection:"diagnostics",diagnostics:"diagnostics",tools:"files"}[pane]||"overview";
  const target={live:"ad4-live-job",control:"ad4-pause",files:"ad4-file-list",
-  camera:"ad4-camera",timelapse:"ad4-gallery",
+  camera:"ad4-live-camera-expand",timelapse:"ad4-gallery",
   connection:"ad4-connection-profiles",diagnostics:"ad4-diagnostic-doctor",tools:"ad4-local-job"}[pane];
  requestAnimationFrame(()=>document.dispatchEvent(new CustomEvent("ad4:printer-navigate",{
   detail:{view,target}
