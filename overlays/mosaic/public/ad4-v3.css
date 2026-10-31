@@ -1427,7 +1427,7 @@ body[data-ad4-screen=printer] #ad4-v3-printer-page{
  background:#332521!important;border-left-color:#d67a5e!important;color:#ffd1c5!important
 }
 /* The preflight is part of the printer workflow and uses the same toggle. */
-.ad4-print-confirm .ad4-preflight-switch{justify-content:space-between;gap:12px}
+.ad4-print-confirm .ad4-preflight-switch{flex-direction:row-reverse;justify-content:space-between;gap:12px}
 .ad4-print-confirm .ad4-preflight-switch input[type=checkbox]{
  appearance:none;-webkit-appearance:none;flex:0 0 43px;
  position:relative;width:43px;height:25px;min-width:43px;min-height:25px;
