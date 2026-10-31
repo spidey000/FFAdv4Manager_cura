@@ -831,7 +831,7 @@ $("ad4-v3-profile-file").addEventListener("change",async e=>{
 const manager=$("ad4-manager");
 if(manager){
  const names={
-  "Print controls":"controls","Printer files":"files","Camera":"camera",
+  "Current print":"live","Print controls":"controls","Printer files":"files","Camera":"camera",
   "Timelapses":"timelapse","Printer connections and diagnostics":"connection",
   "Files and diagnostics":"tools"
  };
