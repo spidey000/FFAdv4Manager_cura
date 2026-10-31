@@ -1152,3 +1152,12 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
  #ad4-v3-printer-page .ad4-printer-dashboard{grid-template-columns:minmax(0,1fr)!important}
  #ad4-v3-printer-page #ad4-manager .ad4-tools{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Muted disabled primary actions must not look printable in the Pages demo. */
+#ad4-v3-printer-page #ad4-manager button.ad4-primary:disabled{
+ background:#23352b!important;border-color:#405348!important;
+ color:#85998a!important;opacity:.48!important;cursor:not-allowed!important}
+#ad4-v3-printer-page #ad4-manager .ad4-tools label:has(input[type=file]){
+ grid-column:1/-1;display:grid;grid-template-columns:auto minmax(0,1fr)}
+#ad4-v3-printer-page #ad4-manager .ad4-tools label input[type=file]{
+ width:100%!important;max-width:100%!important}
