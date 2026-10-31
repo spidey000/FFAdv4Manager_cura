@@ -257,6 +257,8 @@
   refresh();if(!demo)globalThis.AD4Printer?.refresh?.().catch(()=>{});
  });
  if(demo){
+  if($("ad4-file-list"))$("ad4-file-list").textContent="Files unavailable · Public preview";
+  if($("ad4-gallery"))$("ad4-gallery").textContent="Saved recordings require the authenticated server";
   $("ad4-v3-printer-page-state").textContent="Public preview · Printer offline";
   page.dataset.printerConnection="disconnected";
   $("ad4-printer-refresh").disabled=true;
