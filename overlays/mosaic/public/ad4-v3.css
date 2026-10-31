@@ -2275,3 +2275,17 @@ body[data-ad4-screen=printer] #ad4-v3-printer-page{
   font-size:11px!important;gap:4px!important
  }
 }
+
+
+/* Compact camera title: preserve the complete text beside the 44px switch. */
+@media(max-width:690px){
+ #ad4-v3-printer-page #ad4-manager #ad4-live-job #ad4-live-camera-expand{
+  font-size:11px!important;gap:4px!important
+ }
+ #ad4-v3-printer-page #ad4-manager #ad4-live-job #ad4-live-camera-expand>span:last-child{
+  display:none!important
+ }
+ #ad4-v3-printer-page #ad4-manager #ad4-live-job .ad4-live-visual-camera-switch{
+  min-width:43px!important;flex-basis:43px!important
+ }
+}
