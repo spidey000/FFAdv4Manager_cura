@@ -28,7 +28,7 @@ def build():
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     # Keep performant viewer code as tracked overlays, never edit generated frontend.
-    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-stl-worker-client.mjs"):
+    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-bevel-profile.mjs", "ad4-stl-worker-client.mjs"):
         shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     shutil.copy2(OV/"public/ad4-stl-worker.js", DEST/"public/ad4-stl-worker.js")
@@ -179,6 +179,8 @@ main().catch(error => {
     displayedSegments: built.displayed,
     solidSegments: built.solidSegments,
     solidPreview: built.solidPreview,
+    bevelPreview: built.bevelPreview,
+    bevelShade: built.bevelShade,
     minLayerHeight: Math.min(...built.layerHeights),
     maxLayerHeight: Math.max(...built.layerHeights),
     simplified: built.simplified
@@ -207,6 +209,21 @@ globalThis.AD4GCodePreview = {
   },
   get types(){return globalThis.__AD4_GCODE_CATEGORIES__||[]},
   colorForType(type){return colorForToolpathType(type)},
+  get bevelMeshStats(){
+    let bevelMeshes=0,shadeBytes=0,vertices=0,indexCount=0,broken=0;
+    for(const group of layers)for(const part of group.children){
+      if(part.userData.ad4Category==="TRAVEL")continue;
+      const attribute=part.geometry.getAttribute("ad4Shade");
+      if(!attribute||attribute.itemSize!==1||!attribute.normalized){
+        broken++;continue;
+      }
+      bevelMeshes++;
+      shadeBytes+=attribute.array.byteLength;
+      vertices+=part.geometry.getAttribute("position").count;
+      indexCount+=part.geometry.index.count;
+    }
+    return {bevelMeshes,shadeBytes,vertices,indexCount,broken};
+  },
   get solidMeshStats(){
     let indexed=0,solid=0,minThickness=Infinity,maxThickness=0;
     for(const group of layers)for(const part of group.children){

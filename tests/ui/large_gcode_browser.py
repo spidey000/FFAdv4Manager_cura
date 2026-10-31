@@ -39,6 +39,7 @@ with sync_playwright() as p:
       layers: AD4GCodePreview.count,
       ...AD4GcodePreviewStats,
       solidMesh: AD4GCodePreview.solidMeshStats,
+      bevelMesh: AD4GCodePreview.bevelMeshStats,
       canvasWidth: document.getElementById('stl-viewer').getBoundingClientRect().width
     })""")
     assert stats["displayedSegments"] > 500, stats
@@ -48,6 +49,26 @@ with sync_playwright() as p:
     assert stats["solidSegments"] > 500, stats
     assert stats["solidMesh"]["solid"] > 100, stats
     assert stats["solidMesh"]["indexed"] == stats["solidMesh"]["solid"], stats
+    # Chamfered cross sections have a BYTE attribute for brightness: one
+    # mesh/draw call per feature/layer, no extra light or shadow pass.
+    assert stats["bevelPreview"] is True, stats
+    assert 0.895 < stats["bevelShade"] < 0.905, stats
+    assert stats["bevelMesh"]["broken"] == 0, stats
+    assert stats["bevelMesh"]["bevelMeshes"] == stats["solidMesh"]["solid"], stats
+    assert stats["bevelMesh"]["shadeBytes"] == stats["bevelMesh"]["vertices"], stats
+    assert stats["bevelMesh"]["shadeBytes"] < 8000000, (
+        "Excessive vertex-shading GPU memory consumption: " + str(stats)
+    )
+    bead = page.evaluate("""() => {
+      const meshes=AD4GCodePreview.count && AD4GCodePreview;
+      // Inspect the actual GPU-ready geometry, not a detached test mock.
+      const rendered=Object.values(globalThis.app.gui || {});
+      const api=globalThis.AD4GCodePreview;
+      const geometry=api.bevelMeshStats;
+      const colors=api.renderedColors;
+      return {bevelMeshes:geometry.bevelMeshes,colors:Object.keys(colors).length};
+    }""")
+    assert bead["bevelMeshes"] > 100, bead
     assert 0.04 < stats["solidMesh"]["minThickness"] < 0.81, stats
     assert 0.04 < stats["solidMesh"]["maxThickness"] < 0.81, stats
     page.screenshot(path="/tmp/ad4-solid-3dbenchy-mobile.png", full_page=False)
