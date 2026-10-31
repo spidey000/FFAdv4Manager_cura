@@ -124,6 +124,16 @@ function topActive(){
  for(const b of top.querySelectorAll("button"))b.setAttribute("aria-pressed",String(b.dataset.route===(current==="sliced"||current==="transform"||current==="slice-info"?"preview":current)));
 }
 function activate(name){
+ // Both screens share Three.js camera and OrbitControls. Preserve world pose.
+ const renderApi=globalThis.app?.gui?.renderer;
+ const orbit=renderApi?.controls,cam=renderApi?.camera;
+ const retainCamera=cam&&orbit&&
+   ["preview","sliced","transform","slice-info"].includes(current)&&
+   ["preview","sliced","transform","slice-info"].includes(name);
+ const pose=retainCamera?{
+   position:cam.position.clone(),quaternion:cam.quaternion.clone(),
+   target:orbit.target.clone(),zoom:cam.zoom
+ }:null;
  closeStatusMenu();closeSheet();closeModelsMenu();
  current=name;
  root.dataset.ad4Screen=name;
@@ -141,6 +151,13 @@ function activate(name){
  if(name==="app"||name==="printer"||name==="slice-info")closeSheet();
  if(name==="transform")setTransform("rotate");
  topActive();renderTools();refreshState();
+ if(pose)requestAnimationFrame(()=>{
+   cam.position.copy(pose.position);
+   cam.quaternion.copy(pose.quaternion);
+   cam.zoom=pose.zoom;cam.updateProjectionMatrix();
+   orbit.target.copy(pose.target);orbit.update();
+   renderApi.invalidate();
+ });
  dispatchEvent(new Event("resize"));
 }
 for(const [symbol,label,route] of TOP){
@@ -200,12 +217,12 @@ setInterval(refreshSelectionBrackets,120);
 
 
 const layerUI=make("section","ad4-v3-layer-card");layerUI.id="ad4-v3-layer-card";
-layerUI.innerHTML='<div class="ad4-v3-card-title"><strong id="ad4-v3-panel-title">Sliced preview</strong><span id="ad4-v3-preview-status">G-code layers</span></div>'+
+layerUI.innerHTML=
 '<div id="ad4-v3-range-panel">'+
 '<div class="ad4-v3-double-range" id="ad4-v3-double-range" aria-label="Visible layer range"><div class="ad4-v3-range-track"></div><div class="ad4-v3-range-selected" id="ad4-v3-range-selected"></div><button type="button" class="ad4-v3-range-thumb" id="ad4-v3-range-min" role="slider" aria-valuemin="1" aria-valuemax="100" aria-valuenow="1" aria-label="From layer"><span id="ad4-v3-layer-from">1</span></button><button type="button" class="ad4-v3-range-thumb" id="ad4-v3-range-max" role="slider" aria-valuemin="1" aria-valuemax="100" aria-valuenow="100" aria-label="To layer"><span id="ad4-v3-layer-to">100</span></button></div>'+
 '<div class="ad4-v3-move-scrub"><label for="ad4-v3-move-position">Move <output id="ad4-v3-move-status">—</output></label><input id="ad4-v3-move-position" type="range" min="0" max="1" value="1" aria-label="ThreeSlicer path movement position within current layer"></div>'+
 '<div class="ad4-v3-estimates"><div class="ad4-v3-stat" title="Estimated print time">'+svg("clock")+'<strong id="ad4-v3-time">—</strong></div><div class="ad4-v3-stat" title="Estimated filament weight">'+svg("filament")+'<strong id="ad4-v3-material">— g</strong></div></div></div>'+
-'<div id="ad4-v3-types-panel" hidden><div class="ad4-v3-type-heading">Toolpath visibility <small>Times approximate · G-code feedrates</small></div><div class="ad4-v3-mode-selector"><label for="ad4-v3-color-mode">Color by</label><select id="ad4-v3-color-mode" aria-label="ThreeSlicer coloring mode"><option value="feature">Feature type</option><option value="filament">Filament</option><option value="height">Layer height</option><option value="width">Line width</option></select></div><div id="ad4-v3-type-list"></div></div>';
+'<div id="ad4-v3-types-panel" hidden><div class="ad4-v3-mode-selector"><label for="ad4-v3-color-mode">Color by</label><select id="ad4-v3-color-mode" aria-label="ThreeSlicer coloring mode"><option value="feature">Feature type</option><option value="filament">Filament</option><option value="height">Layer height</option><option value="width">Line width</option></select></div><div id="ad4-v3-type-list" aria-live="polite"></div><div class="ad4-v3-type-pages"><button id="ad4-v3-types-prev" type="button" aria-label="Previous feature types">‹</button><span id="ad4-v3-types-pages">1 / 1</span><button id="ad4-v3-types-next" type="button" aria-label="Next feature types">›</button></div></div>';
 root.append(layerUI);
 root.querySelector("#ad4-v3-color-mode")?.addEventListener("change",event=>{
   globalThis.AD4GCodePreview?.setViewMode(event.target.value);
@@ -233,6 +250,8 @@ movePosition.addEventListener("input",()=>{
 
 
 let layerFrom=1,layerTo=1,layerCount=0,showTypes=false,typesGcodeCache="";
+const TYPE_PAGE_SIZE=3;
+let typePage=0,typeRows=[];
 root.dataset.ad4LayerPanel="range";
 const typeLabels={
  "WALL-OUTER":"Outer wall","WALL-INNER":"Inner wall","SKIN":"Top / Bottom","FILL":"Infill",
@@ -338,7 +357,7 @@ function refreshTypes(){
  if(!api?.count||!gcode||!showTypes)return;
  if(typesGcodeCache===gcode)return;typesGcodeCache=gcode;
  const times=estimateTypeTimes(gcode),categories=api.types||[],list=$("ad4-v3-type-list");
- list.replaceChildren();
+ list.replaceChildren();typeRows=[];
  for(const key of [...new Set([...categories,...times.keys()])]){
   const row=make("label","ad4-v3-type-row");
   row.dataset.toolpathType=key;
@@ -348,18 +367,29 @@ function refreshTypes(){
   const duration=make("small","ad4-v3-type-time",formatDuration(times.get(key)));
   const toggle=make("input");toggle.type="checkbox";toggle.checked=!api.hiddenTypes?.has(key);toggle.setAttribute("aria-label","Show "+(typeLabels[key]||key));
   toggle.addEventListener("change",()=>api.setTypeVisible(key,toggle.checked));
-  row.append(swatch,name,duration,toggle);list.append(row);
+  row.append(swatch,name,duration,toggle);typeRows.push(row);
  }
+ renderTypePage();
 }
+function renderTypePage(){
+ const pages=Math.max(1,Math.ceil(typeRows.length/TYPE_PAGE_SIZE));
+ typePage=Math.max(0,Math.min(typePage,pages-1));
+ $("ad4-v3-type-list").replaceChildren(...typeRows.slice(typePage*TYPE_PAGE_SIZE,(typePage+1)*TYPE_PAGE_SIZE));
+ $("ad4-v3-types-pages").textContent=(typePage+1)+" / "+pages;
+ $("ad4-v3-types-prev").disabled=typePage===0;
+ $("ad4-v3-types-next").disabled=typePage===pages-1;
+}
+$("ad4-v3-types-prev").addEventListener("click",()=>{typePage--;renderTypePage()});
+$("ad4-v3-types-next").addEventListener("click",()=>{typePage++;renderTypePage()});
 function toggleLayerTypePanel(){
  showTypes=!showTypes;
  $("ad4-v3-range-panel").hidden=showTypes;
  $("ad4-v3-types-panel").hidden=!showTypes;
- $("ad4-v3-panel-title").textContent=showTypes?"Layer types":"Sliced preview";
+
  root.dataset.ad4LayerPanel=showTypes?"types":"range";
  $("ad4-v3-show-layers").setAttribute("aria-pressed",String(showTypes));
  updateLayerViewButton();
- if(showTypes){$("ad4-v3-color-mode").value=globalThis.AD4GCodePreview?.viewMode||"feature";typesGcodeCache="";refreshTypes()}
+ if(showTypes){typePage=0;$("ad4-v3-color-mode").value=globalThis.AD4GCodePreview?.viewMode||"feature";typesGcodeCache="";refreshTypes()}
 }
 
 const transform=make("section","ad4-v3-transform");transform.id="ad4-v3-transform";
