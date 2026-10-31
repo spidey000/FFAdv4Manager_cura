@@ -31,7 +31,7 @@ def build():
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     # Keep performant viewer code as tracked overlays, never edit generated frontend.
-    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-bevel-profile.mjs", "ad4-gpu-seams.mjs", "ad4-stl-worker-client.mjs"):
+    for name in ("ad4-plate-layout.mjs", "ad4-plate-operations.mjs", "renderer.mjs", "parser.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-bevel-profile.mjs", "ad4-gpu-seams.mjs", "ad4-stl-worker-client.mjs"):
         shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
     # MIT-licensed ThreeSlicer viewer only, never its AGPL slicer kernel.
     shutil.copytree(OV/"src/gui/viewer/ad4-three-slicer",
@@ -418,8 +418,41 @@ layer_slider.addEventListener("input",()=>{
     patch("src/gui/viewer/model_viewer.mjs",
           "    let mesh = models[model].mesh.clone();",
           "    let mesh = models[model].mesh.clone();\n    mesh.visible = true;")
+    # Every import, clone, transform and STL export must pass the same
+    # authoritative geometry test. Reject invalid initial placement before it
+    # ever enters the scene/registry.
+    patch("src/gui/viewer/model_viewer.mjs",
+          "  scene.add(mesh);\n\n  mesh.name =",
+          "  if (!ad4Plate.acceptNewModel(mesh)) {\n"
+          "    mesh.geometry.dispose();\n    mesh.material.dispose();\n"
+          "    return null;\n  }\n  scene.add(mesh);\n\n  mesh.name =")
+    patch("src/gui/viewer/model_viewer.mjs",
+          "export function export_stl() {\n",
+          "export function export_stl() {\n"
+          "  if (!ad4Plate.isValid()) throw new Error('Cannot slice overlapping or out-of-bounds models');\n")
+    # Clones share large STL buffer geometry; deleting one must not dispose
+    # geometry still referenced by the others.
+    patch("src/gui/viewer/model_viewer.mjs",
+          "    models[focused].mesh.geometry.dispose();",
+          "    if (!Object.values(models).some(m => m.mesh !== models[focused].mesh &&\n"
+          "        m.mesh.geometry === models[focused].mesh.geometry))\n"
+          "      models[focused].mesh.geometry.dispose();")
     model_source = DEST / "src/gui/viewer/model_viewer.mjs"
     model_source.write_text(model_source.read_text() + """
+// Install plate rules in Mosaic's real model registry, not in the visual shell.
+import {installPlateOperations} from "./ad4-plate-operations.mjs";
+const ad4Plate = installPlateOperations({
+  models, scene, interactions, controls:model_controls, renderer,
+  focusModel:focus_stl, updateOverlays:update_overlays,
+  clearSliceState:clear_slice_state
+});
+ad4Plate.setFocusedGetter(()=>focused);
+export const ad4_auto_arrange = () => ad4Plate.arrange();
+export const ad4_clone_selected = () => ad4Plate.cloneSelected();
+export const ad4_plate_valid = () => ad4Plate.isValid();
+export const ad4_begin_transform = () => ad4Plate.beginTransform();
+export const ad4_commit_transform = () => ad4Plate.commitTransform();
+
 // Public model-list operations, bound to Mosaic's own selected mesh.
 export function ad4_select_model(uuid) {
   if (!Object.prototype.hasOwnProperty.call(models, uuid)) return false;
