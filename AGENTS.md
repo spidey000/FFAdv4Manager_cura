@@ -78,3 +78,16 @@ El servidor debe seguir escuchando **solo en 127.0.0.1**. **No abras ni redirija
 - **No detecta la impresora:** verifica IP, conexión a la misma LAN y prueba `.venv/bin/ffadv4manager doctor`.
 
 Para más detalles y capturas, consulta el [README principal](README.md). La [demo web](https://spidey000.github.io/FFAdv4Manager_cura/) permite explorar la interfaz, pero no lamina ni imprime.
+
+## Regla obligatoria de versionado para todo PR
+
+**Cada pull request debe incrementar como mínimo una versión SemVer respecto a `main`, incluso si solo cambia documentación o mantenimiento.** Esta regla se aplica a cualquier agente que prepare un PR, antes de crearlo y antes de solicitar el merge.
+
+- **UI:** incrementar `const VERSION_UI = "X.Y.Z"` en `overlays/mosaic/public/ad4-v3.js` cuando cambien interfaz, visor, estilos, presets, empaquetado web o despliegue.
+- **Backend:** incrementar `version = "X.Y.Z"` en `pyproject.toml` cuando cambien el servidor, API, CLI, CuraEngine o integración con impresora.
+- **Mixto:** incrementar ambas versiones si el PR afecta a los dos componentes. Mantener las numeraciones independientes.
+- **Solo documentación, tests generales o infraestructura:** incrementar al menos la versión UI como marcador de release; no incrementar innecesariamente el backend.
+- Usar `MAJOR.MINOR.PATCH`: normalmente subir PATCH en 1; MINOR para nueva funcionalidad y MAJOR para cambios incompatibles. Comparar siempre con la rama base actualizada y no disminuir ni reutilizar su versión.
+- El hash de commit automático no sustituye el incremento del número de versión.
+- Incluir en el PR las versiones anteriores y nuevas. Revisar el check `PR version policy / version-bump`; si falla, corregir antes del merge.
+- El control está en `scripts/check_pr_version.py` y `.github/workflows/version-policy.yml`. Para verificarlo localmente: `python3 scripts/check_pr_version.py --base "$(git merge-base HEAD origin/main)"`.
