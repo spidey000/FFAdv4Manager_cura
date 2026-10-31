@@ -160,6 +160,18 @@ main().catch(error => {
 
 """
     settings.write_text(source[:start]+replacement+source[stop:])
+    # Match the exact AD4 Studio UI accent for the unsliced STL model, while
+    # keeping the G-code feature palette independent.
+    model_file=DEST/"src/gui/viewer/model_viewer.mjs"
+    model_code=model_file.read_text()
+    model_code=model_code.replace(
+      "const model_material = new THREE.MeshPhysicalMaterial({\\n  color: 0x1a5f5a,",
+      "const model_material = new THREE.MeshPhysicalMaterial({\\n  color: 0x20e37c,"
+    ).replace(
+      "  emissive: 0x1a5f5a,","  emissive: 0x20e37c,"
+    )
+    model_file.write_text(model_code)
+
     # Adventurer 4 metadata omits exclude_materials. Upstream Mosaic assumes
     # it is always a list and crashes on undefined.includes().
     # Adventurer 4 has no upstream Cura build-plate mesh. A missing
@@ -229,7 +241,8 @@ globalThis.AD4GCodePreview = {
     return data.movePrefix[top+1]-data.movePrefix[top];
   },
   setMoveRange(at){
-    const result=this.handle?.handle?.setMoveRange(at);
+    const selected=Math.min(this.count-1,Math.max(0,Number(layer_slider.value)-1));
+    const result=this.handle?.showMove(at,selected);
     renderer.invalidate();
     return result;
   },
