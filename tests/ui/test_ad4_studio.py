@@ -106,7 +106,7 @@ def test_printer_manager_is_inline_in_main_printer_tab():
     assert 'dialog.show()' in manager
     assert 'dialog.showModal()' not in manager
     assert 'embeddedManager.close()' in shell
-    for feature in ("controls", "files", "camera", "timelapse", "connection", "tools"):
+    for feature in ("live", "controls", "files", "camera", "timelapse", "connection", "tools"):
         assert '"' + feature + '"' in shell
     assert 'repeat(3,minmax(0,1fr))' in styles
     assert 'repeat(2,minmax(0,1fr))' in styles
