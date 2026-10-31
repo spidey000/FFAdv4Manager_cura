@@ -49,7 +49,7 @@
       '<div><span>Remaining</span><strong id="ad4-printer-remaining">—</strong></div></div>'+
     '</div>'+
    '</section>'+
-   '<div class="ad4-printer-jump-grid" hidden>'+
+   '<div class="ad4-printer-jump-grid">'+
     '<button type="button" data-printer-go="files">'+icon("file")+'<span>Printer files</span><strong id="ad4-printer-file-count">—</strong></button>'+
     '<button type="button" data-printer-go="media">'+icon("camera")+'<span>Timelapses</span><strong id="ad4-printer-record-summary">On demand</strong></button>'+
     '<button type="button" data-printer-go="diagnostics">'+icon("gear")+'<span>Connections & diagnostics</span><strong id="ad4-printer-profile-summary">—</strong></button>'+
@@ -105,6 +105,12 @@
  if(control){
   const heading=control.querySelector("h3");
   if(heading){heading.textContent=heading.textContent.replace("Print controls","Printer controls");const iconEl=document.createElement("span");iconEl.dataset.ad4Icon="play";iconEl.className="ad4-printer-heading-icon";heading.prepend(iconEl)}
+  // Network discovery and refresh remain available from the expanded header,
+  // while printer controls show only the three actions affecting the print.
+  const shellToolbar=printerShell.querySelector(".ad4-printer-shell-toolbar");
+  for(const id of ["ad4-refresh","ad4-discover"]){
+   const action=$(id);if(action)shellToolbar.append(action);
+  }
   const tools=control.querySelector(".ad4-tools");
   if(tools){
    for(const id of ["ad4-pause","ad4-resume","ad4-cancel"]){
