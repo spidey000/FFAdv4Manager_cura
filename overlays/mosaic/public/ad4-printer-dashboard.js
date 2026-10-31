@@ -78,6 +78,7 @@
  const live=section("live");
  if(live){
   const start=$("ad4-live-consult");if(start)start.textContent="Toolpath";
+  const title=live.querySelector(".ad4-section-title h3");if(title)title.textContent="Monitoring";
   const canvas=$("ad4-live-canvas");
   if(canvas){
    canvas.tabIndex=0;canvas.setAttribute("role","button");canvas.setAttribute("aria-label","Open live toolpath monitoring");
@@ -85,7 +86,7 @@
    canvas.addEventListener("keydown",e=>{if(e.target===canvas&&(e.key==="Enter"||e.key===" ")){e.preventDefault();if(!demo)start?.click()}});
   }
   const actions=live.querySelector(".ad4-tools");
-  if(actions){const heading=document.createElement("h4");heading.textContent="Monitoring";actions.before(heading)}
+  if(actions){const heading=document.createElement("h4");heading.textContent="Visual controls";actions.before(heading)}
  }
  const control=section("controls");
  if(control){
@@ -219,7 +220,7 @@
    const badge=$("ad4-printer-job-status");
    badge.textContent=paused?"Paused":active?"Printing":connected?raw:"Offline";
    badge.dataset.state=paused?"paused":active?"printing":connected?"idle":"offline";
-   const percent=Number(state?.progress_percent),valid=active&&Number.isFinite(percent)&&percent>=0&&percent<=100;
+   const percent=Number(state?.progress_percent),valid=active&&state?.progress_percent!=null&&state.progress_percent!==""&&Number.isFinite(percent)&&percent>=0&&percent<=100;
    $("ad4-printer-progress-fill").style.width=valid?percent+"%":"0%";
    $("ad4-printer-progress-text").textContent=valid?Math.round(percent)+"% complete":"Progress not reported";
    const track=$("ad4-printer-progress-track");
