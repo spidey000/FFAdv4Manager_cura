@@ -203,6 +203,45 @@ with sync_playwright() as p:
                     page.locator('#ad4-v3-top [data-route="preview"]').click()
                     assert not menu.is_visible(), "Outside focus did not close the Models menu"
                     print("MODEL LIST SELECTION / VISIBILITY / DELETE / OUTSIDE CLOSE PASSED",flush=True)
+                    # An STL larger than the printer must still be registered and
+                    # selected, so the user can resize it. The yellow warning is
+                    # the ONLY safety consequence until a real Slice is attempted.
+                    oversized = (b"Oversize edit fixture".ljust(80,b" ") + struct.pack("<I",1)
+                                 + struct.pack("<12fH",0,0,1,0,0,0,400,0,0,0,20,0))
+                    before_count=page.evaluate("Object.keys(app.gui.model_viewer.models).length")
+                    page.locator("#stl-file").set_input_files({
+                        "name":"oversized-editable.stl","mimeType":"model/stl","buffer":oversized
+                    })
+                    page.wait_for_function(
+                        "(n)=>Object.keys(app.gui.model_viewer.models).length===n+1",
+                        arg=before_count,timeout=10000)
+                    page.wait_for_function("()=>!app.gui.model_viewer.ad4_plate_status().valid")
+                    page.wait_for_function("()=>!document.getElementById('ad4-viewer-error').hidden")
+                    unsafe=page.evaluate("""()=>{
+                      const mv=app.gui.model_viewer;
+                      const model=Object.values(mv.models).find(m=>m.name==="oversized-editable.stl");
+                      return {uuid:model?.mesh.uuid,focused:mv.focused,
+                        code:mv.ad4_plate_status().code,
+                        warning:document.getElementById("ad4-viewer-error-message").textContent};
+                    }""")
+                    assert unsafe["uuid"] and unsafe["focused"]==unsafe["uuid"],unsafe
+                    assert unsafe["code"] in ("BED_X_MIN","BED_X_MAX"),unsafe
+                    assert "oversized-editable.stl" in unsafe["warning"],unsafe
+                    assert page.evaluate("document.getElementById('ad4-v3-run-slice').disabled")
+                    fix=page.evaluate("""(uuid)=>{
+                      const mv=app.gui.model_viewer,mesh=mv.models[uuid].mesh;
+                      mv.ad4_begin_transform();
+                      mesh.scale.x=0.1;
+                      mesh.position.x=75;
+                      mesh.updateMatrixWorld(true);
+                      mv.ad4_commit_transform();
+                      return {sizeX:mesh.scale.x,status:mv.ad4_plate_status()};
+                    }""",unsafe["uuid"])
+                    assert fix["status"]["valid"],fix
+                    page.wait_for_function("()=>document.getElementById('ad4-viewer-error').hidden")
+                    assert page.evaluate("(uuid)=>app.gui.model_viewer.ad4_delete_model(uuid)",unsafe["uuid"])
+                    assert page.evaluate("Object.keys(app.gui.model_viewer.models).length")==before_count
+                    print("OVERSIZED STL IMPORT / WARNING / EDIT / RECOVERY PASSED",flush=True)
 
             except Exception as error:
                 failures.append(f"{width}: STL preview/upload: {error}")
@@ -527,27 +566,39 @@ with sync_playwright() as p:
                     toolbar.locator("#ad4-v3-auto-arrange").click()
                     if not page.evaluate("app.gui.model_viewer.ad4_plate_status().valid"):
                         failures.append(f"{width}: Auto Arrange created unsafe geometry")
-                    # Attempt an illegal gizmo move/scale: native transform
-                    # events must restore the last committed mesh at release.
-                    rollback=page.evaluate("""()=>{
+                    # Editing outside the bed must be permitted. The exact
+                    # requested pose survives release, while Slice/export is
+                    # blocked until the geometry is repaired.
+                    outcome=page.evaluate("""()=>{
                       const mv=app.gui.model_viewer;
                       const id=Object.keys(mv.models)[0];
                       mv.ad4_select_model(id);
                       const mesh=mv.models[id].mesh,controls=mv.model_controls;
-                      const beforeX=mesh.position.x, beforeScale=mesh.scale.x;
+                      const original={x:mesh.position.x,scaleX:mesh.scale.x};
                       controls.dispatchEvent({type:"dragging-changed",value:true});
                       mesh.position.x=900;
                       controls.dispatchEvent({type:"dragging-changed",value:false});
-                      const moveRestored=Math.abs(mesh.position.x-beforeX)<1e-6;
+                      const moved=Math.abs(mesh.position.x-900)<1e-6;
+                      const badMove=mv.ad4_plate_status();
+                      let exportBlocked=false;
+                      try{mv.export_stl()}catch(e){exportBlocked=true}
                       controls.dispatchEvent({type:"dragging-changed",value:true});
                       mesh.scale.x=1000;
                       controls.dispatchEvent({type:"dragging-changed",value:false});
-                      const scaleRestored=Math.abs(mesh.scale.x-beforeScale)<1e-6;
-                      return {moveRestored,scaleRestored,status:mv.ad4_plate_status()};
+                      const scaled=Math.abs(mesh.scale.x-1000)<1e-6;
+                      const badScale=mv.ad4_plate_status();
+                      controls.dispatchEvent({type:"dragging-changed",value:true});
+                      mesh.position.x=original.x;
+                      mesh.scale.x=original.scaleX;
+                      controls.dispatchEvent({type:"dragging-changed",value:false});
+                      return {moved,scaled,badMove,badScale,
+                        exportBlocked,repaired:mv.ad4_plate_status()};
                     }""")
-                    if not (rollback["moveRestored"] and rollback["scaleRestored"]
-                            and rollback["status"]["valid"]):
-                        failures.append(f"{width}: unsafe transform was not reverted: {rollback}")
+                    if not (outcome["moved"] and outcome["scaled"] and
+                            not outcome["badMove"]["valid"] and
+                            not outcome["badScale"]["valid"] and
+                            outcome["exportBlocked"] and outcome["repaired"]["valid"]):
+                        failures.append(f"{width}: invalid transforms were rolled back or slice not blocked: {outcome}")
                 dock_rect=page.locator("#ad4-v3-bottom").evaluate("""(el)=>{
                     const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,viewport:innerHeight};
                 }""")
