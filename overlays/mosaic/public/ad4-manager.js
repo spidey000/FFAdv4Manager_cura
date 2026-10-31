@@ -9,7 +9,7 @@ function say(msg,isError=false){
  status.textContent=msg;status.dataset.error=String(isError);
  // Upload/print actions originate in the layer viewport as well as the
  // manager. Surface their failure where the user initiated the action.
- if(document.body.dataset.ad4Screen==="sliced"){
+ if(document.body?.dataset?.ad4Screen==="sliced"){
   document.dispatchEvent(new CustomEvent(isError?"ad4:viewer-error":"ad4:viewer-recovered",{
    detail:{code:"PRINT_TRANSFER_FAILED",message:String(msg)}
   }));
