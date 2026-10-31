@@ -211,8 +211,12 @@ root.querySelector("#ad4-v3-color-mode")?.addEventListener("change",event=>{
   globalThis.AD4GCodePreview?.setViewMode(event.target.value);
 });
 const movePosition=root.querySelector("#ad4-v3-move-position");
-function syncMoveScrub(){
+let lastMoveLayer=-1,lastMoveTotal=-1;
+function syncMoveScrub(force=false){
   const total=globalThis.AD4GCodePreview?.moveCount||0;
+  const activeLayer=Number(document.getElementById("layer-number")?.value)||0;
+  if(!force&&activeLayer===lastMoveLayer&&total===lastMoveTotal)return;
+  lastMoveLayer=activeLayer;lastMoveTotal=total;
   movePosition.max=String(Math.max(1,total));
   movePosition.value=String(Math.max(1,total));
   movePosition.disabled=total===0;
@@ -264,7 +268,7 @@ function commitLayerRange(bound,raw){
  else layerTo=Math.max(layerFrom,value);
  globalThis.AD4GCodePreview?.setRange(layerFrom,layerTo);
  updateRangeVisual();
- syncMoveScrub();
+ syncMoveScrub(true);
 }
 function initLayerRulers(){
  const count=globalThis.AD4GCodePreview?.count||0;
