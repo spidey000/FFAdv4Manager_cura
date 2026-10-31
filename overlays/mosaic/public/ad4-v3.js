@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.4";
+const VERSION_UI = "0.2.5";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -178,9 +178,13 @@ function updatePlateError(){
  else clearViewerError("plate");
 }
 document.addEventListener("ad4:plate-rejected",event=>{
- showViewerError("operation",event.detail?.code||"INVALID_TRANSFORM",
-  event.detail?.reason||"The attempted operation would violate the plate limits",
-  "Position rejected · No changes applied");
+ showViewerError("operation",event.detail?.code||"ARRANGE_NO_SPACE",
+  event.detail?.reason||"Auto Arrange could not fit all models. Change their size or orientation.",
+  "Auto Arrange unavailable · No models moved");
+});
+document.addEventListener("ad4:plate-status",()=>{
+ clearViewerError("operation");
+ updatePlateError();
 });
 document.addEventListener("ad4:plate-valid",()=>{clearViewerError("operation");updatePlateError()});
 document.addEventListener("ad4:viewer-error",event=>{
@@ -248,6 +252,8 @@ function refreshState(){
  updatePlateError();
  const status=currentPlateStatus(),plateValid=status?.valid===true;
  const model=hasModel(),sliced=model&&sliceReady();
+ const nativeSlice=$("slice-button");
+ if(nativeSlice)nativeSlice.disabled=staticPreview||!model||!plateValid;
  if(previousModelCount>0 && modelCount()===0){$("slice-export-container")?.setAttribute("data-active","false")}
  previousModelCount=modelCount();
  root.classList.toggle("ad4-has-model",model);
@@ -572,6 +578,9 @@ const rulers=new Map();
 let synchronizing=false;
 const limits={translate:[-110,110],rotate:[-180,180],scale:[0.01,250]};
 const scaleBed={x:220,y:200,z:250};
+// Editing may extend beyond the printable bed. Limits here only prevent
+// unbounded/invalid numeric input, not intentional out-of-bed placements.
+const MAX_EDIT_MM=100000;
 const units={translate:" mm",rotate:"°",scale:" mm"};
 const axisRows={};
 for(const axis of ["x","y","z"]){
@@ -636,7 +645,16 @@ for(const axis of ["x","y","z"]){
   }
  }
  function axisBounds(axis){
-  return mode==="scale"?[0.01,scaleBed[axis]]:limits[mode];
+  if(mode==="scale"){
+   const dimension=modelDimension(axis);
+   return [0.01,Math.max(scaleBed[axis],Number.isFinite(dimension)?Math.ceil(dimension/5)*5:0)];
+  }
+  if(mode==="translate"){
+   const current=Number(sourceAxis(axis)?.value)||0;
+   return [Math.min(-110,Math.floor(current/10)*10),
+           Math.max(110,Math.ceil(current/10)*10)];
+  }
+  return limits[mode];
  }
  function isAxisLocked(axis,mesh=selectedMesh()){
   return Boolean(mesh && axisLocks.get(mesh)?.has(axis));
@@ -681,9 +699,13 @@ for(const axis of ["x","y","z"]){
 }
 function hasSelection(){return Boolean(globalThis.app?.gui?.model_viewer?.focused)}
 function normalized(mode,value,snap,exact,axis){
- const [low,high]=axisBounds(axis);
  if(!Number.isFinite(value))return null;
  const rounded=snap&&!exact?Math.round(value/5)*5:value;
+ // A model outside the bed is an editable state, never an invalid numeric
+ // transform. Only reject nonfinite, nonpositive or absurdly large values.
+ if(mode==="scale")return rounded>=0.01&&rounded<=MAX_EDIT_MM?rounded:null;
+ if(mode==="translate")return Math.abs(rounded)<=MAX_EDIT_MM?rounded:null;
+ const [low,high]=axisBounds(axis);
  return rounded>=low&&rounded<=high?rounded:null;
 }
 function renderAxis(axis,current){
@@ -737,10 +759,10 @@ function setAxis(axis,raw,{exact=false}={}){
   for(const key of changed){
    const dimension=modelDimension(key,mesh)*ratio;
    const base=modelBaseSize(key,mesh);
-   if(!(base>1e-8)||!Number.isFinite(dimension)||dimension<0.01||dimension>scaleBed[key]){
+   if(!(base>1e-8)||!Number.isFinite(dimension)||dimension<0.01||dimension>MAX_EDIT_MM){
     showViewerError("operation","INVALID_MODEL_DIMENSION",
-     "Proportional resize would exceed the valid "+key.toUpperCase()+" dimension (0.01–"+scaleBed[key]+" mm).",
-     "Size rejected · No changes applied");
+     "Requested "+key.toUpperCase()+" dimension must be between 0.01 and "+MAX_EDIT_MM+" mm.",
+     "Invalid model dimension");
     refreshAxis();updateCompactValues();return;
    }
    targets.push({key,dimension,percent:before[key]*ratio*100});
@@ -837,7 +859,7 @@ const arrangeButton=navButton("layout-grid","Arrange",()=>{
 });
 arrangeButton.id="ad4-v3-auto-arrange";
 arrangeButton.setAttribute("aria-label","Auto arrange all models without collisions");
-arrangeButton.title="Auto Arrange · keep every model inside the build plate";
+arrangeButton.title="Auto Arrange · try to fit all models safely; otherwise keep current positions";
 viewerTransform.append(arrangeButton);
 const cloneButton=navButton("copy-plus","Clone",()=>{
  const plate=globalThis.app?.gui?.model_viewer;
@@ -845,8 +867,8 @@ const cloneButton=navButton("copy-plus","Clone",()=>{
  plate.ad4_clone_selected();
 });
 cloneButton.id="ad4-v3-clone";
-cloneButton.setAttribute("aria-label","Clone selected model and auto arrange");
-cloneButton.title="Clone selected model and arrange all without collisions";
+cloneButton.setAttribute("aria-label","Clone selected model and auto arrange when possible");
+cloneButton.title="Clone selected model · keep it editable if it cannot be arranged";
 viewerTransform.append(cloneButton);
 function updatePlateButtons(){
  arrangeButton.disabled=modelCount()===0;
