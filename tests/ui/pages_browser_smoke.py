@@ -206,8 +206,9 @@ with sync_playwright() as p:
                     # An STL larger than the printer must still be registered and
                     # selected, so the user can resize it. The yellow warning is
                     # the ONLY safety consequence until a real Slice is attempted.
-                    oversized = (b"Oversize edit fixture".ljust(80,b" ") + struct.pack("<I",1)
-                                 + struct.pack("<12fH",0,0,1,0,0,0,400,0,0,0,20,0))
+                    oversized = (b"Oversize edit fixture".ljust(80,b" ") + struct.pack("<I",2)
+                                 + struct.pack("<12fH",0,0,1,0,0,0,400,0,0,0,20,0)
+                                 + struct.pack("<12fH",0,0,1,0,0,10,400,0,10,0,20,10))
                     before_count=page.evaluate("Object.keys(app.gui.model_viewer.models).length")
                     page.locator("#stl-file").set_input_files({
                         "name":"oversized-editable.stl","mimeType":"model/stl","buffer":oversized
@@ -244,15 +245,31 @@ with sync_playwright() as p:
                                          clone_ok["cloneId"])
                     assert page.evaluate("(uuid)=>app.gui.model_viewer.ad4_select_model(uuid)",
                                          unsafe["uuid"])
+                    # Fix it through the same visible mm editor users operate:
+                    # scale the X extent from 400 to 40 mm, then move it off
+                    # the existing Benchy. An intermediate collision is valid
+                    # editing but still forbids slicing.
+                    page.locator('#ad4-viewer-transform [data-viewer-mode="scale"]').click()
+                    size_field=page.locator('#ad4-viewer-values [data-axis="x"] input')
+                    size_field.fill("40")
+                    size_field.press("Tab")
+                    page.wait_for_function("""(uuid)=>{
+                      const mv=app.gui.model_viewer;
+                      return Math.abs(mv.models[uuid].mesh.scale.x-0.1)<0.001;
+                    }""",arg=unsafe["uuid"],timeout=5000)
+                    assert not page.evaluate("app.gui.model_viewer.ad4_plate_status().valid")
+                    assert not page.locator("#ad4-viewer-error").is_hidden()
+                    page.locator('#ad4-viewer-transform [data-viewer-mode="translate"]').click()
+                    x_field=page.locator('#ad4-viewer-values [data-axis="x"] input')
+                    x_field.fill("75")
+                    x_field.press("Tab")
+                    page.wait_for_function("()=>app.gui.model_viewer.ad4_plate_status().valid")
                     fix=page.evaluate("""(uuid)=>{
                       const mv=app.gui.model_viewer,mesh=mv.models[uuid].mesh;
-                      mv.ad4_begin_transform();
-                      mesh.scale.x=0.1;
-                      mesh.position.x=75;
-                      mesh.updateMatrixWorld(true);
-                      mv.ad4_commit_transform();
-                      return {sizeX:mesh.scale.x,status:mv.ad4_plate_status()};
+                      return {sizeX:mesh.scale.x,positionX:mesh.position.x,
+                        status:mv.ad4_plate_status()};
                     }""",unsafe["uuid"])
+                    assert abs(fix["sizeX"]-0.1)<0.001 and abs(fix["positionX"]-75)<0.01,fix
                     assert fix["status"]["valid"],fix
                     page.wait_for_function("()=>document.getElementById('ad4-viewer-error').hidden")
                     assert page.evaluate("(uuid)=>app.gui.model_viewer.ad4_delete_model(uuid)",unsafe["uuid"])
