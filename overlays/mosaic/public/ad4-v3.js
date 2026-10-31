@@ -204,8 +204,12 @@ layerUI.innerHTML='<div class="ad4-v3-card-title"><strong id="ad4-v3-panel-title
 '<div id="ad4-v3-range-panel">'+
 '<div class="ad4-v3-double-range" id="ad4-v3-double-range" aria-label="Visible layer range"><div class="ad4-v3-range-track"></div><div class="ad4-v3-range-selected" id="ad4-v3-range-selected"></div><button type="button" class="ad4-v3-range-thumb" id="ad4-v3-range-min" role="slider" aria-valuemin="1" aria-valuemax="100" aria-valuenow="1" aria-label="From layer"><span id="ad4-v3-layer-from">1</span></button><button type="button" class="ad4-v3-range-thumb" id="ad4-v3-range-max" role="slider" aria-valuemin="1" aria-valuemax="100" aria-valuenow="100" aria-label="To layer"><span id="ad4-v3-layer-to">100</span></button></div>'+
 '<div class="ad4-v3-estimates"><div class="ad4-v3-stat" title="Estimated print time">'+svg("clock")+'<strong id="ad4-v3-time">—</strong></div><div class="ad4-v3-stat" title="Estimated filament weight">'+svg("filament")+'<strong id="ad4-v3-material">— g</strong></div></div></div>'+
-'<div id="ad4-v3-types-panel" hidden><div class="ad4-v3-type-heading">Toolpath visibility <small>Times approximate · G-code feedrates</small></div><div id="ad4-v3-type-list"></div></div>';
+'<div id="ad4-v3-types-panel" hidden><div class="ad4-v3-type-heading">Toolpath visibility <small>Times approximate · G-code feedrates</small></div><div class="ad4-v3-mode-selector"><label for="ad4-v3-color-mode">Color by</label><select id="ad4-v3-color-mode" aria-label="ThreeSlicer coloring mode"><option value="feature">Feature type</option><option value="filament">Filament</option><option value="height">Layer height</option><option value="width">Line width</option></select></div><div id="ad4-v3-type-list"></div></div>';
 root.append(layerUI);
+root.querySelector("#ad4-v3-color-mode")?.addEventListener("change",event=>{
+  globalThis.AD4GCodePreview?.setViewMode(event.target.value);
+});
+
 let layerFrom=1,layerTo=1,layerCount=0,showTypes=false,typesGcodeCache="";
 root.dataset.ad4LayerPanel="range";
 const typeLabels={
@@ -332,7 +336,7 @@ function toggleLayerTypePanel(){
  root.dataset.ad4LayerPanel=showTypes?"types":"range";
  $("ad4-v3-show-layers").setAttribute("aria-pressed",String(showTypes));
  updateLayerViewButton();
- if(showTypes){typesGcodeCache="";refreshTypes()}
+ if(showTypes){$("ad4-v3-color-mode").value=globalThis.AD4GCodePreview?.viewMode||"feature";typesGcodeCache="";refreshTypes()}
 }
 
 const transform=make("section","ad4-v3-transform");transform.id="ad4-v3-transform";
