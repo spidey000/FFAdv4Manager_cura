@@ -51,6 +51,8 @@ def test_every_editor_error_source_is_wired_to_the_viewer():
     assert 'code:"SLICE_FAILED"' in RECIPE
     assert 'state: "failed", message:error?.message' in SLICER
     assert "webglcontextlost" in SHELL
+    assert "LAYER_RENDER_FAILED" in RECIPE
+    assert "MODEL_RENDER_FAILED" in (ROOT / "overlays/mosaic/src/gui/viewer/renderer.mjs").read_text()
     assert 'ad4:viewer-recovered' in SHELL
 
 
