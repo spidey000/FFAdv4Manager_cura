@@ -1998,7 +1998,21 @@ body[data-ad4-screen=printer] #ad4-v3-printer-page{
  color:var(--v3-green)!important;
  border-color:color-mix(in srgb,var(--v3-green) 45%,var(--v3-border))!important;
 }
-#ad4-v3-printer-page .ad4-printer-jump-grid{display:none!important}
+#ad4-v3-printer-page .ad4-printer-shell .ad4-printer-jump-grid{
+ display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:8px;min-width:0
+}
+#ad4-v3-printer-page .ad4-printer-shell .ad4-printer-jump-grid>button{
+ display:grid!important;align-items:center;min-height:52px!important;
+ background:var(--v3-card)!important;
+ color:var(--v3-ink)!important;border:1px solid var(--v3-border)!important;
+ padding:9px 10px!important;border-radius:10px!important
+}
+@media(max-width:690px){
+ #ad4-v3-printer-page .ad4-printer-shell .ad4-printer-jump-grid{
+  grid-template-columns:minmax(0,1fr)
+ }
+}
 #ad4-v3-printer-page #ad4-manager[open]{
  padding:0 0 24px!important;
  margin-top:0!important
