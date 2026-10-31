@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.5";
+const VERSION_UI = "0.2.6";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -319,6 +319,14 @@ function activate(name){
  const embeddedManager=$("ad4-manager");
  if(name==="printer"){
   if(embeddedManager&&!embeddedManager.open)document.dispatchEvent(new Event("ad4:printer-enter"));
+  // On every entry, including repeated clicks on Printer, start at the overview.
+  const printerScroll=$("ad4-v3-printer-page");
+  if(printerScroll){
+   printerScroll.scrollTop=0;
+   requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    if(root.dataset.ad4Screen==="printer")printerScroll.scrollTop=0;
+   }));
+  }
  }else if(embeddedManager?.open){
   embeddedManager.close();
  }
