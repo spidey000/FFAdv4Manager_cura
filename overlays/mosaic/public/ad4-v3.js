@@ -208,7 +208,7 @@ function activate(name){
  // Leaving closes it and stops video and printer polling.
  const embeddedManager=$("ad4-manager");
  if(name==="printer"){
-  if(embeddedManager&&!embeddedManager.open)$("ad4-open-manager")?.click();
+  if(embeddedManager&&!embeddedManager.open)document.dispatchEvent(new Event("ad4:printer-enter"));
  }else if(embeddedManager?.open){
   embeddedManager.close();
  }
