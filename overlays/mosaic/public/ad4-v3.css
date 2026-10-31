@@ -476,7 +476,7 @@ body[data-ad4-screen=sliced] #layer-slider{display:none!important}
  * Mosaic and v3 card styles without replacing native Cura setting controls.
  * Keep one accent and separators only where they improve scanning.
  */
-:root{--ad4-clean-green:#2dec79;--ad4-clean-bg:#101314;--ad4-clean-field:#1b2420;--ad4-clean-divider:#2a322e}
+:root{--ad4-clean-green:var(--v3-green);--ad4-clean-bg:var(--v3-black);--ad4-clean-field:var(--v3-card2);--ad4-clean-divider:var(--v3-border)}
 #ad4-v3-top{background:#0c0f10!important;border:0!important;box-shadow:none!important;gap:1px!important;padding:3px 6px 5px!important}
 #ad4-v3-top .ad4-v3-icon-button,
 #ad4-v3-top .ad4-v3-icon-button[aria-pressed=true]{
