@@ -76,3 +76,19 @@ def test_complete_v3_workspace_is_built_and_wires_actual_editor():
     assert 'globalThis.app?.gui?.slicer?.exported_gcode' in source
     assert 'window.__AD4_STATIC_PREVIEW__ === true' in source
     assert '@media(max-width:767px)' in css
+
+
+def test_version_stamp_is_attached_to_viewer_and_built_with_git_revision():
+    script = (OVERLAY / "ad4-v3.js").read_text()
+    css = (OVERLAY / "ad4-v3.css").read_text()
+    prepare = PREPARE.read_text()
+    for required in (
+        "VERSION_UI", "REVISION_UI", "ad4-version-stamp",
+        'document.getElementById("viewer")?.append(versionStamp)',
+        './api/version', "API offline", "API —", "cache: \"no-store\"",
+    ):
+        assert required in script
+    assert "#viewer #ad4-version-stamp" in css
+    assert "pointer-events:none" in css
+    assert "env(safe-area-inset-right)" in css
+    assert 'frontend_source.replace("__AD4_FRONTEND_REV__", revision)' in prepare

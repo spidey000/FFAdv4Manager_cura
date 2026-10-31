@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 
 from . import ad4_bridge as bridge
+from .version import backend_version_info
 from .mosaic_slicer import MAX_FRAME, SlicingError, cancel_slice, engine_binary, parse_frame, slice_model, progress_snapshot
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,10 @@ DIST = ROOT / "frontend" / "dist"
 
 class MosaicHandler(bridge.Handler):
     def do_GET(self):
+        if urlsplit(self.path).path == "/api/version":
+            if not self.request_authorized():
+                return self.json(401 if bridge.ACCESS_CONFIG else 403, {"error": "Unauthorized"})
+            return self.json(200, backend_version_info())
         if urlsplit(self.path).path == "/api/slice/progress":
             if not self.request_authorized():
                 return self.json(401 if bridge.ACCESS_CONFIG else 403, {"error": "Unauthorized"})

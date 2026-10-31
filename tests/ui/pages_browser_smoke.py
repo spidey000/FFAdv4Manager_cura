@@ -37,6 +37,21 @@ with sync_playwright() as p:
             })""").__str__().splitlines())
         loaded_style=page.evaluate("getComputedStyle(document.getElementById('loading')).display")
         js_state=page.evaluate("typeof globalThis.app")
+        stamp=page.locator("#viewer > #ad4-version-stamp")
+        if stamp.count()!=1:
+            failures.append(f"{width}: missing viewport version indicator")
+        else:
+            label=stamp.inner_text()
+            if "UI v0.1.0" not in label or "API —" not in label:
+                failures.append(f"{width}: incorrect static preview version indicator: {label!r}")
+            marker=stamp.bounding_box()
+            viewport=page.locator("#viewer").bounding_box()
+            if marker and viewport and (
+                marker["x"] < viewport["x"]-1 or
+                marker["x"]+marker["width"] > viewport["x"]+viewport["width"]+1 or
+                marker["y"]+marker["height"] > viewport["y"]+viewport["height"]+1
+            ):
+                failures.append(f"{width}: version text escaped viewport")
         print(f"VIEWPORT {width}x{height} | loaded={loaded_style} | JS={js_state} | errors={len(errors)}",flush=True)
         for msg in errors:print(msg[:1000],flush=True)
         if page.evaluate("getComputedStyle(document.getElementById('loading')).display")!="none":failures.append(f"{width}: stuck loading")

@@ -7,6 +7,61 @@ const $ = id => document.getElementById(id);
 const staticPreview = window.__AD4_STATIC_PREVIEW__ === true;
 const root = document.body;
 
+/* The UI version is deliberately independent of the Python backend version.
+ * The build system replaces REVISION_UI with the exact frontend checkout hash.
+ * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
+ */
+const VERSION_UI = "0.1.0";
+const REVISION_UI = "__AD4_FRONTEND_REV__";
+const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
+const versionStamp = document.createElement("div");
+versionStamp.id = "ad4-version-stamp";
+versionStamp.setAttribute("aria-label", "Frontend and backend versions");
+const uiStamp = document.createElement("span");
+uiStamp.id = "ad4-version-ui";
+uiStamp.textContent = "UI v" + VERSION_UI + (validRevision(REVISION_UI) ? " · " + REVISION_UI : "");
+uiStamp.title = "Frontend build " + (validRevision(REVISION_UI) ? REVISION_UI : "revision unavailable");
+const apiStamp = document.createElement("span");
+apiStamp.id = "ad4-version-api";
+apiStamp.textContent = staticPreview ? "API —" : "API …";
+apiStamp.title = staticPreview ? "No backend on GitHub Pages" : "Checking backend version";
+versionStamp.append(uiStamp, apiStamp);
+document.getElementById("viewer")?.append(versionStamp);
+async function refreshBackendVersion() {
+  if (staticPreview) return;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch("./api/version", {
+      cache: "no-store", credentials: "same-origin", signal: controller.signal
+    });
+    if (!response.ok) throw new Error("Backend version unavailable");
+    const info = await response.json();
+    if (!info || typeof info.version !== "string" ||
+        !/^[0-9A-Za-z][0-9A-Za-z.+_-]{0,31}$/.test(info.version)) {
+      throw new Error("Invalid backend version response");
+    }
+    const rev = validRevision(info.revision) ? " · " + info.revision.slice(0, 8) : "";
+    apiStamp.textContent = "API v" + info.version + rev;
+    apiStamp.title = "Backend " + info.version + (rev ? " (" + info.revision + ")" : " (revision unavailable)");
+  } catch (_) {
+    apiStamp.textContent = "API offline";
+    apiStamp.title = "Backend disconnected or version endpoint unavailable";
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+if (!staticPreview) {
+  refreshBackendVersion();
+  setInterval(() => {
+    if (!document.hidden) refreshBackendVersion();
+  }, 60000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshBackendVersion();
+  });
+}
+
+
 /* Always-visible, accessible slicing progress, including mobile where the
  * original Mosaic sidebar/progress element is inside a collapsed panel. */
 const sliceHud = document.createElement("section");
