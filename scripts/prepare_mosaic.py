@@ -28,7 +28,7 @@ def build():
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     # Keep performant viewer code as tracked overlays, never edit generated frontend.
-    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-stl-worker-client.mjs"):
+    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-stl-worker-client.mjs"):
         shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     shutil.copy2(OV/"public/ad4-stl-worker.js", DEST/"public/ad4-stl-worker.js")
@@ -183,6 +183,7 @@ main().catch(error => {
 """ + viewer_source[stop:]
     gcode_file.write_text(
         'import {buildGcodeLayers, disposeGcodeLayers} from "./ad4-gcode-geometry.mjs";\n'
+        'import {colorForToolpathType} from "./ad4-toolpath-colors.mjs";\n'
         + viewer_source
     )
     patch("src/gui/viewer/gcode_viewer.mjs",
@@ -201,6 +202,14 @@ globalThis.AD4GCodePreview = {
     return {min:box.min.toArray(),max:box.max.toArray()};
   },
   get types(){return globalThis.__AD4_GCODE_CATEGORIES__||[]},
+  colorForType(type){return colorForToolpathType(type)},
+  get renderedColors(){
+    const colors={};
+    for(const group of layers)for(const part of group.children){
+      colors[part.userData.ad4Category]="#"+part.material.color.getHexString();
+    }
+    return colors;
+  },
   hiddenTypes:new Set(),
   setTypeVisible(type,visible){if(visible)this.hiddenTypes.delete(type);else this.hiddenTypes.add(type);this.refreshTypes()},
   refreshTypes(){for(const group of layers)for(const part of group.children)part.visible=!this.hiddenTypes.has(part.userData.ad4Category);renderer.invalidate()},

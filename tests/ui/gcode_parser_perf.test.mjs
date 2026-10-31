@@ -4,6 +4,32 @@ import {readFileSync, existsSync} from "node:fs";
 import {resolve} from "node:path";
 import {performance} from "node:perf_hooks";
 import {parse} from "../../overlays/mosaic/src/gui/viewer/parser.mjs";
+import {TOOLPATH_COLORS, colorForToolpathType} from "../../overlays/mosaic/src/gui/viewer/ad4-toolpath-colors.mjs";
+
+test("original Benchy feature names each have an explicit, distinct visible color", () => {
+  const benchyTypes = [
+    "PERIMETER", "OVERHANG PERIMETER", "INTERNAL INFILL", "SOLID INFILL"
+  ];
+  const colors = benchyTypes.map(type => {
+    assert.ok(TOOLPATH_COLORS[type], "Missing color for " + type);
+    const color = colorForToolpathType(type);
+    assert.match(color, /^#[0-9a-f]{6}$/);
+    assert.equal(colorForToolpathType(type.toLowerCase()), color);
+    return color;
+  });
+  assert.equal(new Set(colors).size, benchyTypes.length, "Benchy categories collapsed to the same color");
+  assert.notEqual(colorForToolpathType("WALL-OUTER"), colorForToolpathType("WALL-INNER"));
+  assert.notEqual(colorForToolpathType("SKIN"), colorForToolpathType("SUPPORT"));
+});
+
+test("unknown slicer feature names get deterministic, non-grey colors", () => {
+  const a = colorForToolpathType("A CUSTOM FEATURE");
+  const b = colorForToolpathType("ANOTHER CUSTOM FEATURE");
+  assert.match(a, /^#[0-9a-f]{6}$/);
+  assert.notEqual(a, TOOLPATH_COLORS.OTHER);
+  assert.notEqual(a, b);
+  assert.equal(a, colorForToolpathType("a custom feature"));
+});
 
 // Built-in real Cura-shaped fixture from the public project, not G-code to print.
 const cube = readFileSync(resolve("overlays/mosaic/public/demo-cube-20mm.gcode"), "utf8");

@@ -208,8 +208,20 @@ layerUI.innerHTML='<div class="ad4-v3-card-title"><strong id="ad4-v3-panel-title
 root.append(layerUI);
 let layerFrom=1,layerTo=1,layerCount=0,showTypes=false,typesGcodeCache="";
 root.dataset.ad4LayerPanel="range";
-const typeLabels={"WALL-OUTER":"Outer wall","WALL-INNER":"Inner wall","SKIN":"Top / Bottom","FILL":"Infill","SUPPORT":"Support","SUPPORT-INTERFACE":"Support interface","SKIRT":"Skirt","BRIM":"Brim","RAFT":"Raft","TRAVEL":"Travel","OTHER":"Other"};
-const typeColors={"WALL-OUTER":"#ff443d","WALL-INNER":"#37cf74","SKIN":"#ffdc46","FILL":"#ffa526","SUPPORT":"#8c80ff","SUPPORT-INTERFACE":"#bd88ff","SKIRT":"#00c6bb","BRIM":"#38cbad","RAFT":"#64ba9f","TRAVEL":"#13dbe9","OTHER":"#98a6a1"};
+const typeLabels={
+ "WALL-OUTER":"Outer wall","WALL-INNER":"Inner wall","SKIN":"Top / Bottom","FILL":"Infill",
+ "SUPPORT":"Supports","SUPPORT-INTERFACE":"Support interface",
+ "SKIRT":"Skirt","BRIM":"Brim","RAFT":"Raft","TRAVEL":"Travel","OTHER":"Other",
+ "PERIMETER":"Perimeter","EXTERNAL PERIMETER":"External perimeter",
+ "OVERHANG PERIMETER":"Overhang perimeter","INTERNAL INFILL":"Internal infill",
+ "SOLID INFILL":"Solid infill","TOP SOLID INFILL":"Top solid infill",
+ "BRIDGE INFILL":"Bridge infill","INTERNAL BRIDGE INFILL":"Internal bridge",
+ "GAP FILL":"Gap fill","IRONING":"Ironing","SUPPORT MATERIAL":"Support material",
+ "SUPPORT MATERIAL INTERFACE":"Support interface","SKIRT/BRIM":"Skirt / Brim",
+ "WIPE TOWER":"Wipe tower","CUSTOM":"Custom"
+};
+// The UI reads each color directly from the same module that colors Three.js
+// geometry. Different slicers use different ;TYPE: feature names.
 function updateRangeVisual(){
  const max=Math.max(1,layerCount),denominator=Math.max(1,max-1);
  const left=(layerFrom-1)/denominator*100,right=(layerTo-1)/denominator*100;
@@ -302,7 +314,9 @@ function refreshTypes(){
  list.replaceChildren();
  for(const key of [...new Set([...categories,...times.keys()])]){
   const row=make("label","ad4-v3-type-row");
-  const swatch=make("i","ad4-v3-type-swatch");swatch.style.background=typeColors[key]||typeColors.OTHER;
+  row.dataset.toolpathType=key;
+  const swatch=make("i","ad4-v3-type-swatch");
+  swatch.style.backgroundColor=api.colorForType?.(key)||"#98a6a1";
   const name=make("span","ad4-v3-type-name",typeLabels[key]||key);
   const duration=make("small","ad4-v3-type-time",formatDuration(times.get(key)));
   const toggle=make("input");toggle.type="checkbox";toggle.checked=!api.hiddenTypes?.has(key);toggle.setAttribute("aria-label","Show "+(typeLabels[key]||key));
