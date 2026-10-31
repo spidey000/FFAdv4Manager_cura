@@ -487,7 +487,7 @@ with sync_playwright() as p:
                 if page.locator("#ad4-v3-nav-camera, #ad4-v3-nav-move").count():
                     failures.append(f"{width}: redundant Camera/Transform footer tools")
                 toolbar=page.locator("#ad4-viewer-transform")
-                if toolbar.locator("button").count()!=5:
+                if toolbar.locator(":scope > button.ad4-v3-icon-button").count()!=5:
                     failures.append(f"{width}: expected Move, Rotate, Scale, Arrange, Clone rail")
                 if toolbar.locator("#ad4-v3-auto-arrange").count()!=1 or toolbar.locator("#ad4-v3-clone").count()!=1:
                     failures.append(f"{width}: missing Arrange or Clone button")
