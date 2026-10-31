@@ -133,6 +133,7 @@
  let restoreVersion=0,thumbnailEpoch=0;
  function clearThumbnails(){for(const url of thumbnails.values())URL.revokeObjectURL(url);thumbnails.clear();restoreVersion++;thumbnailEpoch++;for(const img of fileList.querySelectorAll(".ad4-file-row img"))img.remove()}
  async function restoreThumbnails(){
+  if(demo)return; // Pages has no printer session or thumbnail endpoint.
   const version=++restoreVersion;
   try{
    const printer=identity(await P.api("/session"));if(version!==restoreVersion)return;
