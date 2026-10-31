@@ -203,6 +203,13 @@ globalThis.AD4GCodePreview = {
   },
   get types(){return globalThis.__AD4_GCODE_CATEGORIES__||[]},
   colorForType(type){return colorForToolpathType(type)},
+  get renderedColors(){
+    const colors={};
+    for(const group of layers)for(const part of group.children){
+      colors[part.userData.ad4Category]="#"+part.material.color.getHexString();
+    }
+    return colors;
+  },
   hiddenTypes:new Set(),
   setTypeVisible(type,visible){if(visible)this.hiddenTypes.delete(type);else this.hiddenTypes.add(type);this.refreshTypes()},
   refreshTypes(){for(const group of layers)for(const part of group.children)part.visible=!this.hiddenTypes.has(part.userData.ad4Category);renderer.invalidate()},
