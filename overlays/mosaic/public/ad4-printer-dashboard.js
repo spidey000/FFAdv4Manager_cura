@@ -143,6 +143,8 @@
   '<button type="button" id="ad4-printer-modal-close" aria-label="Close expanded monitoring">'+icon("x")+'</button></header>'+
   '<div class="ad4-printer-modal-content"></div>';
  document.body.append(monitorModal);
+ globalThis.AD4Icons?.hydrate?.(monitorModal);
+ document.addEventListener("ad4:icons-ready",()=>globalThis.AD4Icons?.hydrate?.(monitorModal),{once:true});
  const modalContent=monitorModal.querySelector(".ad4-printer-modal-content");
  let expanded=null,parent=null,next=null,opener=null;
  function closeMonitor(){if(monitorModal.open)monitorModal.close()}
