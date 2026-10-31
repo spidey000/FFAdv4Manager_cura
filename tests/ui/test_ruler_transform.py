@@ -16,5 +16,8 @@ def test_snap_rotate_and_proportional_scale():
     assert 'data-offset="-45"' in shell
     assert 'data-offset="45"' in shell
     assert 'Math.round(value/5)*5' in shell
-    assert 'value/old' in shell
+    # Scale dimensions are millimetres; the ratio applies only to free axes.
+    assert 'const ratio=value/original' in shell
+    assert 'const changed=["x","y","z"].filter(a=>!isAxisLocked(a,mesh));' in shell
+    assert 'units={translate:" mm",rotate:"°",scale:" mm"}' in shell
     assert '--ad4-transform-height' in shell

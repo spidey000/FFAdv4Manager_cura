@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.3";
+const VERSION_UI = "0.2.4";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -562,7 +562,7 @@ transform.innerHTML='<button type="button" class="ad4-v3-sheet-handle" id="ad4-v
 '<div class="ad4-v3-transform-top"><strong>Transform</strong><small id="ad4-v3-transform-help">Select a model on the plate to transform it</small></div>'+
 '<nav class="ad4-v3-mode"><button type="button" data-mode="translate">'+svg("move")+'Move</button><button type="button" data-mode="rotate">'+svg("rotate")+'Rotate</button><button type="button" data-mode="scale">'+svg("scale")+'Scale</button></nav>'+
 '<div class="ad4-v3-camera-toolbar" aria-label="3D camera views"><button id="ad4-v3-view-fit" type="button">Fit model</button><button id="ad4-v3-view-top" type="button">Top view</button><button id="ad4-v3-view-iso" type="button">Isometric</button></div>'+
-'<div class="ad4-v3-snap"><label><input id="ad4-v3-snap" type="checkbox" checked> Snap 5 units</label><label id="ad4-v3-lock-wrap"><input id="ad4-v3-resize-lock" type="checkbox" checked> Lock proportions</label></div>'+
+'<div class="ad4-v3-snap"><label><input id="ad4-v3-snap" type="checkbox" checked> Snap 5 mm / 5°</label></div>'+
  '<div class="ad4-v3-axis-list"></div>'+
 '<div class="ad4-v3-transform-actions"><button type="button" id="ad4-v3-rotate90">Rotate Z +45°</button><button type="button" id="ad4-v3-transform-reset">Reset selected axis</button><button type="button" id="ad4-v3-transform-apply">Apply</button></div>';
 root.append(transform);
@@ -570,21 +570,23 @@ const axisList=transform.querySelector(".ad4-v3-axis-list");
 let mode="rotate";
 const rulers=new Map();
 let synchronizing=false;
-const limits={translate:[-110,110],rotate:[-180,180],scale:[10,250]};
-const units={translate:" mm",rotate:"°",scale:"%"};
+const limits={translate:[-110,110],rotate:[-180,180],scale:[0.01,250]};
+const scaleBed={x:220,y:200,z:250};
+const units={translate:" mm",rotate:"°",scale:" mm"};
 const axisRows={};
 for(const axis of ["x","y","z"]){
  const row=make("section","ad4-v3-axis");row.dataset.axis=axis;
  row.innerHTML='<div class="ad4-v3-axis-top"><b>'+axis.toUpperCase()+'</b>'+
- '<input class="ad4-v3-axis-value" type="number" step="1" value="0" aria-label="'+axis.toUpperCase()+' exact value">'+
+ '<input class="ad4-v3-axis-value" type="number" step="any" value="0" aria-label="'+axis.toUpperCase()+' exact value">'+
+ '<button type="button" class="ad4-axis-lock" data-lock-axis="'+axis+'" aria-pressed="false" aria-label="Lock '+axis.toUpperCase()+' dimension">'+svg("unlock")+'</button>'+
  '<span class="ad4-v3-axis-unit">°</span>'+
  '<div class="ad4-v3-axis-step"><button type="button" data-offset="-45">−45°</button><button type="button" data-offset="45">+45°</button></div></div>'+
  '<div class="ad4-v3-axis-ruler" role="slider" tabindex="0" aria-label="'+axis.toUpperCase()+' ruler" aria-valuemin="-180" aria-valuemax="180" aria-valuenow="0">'+
  '<span class="ad4-v3-ruler-needle" aria-hidden="true"></span></div>';
  axisList.append(row);axisRows[axis]=row;
  const numeric=row.querySelector(".ad4-v3-axis-value");
- numeric.addEventListener("change",()=>setAxis(axis,Number(numeric.value)));
- numeric.addEventListener("blur",()=>setAxis(axis,Number(numeric.value)));
+ numeric.addEventListener("change",()=>setAxis(axis,Number(numeric.value),{exact:true}));
+ row.querySelector("[data-lock-axis]").addEventListener("click",()=>toggleAxisLock(axis));
  numeric.addEventListener("keydown",e=>{if(e.key==="Enter")numeric.blur()});
  row.querySelectorAll("[data-offset]").forEach(b=>b.addEventListener("click",()=>{
    if(mode!=="rotate")return;
@@ -595,23 +597,94 @@ for(const axis of ["x","y","z"]){
  holder.addEventListener("keydown",e=>{
    if(!["ArrowLeft","ArrowRight","Home","End"].includes(e.key))return;
    e.preventDefault();
-   const [min,max]=limits[mode],snap=$("ad4-v3-snap").checked;
+   if(mode==="scale" && isAxisLocked(axis))return;
+   const [min,max]=axisBounds(axis),snap=$("ad4-v3-snap").checked;
    const step=snap?5:1;
-   const current=Number(sourceAxis(axis)?.value)||0;
+   const current=mode==="scale"?modelDimension(axis):(Number(sourceAxis(axis)?.value)||0);
    const val=e.key==="Home"?min:e.key==="End"?max:current+(e.key==="ArrowRight"?step:-step);
    setAxis(axis,val);
  });
 }
-function sourceAxis(axis){
+// Mesh-local STL dimensions map to Mosaic's native X/Y/Z scale controls.
+ // The visible editor uses millimetres exclusively; percentages remain internal.
+ const axisLocks=new WeakMap();
+ function selectedMesh(){
+  const v=globalThis.app?.gui?.model_viewer;
+  return v?.models?.[v.focused]?.mesh||null;
+ }
+ function modelBaseSize(axis,mesh=selectedMesh()){
+  if(!mesh?.geometry)return NaN;
+  if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+  const b=mesh.geometry.boundingBox;
+  return b?b.max[axis]-b.min[axis]:NaN;
+ }
+ function modelDimension(axis,mesh=selectedMesh()){
+  const base=modelBaseSize(axis,mesh);
+  return Number.isFinite(base)&&mesh?base*Math.abs(mesh.scale[axis]):NaN;
+ }
+ function modelWorldFloor(mesh){
+  if(!mesh?.geometry)return NaN;
+  if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+  mesh.updateMatrixWorld(true);
+  // Same transformed geometry box used by the plate collision validator.
+  return mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld).min.y;
+ }
+ function syncNativeScaleInputs(mesh){
+  for(const axis of ["x","y","z"]){
+   const source=$("scale-"+axis+"-value");
+   if(source)source.value=String(mesh.scale[axis]*100);
+  }
+ }
+ function axisBounds(axis){
+  return mode==="scale"?[0.01,scaleBed[axis]]:limits[mode];
+ }
+ function isAxisLocked(axis,mesh=selectedMesh()){
+  return Boolean(mesh && axisLocks.get(mesh)?.has(axis));
+ }
+ function syncAxisLocks(){
+  const selected=selectedMesh();
+  compactValues.dataset.mode=mode;
+  for(const axis of ["x","y","z"]){
+   const locked=mode==="scale"&&isAxisLocked(axis,selected);
+   for(const button of document.querySelectorAll('[data-lock-axis="'+axis+'"]')){
+    button.hidden=mode!=="scale";
+    button.disabled=mode==="scale"&&!selected;
+    button.setAttribute("aria-pressed",String(locked));
+    button.setAttribute("aria-label",(locked?"Unlock ":"Lock ")+axis.toUpperCase()+" dimension");
+    button.title=locked?"Fixed "+axis.toUpperCase()+" · Click to unlock":"Lock "+axis.toUpperCase()+" at this size";
+    if(button.dataset.iconState!==(locked?"lock":"unlock")){
+     button.dataset.iconState=locked?"lock":"unlock";
+     button.innerHTML=svg(locked?"lock":"unlock");
+     globalThis.AD4Icons?.hydrate(button);
+    }
+   }
+   const sheet=axisRows[axis];
+   const numeric=sheet?.querySelector(".ad4-v3-axis-value");
+   if(numeric)numeric.disabled=locked;
+   sheet?.classList.toggle("ad4-axis-locked",locked);
+   sheet?.querySelector(".ad4-v3-axis-ruler")?.setAttribute("aria-disabled",String(locked));
+   const compact=compactValues?.querySelector('[data-axis="'+axis+'"] input');
+   if(compact)compact.disabled=locked;
+  }
+ }
+ function toggleAxisLock(axis){
+  if(mode!=="scale")return;
+  const mesh=selectedMesh();if(!mesh)return;
+  let set=axisLocks.get(mesh);
+  if(!set){set=new Set();axisLocks.set(mesh,set);}
+  if(set.has(axis))set.delete(axis);else set.add(axis);
+  captureScaleBaseline();syncAxisLocks();
+ }
+ function sourceAxis(axis){
  const prefix=mode==="rotate"?"rotation":mode==="translate"?"movement":"scale";
  return $(prefix+"-"+axis+"-value");
 }
 function hasSelection(){return Boolean(globalThis.app?.gui?.model_viewer?.focused)}
-function normalized(mode,value,snap,exact){
- const [low,high]=limits[mode];
+function normalized(mode,value,snap,exact,axis){
+ const [low,high]=axisBounds(axis);
  if(!Number.isFinite(value))return null;
  const rounded=snap&&!exact?Math.round(value/5)*5:value;
- return Math.max(low,Math.min(high,rounded));
+ return rounded>=low&&rounded<=high?rounded:null;
 }
 function renderAxis(axis,current){
  const row=axisRows[axis],input=row.querySelector(".ad4-v3-axis-value");
@@ -620,8 +693,8 @@ function renderAxis(axis,current){
  row.querySelector(".ad4-v3-axis-unit").textContent=units[mode];
  holder.setAttribute("aria-valuenow",String(number));
  holder.setAttribute("aria-valuetext",number+units[mode]);
- holder.setAttribute("aria-valuemin",String(limits[mode][0]));
- holder.setAttribute("aria-valuemax",String(limits[mode][1]));
+ holder.setAttribute("aria-valuemin",String(axisBounds(axis)[0]));
+ holder.setAttribute("aria-valuemax",String(axisBounds(axis)[1]));
  const inst=rulers.get(axis);
  if(inst&&inst.options.currentValue!==number){
    synchronizing=true;
@@ -631,43 +704,97 @@ function renderAxis(axis,current){
 }
 function refreshAxis(){
  for(const axis of ["x","y","z"]){
-   const read=Number(sourceAxis(axis)?.value),number=Number.isFinite(read)?read:mode==="scale"?100:0;
-   renderAxis(axis,number);
+   const read=mode==="scale"?modelDimension(axis):Number(sourceAxis(axis)?.value);
+   renderAxis(axis,Number.isFinite(read)?read:0);
  }
+ syncAxisLocks();
 }
 function setAxis(axis,raw,{exact=false}={}){
- if(!hasSelection()){notify("Tap a model to select it before transforming");return}
+ const mesh=selectedMesh();
+ if(!mesh){notify("Tap a model to select it before transforming");return}
+ if(mode==="scale"&&isAxisLocked(axis)){refreshAxis();updateCompactValues();return}
  const snap=$("ad4-v3-snap").checked;
- const value=normalized(mode,raw,snap,exact);
+ const value=normalized(mode,raw,snap,exact,axis);
  if(value===null){
   showViewerError("operation","INVALID_TRANSFORM_VALUE",
-   "Enter a finite number within the permitted "+mode+" range.",
-   "Invalid transform value");return}
- const old=Number(sourceAxis(axis)?.value)|| (mode==="scale"?100:0);
- const locked=mode==="scale"&&$("ad4-v3-resize-lock").checked;
- if(mode==="scale")lockLabel.querySelector("input").checked=locked;
- const factor=locked&&old!==0?value/old:1;
- const plate=globalThis.app?.gui?.model_viewer;
- plate?.ad4_begin_transform?.();
- for(const key of locked?["x","y","z"]:[axis]){
-  const source=sourceAxis(key);if(!source)continue;
-  const prior=Number(source.value);
-  const target=key===axis?value:Math.min(250,Math.max(10,Number((prior*factor).toFixed(5))));
-  source.value=String(target);
-  source.dispatchEvent(new Event("input",{bubbles:true}));
+   "Enter a valid "+(mode==="scale"?"dimension in mm":"transform value")+" for "+axis.toUpperCase()+".",
+   "Invalid transform value");
+  refreshAxis();updateCompactValues();return;
  }
- const accepted=plate?.ad4_commit_transform?.();
- if(accepted===false) updateCompactValues();
+ const plate=globalThis.app?.gui?.model_viewer;
+ if(mode==="scale"){
+  const original=modelDimension(axis,mesh);
+  if(!(original>1e-8)){
+   showViewerError("operation","INVALID_MODEL_DIMENSION","Cannot scale an empty or zero-size axis.","Invalid model size");
+   refreshAxis();updateCompactValues();return;
+  }
+  const ratio=value/original;
+  const changed=["x","y","z"].filter(a=>!isAxisLocked(a,mesh));
+  const before=mesh.scale.clone();
+  const beforePosition=mesh.position.clone();
+  const floorBefore=modelWorldFloor(mesh);
+  const targets=[];
+  for(const key of changed){
+   const dimension=modelDimension(key,mesh)*ratio;
+   const base=modelBaseSize(key,mesh);
+   if(!(base>1e-8)||!Number.isFinite(dimension)||dimension<0.01||dimension>scaleBed[key]){
+    showViewerError("operation","INVALID_MODEL_DIMENSION",
+     "Proportional resize would exceed the valid "+key.toUpperCase()+" dimension (0.01–"+scaleBed[key]+" mm).",
+     "Size rejected · No changes applied");
+    refreshAxis();updateCompactValues();return;
+   }
+   targets.push({key,dimension,percent:before[key]*ratio*100});
+  }
+  plate?.ad4_begin_transform?.();
+  for(const {key,percent} of targets){
+   const source=sourceAxis(key);
+   if(source){
+    source.value=String(percent);
+    source.dispatchEvent(new Event("input",{bubbles:true}));
+   }else{
+    mesh.scale[key]=before[key]*ratio;
+   }
+  }
+  mesh.updateMatrixWorld(true);
+  // Preserve the footprint on the build plate when the height changes;
+  // otherwise any Z increase would sink the STL below Y=0 and be rejected.
+  const floorAfter=modelWorldFloor(mesh);
+  if(Number.isFinite(floorBefore)&&Number.isFinite(floorAfter)){
+   mesh.position.y+=floorBefore-floorAfter;
+   mesh.updateMatrixWorld(true);
+  }
+  // Never accept a silently clamped native percent value in place of mm.
+  const mismatch=targets.some(t=>Math.abs(modelDimension(t.key,mesh)-t.dimension)>0.011);
+  if(mismatch){
+   mesh.scale.copy(before);
+   mesh.position.copy(beforePosition);
+   mesh.updateMatrixWorld(true);
+  }
+  const accepted=plate?.ad4_commit_transform?.();
+  if(mismatch||accepted===false)syncNativeScaleInputs(mesh);
+  if(mismatch){
+   showViewerError("operation","DIMENSION_APPLY_FAILED",
+    "The model editor could not apply the requested size exactly.","Size rejected · No changes applied");
+  }
+  if(mismatch||accepted===false){refreshAxis();updateCompactValues();return}
+ }else{
+  plate?.ad4_begin_transform?.();
+  const source=sourceAxis(axis);
+  if(source){
+   source.value=String(value);
+   source.dispatchEvent(new Event("input",{bubbles:true}));
+  }
+  if(plate?.ad4_commit_transform?.()===false){refreshAxis();updateCompactValues();return}
+ }
  $("slice-export-container")?.setAttribute("data-active","false");
- refreshAxis();
- updateCompactValues();
+ refreshAxis();updateCompactValues();
  if(mode==="scale")captureScaleBaseline();
 }
 function initRulers(){
  const Slider=globalThis.SlideRuler?.default||globalThis.SlideRuler;
  for(const axis of ["x","y","z"]){
   const row=axisRows[axis],holder=row.querySelector(".ad4-v3-axis-ruler");
-  const [min,max]=limits[mode],value=Number(sourceAxis(axis)?.value)|| (mode==="scale"?100:0);
+  const [min,max]=axisBounds(axis),value=mode==="scale"?(modelDimension(axis)||min):(Number(sourceAxis(axis)?.value)||0);
   const width=Math.max(150,holder.clientWidth),existing=rulers.get(axis);
   if(existing&&existing.options.canvasWidth===width&&existing.options.minValue===min&&existing.options.maxValue===max)continue;
   holder.querySelector("canvas")?.remove();rulers.delete(axis);
@@ -730,16 +857,25 @@ setInterval(updatePlateButtons,300);
 updatePlateButtons();
 let activeViewerMode=null;
 const compactValues=make("div","ad4-viewer-values");compactValues.id="ad4-viewer-values";compactValues.hidden=true;
-for(const axis of ["x","y","z"]){const label=make("label","ad4-viewer-value-row");label.innerHTML='<span>'+axis.toUpperCase()+'</span><input type="number" inputmode="decimal" step="any" aria-label="'+axis.toUpperCase()+' transform value"><span class="ad4-viewer-value-unit"></span>';const input=label.querySelector("input");input.addEventListener("change",()=>setAxis(axis,Number(input.value),{exact:true}));input.addEventListener("keydown",e=>{if(e.key==="Enter")input.blur()});compactValues.append(label)}
+for(const axis of ["x","y","z"]){
+ const row=make("div","ad4-viewer-value-row");row.dataset.axis=axis;
+ row.innerHTML='<span>'+axis.toUpperCase()+'</span>'+
+  '<input type="number" inputmode="decimal" step="any" aria-label="'+axis.toUpperCase()+' transform value">'+
+  '<button type="button" class="ad4-axis-lock" data-lock-axis="'+axis+'" aria-pressed="false" aria-label="Lock '+axis.toUpperCase()+' dimension">'+svg("unlock")+'</button>'+
+  '<span class="ad4-viewer-value-unit"></span>';
+ const input=row.querySelector("input");
+ input.addEventListener("change",()=>setAxis(axis,Number(input.value),{exact:true}));
+ input.addEventListener("keydown",e=>{if(e.key==="Enter")input.blur()});
+ row.querySelector("[data-lock-axis]").addEventListener("click",()=>toggleAxisLock(axis));
+ compactValues.append(row);
+}
 const editorBox=make("div","ad4-viewer-editor-box");editorBox.hidden=true;
 editorBox.append(compactValues);
 const snapLabel=make("label","ad4-viewer-snap");
 snapLabel.innerHTML='<input id="ad4-viewer-snap" type="checkbox" checked><span>Snap 5</span>';
 editorBox.append(snapLabel);
-const lockLabel=make("label","ad4-viewer-lock");lockLabel.innerHTML='<input id="ad4-viewer-lock" type="checkbox" checked><span>Lock proportions</span>';lockLabel.hidden=true;editorBox.append(lockLabel);
 viewerTransform.append(editorBox);
 $("viewer")?.append(viewerTransform);
-lockLabel.querySelector("input").addEventListener("change",e=>{$("ad4-v3-resize-lock").checked=e.target.checked;captureScaleBaseline()});
 let scaleBaseline=null,scaleDragActive=false,scaleSyncing=false;
 function captureScaleBaseline(){const mesh=globalThis.app?.gui?.model_viewer?.model_controls?.object;scaleBaseline=mesh?mesh.scale.clone():null}
 function ensureScaleLock(){
@@ -749,14 +885,16 @@ function ensureScaleLock(){
  controls.addEventListener("mouseDown",()=>{scaleDragActive=true;captureScaleBaseline()});
  controls.addEventListener("mouseUp",()=>{scaleDragActive=false;captureScaleBaseline()});
  controls.addEventListener("objectChange",()=>{
-  if(scaleSyncing||!scaleDragActive||activeViewerMode!=="scale"||!lockLabel.querySelector("input").checked||!scaleBaseline||!controls.object)return;
+  if(scaleSyncing||!scaleDragActive||activeViewerMode!=="scale"||!scaleBaseline||!controls.object)return;
   const mesh=controls.object,old=scaleBaseline,now=mesh.scale;
-  const axes=["x","y","z"].filter(a=>Math.abs(old[a])>1e-8);
-  if(!axes.length)return;
-  const axis=axes.reduce((best,a)=>Math.abs(now[a]/old[a]-1)>Math.abs(now[best]/old[best]-1)?a:best,axes[0]);
-  const ratio=now[axis]/old[axis];if(!Number.isFinite(ratio)||ratio<=0)return;
+  const unlocked=["x","y","z"].filter(a=>!isAxisLocked(a,mesh)&&Math.abs(old[a])>1e-8);
+  const axis=unlocked.reduce((best,a)=>!best||Math.abs(now[a]/old[a]-1)>Math.abs(now[best]/old[best]-1)?a:best,null);
+  const ratio=axis?now[axis]/old[axis]:1;
   scaleSyncing=true;
-  try{for(const a of axes)now[a]=old[a]*ratio;mesh.updateMatrixWorld(true)}finally{scaleSyncing=false}
+  try{
+   for(const a of ["x","y","z"])now[a]=isAxisLocked(a,mesh)||!Number.isFinite(ratio)||ratio<=0?old[a]:old[a]*ratio;
+   mesh.updateMatrixWorld(true);
+  }finally{scaleSyncing=false}
  });
 }
 const scaleLockPoll=setInterval(()=>{ensureScaleLock();if(activeViewerMode==="scale"&&!scaleDragActive&&!scaleBaseline)captureScaleBaseline()},500);
@@ -765,12 +903,11 @@ function setTransform(next){
  activeViewerMode=next;
  editorBox.hidden=next===null;
  compactValues.hidden=next===null;
- lockLabel.hidden=next!=="scale";
  snapLabel.hidden=next===null;
  if(next===null){for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed","false");
   globalThis.app?.gui?.model_viewer?.model_controls?.detach?.();return;}
  mode=next;
- if(next==="scale"){ensureScaleLock();captureScaleBaseline();lockLabel.querySelector("input").checked=$("ad4-v3-resize-lock").checked;}
+ if(next==="scale"){ensureScaleLock();captureScaleBaseline();}
  for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed",String(b.dataset.viewerMode===next));
  for(const b of transform.querySelectorAll("[data-mode]"))b.setAttribute("aria-pressed",String(b.dataset.mode===next));
  const focused=globalThis.app?.gui?.model_viewer?.focused,controls=globalThis.app?.gui?.model_viewer?.model_controls;
@@ -779,17 +916,17 @@ function setTransform(next){
   btn?.firstElementChild?.click();
  }
  $("ad4-v3-rotate90").hidden=next!=="rotate";
- $("ad4-v3-lock-wrap").hidden=next!=="scale";
+ $("ad4-v3-transform-reset").textContent=next==="scale"?"Reset unlocked sizes":"Reset transformation";
  for(const axis of ["x","y","z"]){
   const row=axisRows[axis],input=row.querySelector(".ad4-v3-axis-value");
-  input.min=String(limits[next][0]);input.max=String(limits[next][1]);
-  input.step=$("ad4-v3-snap").checked?"5":"1";
+  input.min=String(axisBounds(axis)[0]);input.max=String(axisBounds(axis)[1]);
+  input.step="any";
   row.querySelector(".ad4-v3-axis-step").hidden=next!=="rotate";
  }
  rulers.clear();
  for(const row of Object.values(axisRows))row.querySelector("canvas")?.remove();
  $("ad4-v3-transform-help").textContent=focused?"Swipe the ruler or edit a value":"Tap the model on the bed to select it";
- // Reflect the newly selected native mode immediately; never show Scale % as Rotate °.
+ // Reflect the selected native transform without exposing its internal percent scale.
  refreshAxis();
  updateCompactValues();
  requestAnimationFrame(initRulers);
@@ -797,7 +934,7 @@ function setTransform(next){
 // Read the live Three.js mesh rather than the native text inputs: upstream
 // updates those inputs only after dragging ends, so they lag the gizmo.
 function liveTransformValue(mesh,axis){
- if(mode==="scale")return mesh.scale[axis]*100;
+ if(mode==="scale")return modelDimension(axis,mesh);
  if(mode==="rotate")return mesh.rotation[axis]*180/Math.PI+(axis==="x"?90:0);
  if(axis==="x")return mesh.position.x;
  if(axis==="y")return mesh.position.z;
@@ -805,15 +942,21 @@ function liveTransformValue(mesh,axis){
  const half=(mesh.geometry?.boundingBox?.max?.z-mesh.geometry?.boundingBox?.min?.z)/2||0;
  return mesh.position.y-half;
 }
+let previousLockSelection=null;
 function updateCompactValues(){
  if(!activeViewerMode)return;
  const mv=globalThis.app?.gui?.model_viewer;
+ if(mv?.focused!==previousLockSelection){
+  previousLockSelection=mv?.focused;
+  if(mode==="scale")captureScaleBaseline();
+  refreshAxis(); // Also synchronizes each model's independent lock state.
+ }
  const mesh=mv?.models?.[mv.focused]?.mesh;
  const rows=compactValues.querySelectorAll(".ad4-viewer-value-row");
  for(const [i,axis] of ["x","y","z"].entries()){
   const row=rows[i],field=row.querySelector("input");
   if(document.activeElement!==field){
-   const value=mesh?liveTransformValue(mesh,axis):Number(sourceAxis(axis)?.value);
+   const value=mesh?liveTransformValue(mesh,axis):(mode==="scale"?NaN:Number(sourceAxis(axis)?.value));
    const next=Number.isFinite(value)?String(Number(value.toFixed(3))):"";
    if(field.value!==next)field.value=next;
   }
@@ -893,17 +1036,32 @@ modeBar?.addEventListener("pointerup",event=>{
 
 for(const b of transform.querySelectorAll("[data-mode]"))b.addEventListener("click",()=>setTransform(b.dataset.mode));
 $("ad4-v3-snap").addEventListener("change",()=>setTransform(mode));
-$("ad4-v3-resize-lock").addEventListener("change",()=>refreshAxis());
 $("ad4-v3-rotate90").addEventListener("click",()=>{
  if(mode!=="rotate")return;
  const value=Number(sourceAxis("z")?.value)||0;
  setAxis("z",((value+225)%360)-180,{exact:true});
 });
 $("ad4-v3-transform-reset").addEventListener("click",()=>{
- for(const axis of ["x","y","z"]){
-  if(!hasSelection())break;
-  // Reset the selected transform only, leaving the other modes untouched.
-  setAxis(axis,mode==="scale"?100:0,{exact:true});
+ if(!hasSelection())return;
+ if(mode==="scale"){
+  const mesh=selectedMesh(),plate=globalThis.app?.gui?.model_viewer;
+  const keys=["x","y","z"].filter(axis=>!isAxisLocked(axis,mesh));
+  const oldFloor=modelWorldFloor(mesh);
+  plate?.ad4_begin_transform?.();
+  for(const axis of keys){
+   const source=sourceAxis(axis);
+   if(source){source.value="100";source.dispatchEvent(new Event("input",{bubbles:true}));}
+   else mesh.scale[axis]=1;
+  }
+  const nextFloor=modelWorldFloor(mesh);
+  if(Number.isFinite(oldFloor)&&Number.isFinite(nextFloor)){
+   mesh.position.y+=oldFloor-nextFloor;
+   mesh.updateMatrixWorld(true);
+  }
+  if(plate?.ad4_commit_transform?.()===false)syncNativeScaleInputs(mesh);
+  refreshAxis();updateCompactValues();captureScaleBaseline();
+ }else{
+  for(const axis of ["x","y","z"])setAxis(axis,0,{exact:true});
  }
 });
 $("ad4-v3-transform-apply").addEventListener("click",()=>activate("preview"));
