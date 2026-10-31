@@ -64,7 +64,7 @@
   const dialog=$("ad4-manager");
   if(!dialog)return;
   if(!dialog.open)document.dispatchEvent(new Event("ad4:printer-enter"));
-  const key={live:"controls",control:"controls",files:"files",
+  const key={live:"live",control:"controls",files:"files",
    camera:"camera",timelapse:"timelapse",
    connection:"connection",diagnostics:"connection"}[pane]||"controls";
   const target=dialog.querySelector('[data-printer-feature="'+key+'"]');
