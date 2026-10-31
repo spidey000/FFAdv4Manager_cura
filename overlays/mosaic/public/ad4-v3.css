@@ -1453,3 +1453,297 @@ body[data-ad4-screen=printer] #ad4-v3-printer-page{
   grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr))!important
  }
 }
+
+
+/* Printer workspace v2: tokens are inherited from the same Cura/Studio theme.
+   Four inner views, zero extra top-level tabs, mobile-first information hierarchy. */
+#ad4-v3-printer-page{
+ --printer-surface:var(--ad4-clean-field,var(--v3-card2));
+ --printer-border:var(--ad4-clean-divider,var(--v3-border));
+ --printer-accent:var(--ad4-clean-green,var(--v3-green));
+ background:var(--ad4-clean-bg,var(--v3-bg))!important;
+ color:var(--v3-text,#eaf4ec);
+ padding:12px clamp(12px,2.4vw,28px) 32px!important
+}
+#ad4-v3-printer-page *,#ad4-v3-printer-page *::before,#ad4-v3-printer-page *::after{box-sizing:border-box}
+#ad4-v3-printer-page [hidden]{display:none!important}
+#ad4-v3-printer-page .ad4-printer-header,
+#ad4-v3-printer-page .ad4-printer-nav,
+#ad4-v3-printer-page .ad4-printer-overview-content,
+#ad4-v3-printer-page #ad4-manager,
+#ad4-v3-printer-page .ad4-printer-connection-details{max-width:1160px;margin-left:auto!important;margin-right:auto!important}
+#ad4-v3-printer-page .ad4-printer-header{
+ display:flex;align-items:center;justify-content:space-between;min-width:0;gap:12px;margin-bottom:6px
+}
+#ad4-v3-printer-page .ad4-printer-ident{display:flex;align-items:center;min-width:0;gap:9px}
+#ad4-v3-printer-page .ad4-printer-ident>.ad4-printer-icon{
+ display:grid;place-items:center;width:38px;height:38px;flex:none;
+ color:var(--printer-accent);background:var(--printer-surface);border-radius:11px
+}
+#ad4-v3-printer-page .ad4-printer-ident h2{margin:0 0 3px;font-size:18px;font-weight:750;line-height:1.2}
+#ad4-v3-printer-page #ad4-v3-printer-page-state{color:var(--v3-muted);font-size:11px;overflow-wrap:anywhere}
+#ad4-v3-printer-page[data-printer-connection=connected] #ad4-v3-printer-page-state{color:var(--printer-accent)}
+#ad4-v3-printer-page .ad4-printer-header-actions{display:flex;align-items:center;gap:8px;flex:none}
+#ad4-v3-printer-page #ad4-printer-updated{font-size:10px;color:var(--v3-muted);text-align:right}
+#ad4-v3-printer-page .ad4-printer-icon-btn,
+#ad4-v3-printer-page #ad4-printer-refresh{
+ display:grid!important;place-items:center!important;padding:0!important;
+ width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;
+ border:0!important;border-radius:9px!important;background:var(--printer-surface)!important;
+ color:var(--v3-muted)!important
+}
+#ad4-v3-printer-page .ad4-printer-icon svg{width:19px;height:19px;stroke-width:1.85}
+#ad4-v3-printer-page .ad4-printer-connection-details{
+ border:0!important;border-bottom:1px solid var(--printer-border)!important;
+ margin:0 auto 8px!important;padding:0!important;background:transparent!important
+}
+#ad4-v3-printer-page .ad4-printer-connection-details>summary{
+ cursor:pointer;min-height:36px;display:flex;align-items:center;
+ padding:6px 2px;color:var(--v3-muted);font-size:11px;list-style:none
+}
+#ad4-v3-printer-page .ad4-printer-connection-details>summary::-webkit-details-marker{display:none}
+#ad4-v3-printer-page .ad4-printer-connection-details>summary::after{content:"⌄";margin-left:8px}
+#ad4-v3-printer-page .ad4-printer-connection-details p{color:var(--v3-muted);font-size:11px;line-height:1.5;margin:5px 0 10px}
+#ad4-v3-printer-page .ad4-printer-nav{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;
+ border-bottom:1px solid var(--printer-border);margin-bottom:14px!important
+}
+#ad4-v3-printer-page .ad4-printer-nav button{
+ background:transparent!important;border:0!important;border-bottom:2px solid transparent!important;
+ border-radius:0!important;color:var(--v3-muted)!important;
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ gap:7px;min-width:0;min-height:44px;padding:7px 4px!important;
+ text-align:center!important;font-size:12px;font-weight:650;white-space:normal
+}
+#ad4-v3-printer-page .ad4-printer-nav button[aria-pressed=true]{
+ color:var(--printer-accent)!important;border-bottom-color:var(--printer-accent)!important
+}
+#ad4-v3-printer-page .ad4-printer-nav button svg{width:17px;height:17px}
+#ad4-v3-printer-page .ad4-printer-overview-content{display:grid;gap:14px}
+#ad4-v3-printer-page .ad4-printer-facts{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px
+}
+#ad4-v3-printer-page .ad4-printer-fact{
+ background:var(--printer-surface);border:1px solid var(--printer-border);
+ border-radius:12px;padding:11px 13px;min-width:0;display:grid;gap:7px
+}
+#ad4-v3-printer-page .ad4-printer-fact>span,
+#ad4-v3-printer-page .ad4-printer-job-metrics span{
+ font-size:11px;color:var(--v3-muted)
+}
+#ad4-v3-printer-page .ad4-printer-fact>strong{
+ color:var(--v3-text,#eaf4ec);font-size:14px;font-weight:700;
+ min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums
+}
+#ad4-v3-printer-page .ad4-printer-current{
+ background:var(--printer-surface);border:1px solid var(--printer-border);
+ border-radius:14px;padding:15px;display:grid;gap:10px;min-width:0
+}
+#ad4-v3-printer-page .ad4-printer-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#ad4-v3-printer-page .ad4-printer-section-title h3{font-size:15px;margin:0;font-weight:750}
+#ad4-v3-printer-page .ad4-printer-status{padding:3px 9px;background:var(--v3-card);border-radius:999px;font-size:11px;color:var(--v3-muted)}
+#ad4-v3-printer-page .ad4-printer-status[data-state=printing]{color:var(--printer-accent)}
+#ad4-v3-printer-page .ad4-printer-status[data-state=paused]{color:#f4c36c}
+#ad4-v3-printer-page #ad4-printer-job-name{
+ display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+ overflow-wrap:anywhere;font-size:13px;line-height:1.5;min-width:0;font-weight:650
+}
+#ad4-v3-printer-page .ad4-printer-progress-track{
+ width:100%;height:8px;overflow:hidden;border-radius:999px;
+ background:var(--v3-card);border:0
+}
+#ad4-v3-printer-page .ad4-printer-progress-track>span{
+ display:block;width:0;height:100%;background:var(--printer-accent);
+ transition:width .25s ease;border-radius:inherit
+}
+#ad4-v3-printer-page #ad4-printer-progress-text{font-size:11px;color:var(--v3-muted);font-variant-numeric:tabular-nums}
+#ad4-v3-printer-page .ad4-printer-job-metrics{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:8px;margin-top:2px
+}
+#ad4-v3-printer-page .ad4-printer-job-metrics>div{display:grid;gap:5px}
+#ad4-v3-printer-page .ad4-printer-job-metrics strong{
+ font-size:14px;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere
+}
+#ad4-v3-printer-page .ad4-printer-jump-grid{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px
+}
+#ad4-v3-printer-page .ad4-printer-jump-grid>button{
+ display:grid!important;grid-template-columns:22px minmax(0,1fr);align-items:center!important;
+ gap:6px 9px;min-width:0;min-height:68px!important;
+ padding:10px 12px!important;text-align:left!important;border-radius:12px!important;
+ background:var(--printer-surface)!important;border:1px solid var(--printer-border)!important;
+ color:var(--v3-text,#eaf4ec)!important
+}
+#ad4-v3-printer-page .ad4-printer-jump-grid>button strong{
+ grid-column:2;font-size:11px;color:var(--v3-muted);font-weight:550;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+#ad4-v3-printer-page .ad4-printer-jump-grid>button span:not(.ad4-printer-icon){
+ font-size:12px;font-weight:650;min-width:0;overflow-wrap:anywhere
+}
+#ad4-v3-printer-page .ad4-printer-internal-view{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:12px;align-items:start;width:100%
+}
+#ad4-v3-printer-page #ad4-manager[open]{
+ display:block!important;position:relative!important;inset:auto!important;
+ padding:0 0 35px!important;background:transparent!important;border:0!important;
+ margin-top:12px!important;max-height:none!important;overflow:visible!important
+}
+#ad4-v3-printer-page #ad4-manager:not([open]){display:none!important}
+#ad4-v3-printer-page #ad4-manager>.ad4-printer-internal-view[hidden]{display:none!important}
+#ad4-v3-printer-page #ad4-manager>.ad4-head,
+#ad4-v3-printer-page #ad4-manager>.ad4-grid{display:none!important}
+#ad4-v3-printer-page #ad4-manager-status{margin:0 0 12px!important;min-height:0}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-internal-view>.ad4-section{
+ min-width:0!important;width:100%!important;margin:0!important;padding:14px!important;
+ background:var(--printer-surface)!important;
+ border:1px solid var(--printer-border)!important;
+ border-radius:13px!important;box-shadow:none!important
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-internal-view>.ad4-section h3{font-size:14px!important}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-internal-view[data-printer-panel=overview]>#ad4-live-job{
+ grid-column:1/-1
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-internal-view[data-printer-panel=files]>.ad4-section{
+ grid-column:1/-1
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-internal-view[data-printer-panel=diagnostics]>.ad4-section:first-child{
+ grid-column:1/-1
+}
+#ad4-v3-printer-page #ad4-manager .ad4-tools{
+ display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr))!important;
+ gap:8px!important;min-width:0!important
+}
+#ad4-v3-printer-page #ad4-manager .ad4-tools button,
+#ad4-v3-printer-page #ad4-manager .ad4-file-row button{
+ min-height:44px!important;display:inline-flex!important;
+ align-items:center!important;justify-content:center!important;
+ text-align:center!important
+}
+#ad4-v3-printer-page #ad4-manager .ad4-section-title button{width:auto!important}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-fan-controls{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-fan-controls button{width:100%}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-subheading,
+#ad4-v3-printer-page #ad4-manager .ad4-live-job h4{
+ color:var(--v3-muted);font-size:12px;font-weight:650;margin:12px 0 6px
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-search{
+ display:flex;align-items:center;gap:9px;min-height:44px;padding:0 11px;
+ border-radius:8px;background:var(--v3-card);
+ border:1px solid var(--printer-border);margin:10px 0
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-search input{
+ flex:1;min-width:0!important;width:100%;border:0!important;
+ padding:8px 0!important;outline-offset:2px;background:transparent!important
+}
+#ad4-v3-printer-page #ad4-manager .ad4-file-filters{display:flex;gap:9px;flex-wrap:wrap}
+#ad4-v3-printer-page #ad4-manager .ad4-file-filters label{min-width:125px;flex:1}
+#ad4-v3-printer-page #ad4-manager .ad4-file-row{
+ gap:10px!important;min-height:60px;padding:8px 2px!important;
+ min-width:0;position:relative
+}
+#ad4-v3-printer-page #ad4-manager .ad4-file-meta{flex:1;min-width:0}
+#ad4-v3-printer-page #ad4-manager .ad4-file-meta strong{
+ display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+ overflow:hidden;overflow-wrap:anywhere;word-break:break-word;
+ max-width:100%;line-height:1.4;font-size:12px
+}
+#ad4-v3-printer-page #ad4-manager .ad4-file-meta small{
+ display:block;color:var(--v3-muted);font-size:10px;margin-top:5px;
+ line-height:1.45;overflow-wrap:anywhere
+}
+#ad4-v3-printer-page #ad4-manager .ad4-file-row>button{
+ flex:0 0 auto;min-width:64px!important;width:auto
+}
+#ad4-v3-printer-page #ad4-manager .ad4-file-row img{
+ width:66px!important;height:52px!important;max-width:20vw;
+ border-radius:7px;object-fit:contain;background:var(--v3-card)
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-pagination{
+ border-top:1px solid var(--printer-border);padding:8px 0 0;
+ justify-content:center!important
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-pagination span{
+ min-width:90px;text-align:center;color:var(--printer-accent);font-size:12px;font-weight:700
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-camera-stage{
+ display:grid;place-items:center;position:relative;min-height:190px;
+ aspect-ratio:16/10;border-radius:10px;background:var(--v3-black);
+ overflow:hidden;margin:12px 0
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-camera-stage #ad4-camera{
+ width:100%!important;height:100%!important;max-height:none!important;
+ object-fit:contain;position:absolute;inset:0;margin:0!important
+}
+#ad4-v3-printer-page #ad4-printer-camera-empty{
+ text-align:center;padding:12px;color:var(--v3-muted);font-size:12px;line-height:1.5
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-camera-switch{
+ display:flex;align-items:center;justify-content:space-between;gap:10px;
+ grid-column:1/-1;min-height:44px;cursor:pointer
+}
+#ad4-v3-printer-page #ad4-manager .ad4-printer-legacy-camera{display:none!important}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-row{
+ display:flex;align-items:center;gap:10px;overflow:visible
+}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-placeholder{
+ flex:none;display:grid;place-items:center;width:56px;height:46px;
+ border-radius:8px;background:var(--v3-card);color:var(--v3-muted)
+}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-placeholder svg{width:20px;height:20px}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-menu{position:relative;flex:none;overflow:visible}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-menu>summary{
+ display:grid!important;place-items:center!important;list-style:none;
+ width:44px;height:44px;min-height:44px!important;padding:0!important;
+ border-radius:8px;background:var(--v3-card)!important;font-size:20px!important;
+ color:var(--v3-muted)!important;cursor:pointer
+}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-menu>summary::after{display:none!important}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-menu>summary::-webkit-details-marker{display:none}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-actions{
+ position:absolute;z-index:55;right:0;top:45px;display:grid;gap:4px;
+ width:max-content;min-width:156px;max-width:min(230px,80vw);
+ background:var(--v3-card);border:1px solid var(--printer-border);
+ border-radius:10px;padding:6px;box-shadow:0 8px 20px #0005
+}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-actions a{
+ display:flex;align-items:center;min-height:44px;padding:9px 10px;
+ text-decoration:none;color:var(--v3-text,#eaf4ec);font-size:12px
+}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-actions button{width:100%!important;justify-content:center}
+#ad4-v3-printer-page #ad4-manager details.ad4-section{
+ padding:12px 14px!important
+}
+#ad4-v3-printer-page #ad4-manager details.ad4-section>summary{
+ margin:0!important;padding:9px 28px 9px 0!important
+}
+#ad4-v3-printer-page .ad4-printer-nav button:focus-visible,
+#ad4-v3-printer-page .ad4-printer-jump-grid button:focus-visible,
+#ad4-v3-printer-page .ad4-printer-icon-btn:focus-visible,
+#ad4-v3-printer-page #ad4-manager .ad4-file-row:focus-visible{
+ outline:2px solid var(--printer-accent)!important;outline-offset:2px!important
+}
+@media(max-width:699px){
+ #ad4-v3-printer-page .ad4-printer-facts{gap:7px}
+ #ad4-v3-printer-page .ad4-printer-fact{padding:10px}
+ #ad4-v3-printer-page .ad4-printer-fact>strong{font-size:12px}
+ #ad4-v3-printer-page .ad4-printer-nav button{flex-direction:column!important;gap:3px;font-size:10px;padding:5px 2px!important}
+ #ad4-v3-printer-page .ad4-printer-nav button svg{width:16px;height:16px}
+ #ad4-v3-printer-page .ad4-printer-jump-grid{grid-template-columns:minmax(0,1fr);gap:8px}
+ #ad4-v3-printer-page .ad4-printer-jump-grid>button{min-height:52px!important}
+ #ad4-v3-printer-page #ad4-manager>.ad4-printer-internal-view{grid-template-columns:minmax(0,1fr);gap:10px}
+ #ad4-v3-printer-page #ad4-manager .ad4-printer-internal-view>.ad4-section{grid-column:1/-1}
+ #ad4-v3-printer-page #ad4-manager .ad4-tools{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:380px){
+ #ad4-v3-printer-page .ad4-printer-ident h2{font-size:16px}
+ #ad4-v3-printer-page #ad4-printer-updated{display:none}
+ #ad4-v3-printer-page .ad4-printer-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #ad4-v3-printer-page .ad4-printer-facts>.ad4-printer-fact:first-child{grid-column:1/-1}
+ #ad4-v3-printer-page #ad4-manager .ad4-tools{grid-template-columns:minmax(0,1fr)!important}
+ #ad4-v3-printer-page #ad4-manager .ad4-file-filters{flex-direction:column}
+}
