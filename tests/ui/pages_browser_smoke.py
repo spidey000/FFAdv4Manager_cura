@@ -383,6 +383,15 @@ with sync_playwright() as p:
                 if not page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollHeight>el.clientHeight"):
                     failures.append(f"{width}: printer dashboard has no scroll to reach lower cards")
                 native=page.locator("#ad4-v3-printer-page > #ad4-manager")
+                print("INLINE MANAGER DIAGNOSTIC",width,page.evaluate("""() => {
+                  const p=document.getElementById("ad4-v3-printer-page");
+                  const d=document.getElementById("ad4-manager");
+                  const c=d?.querySelector(".ad4-section");
+                  return {parent:d?.parentElement?.id,open:d?.open,
+                    display:getComputedStyle(d).display,rect:d?.getBoundingClientRect().toJSON(),
+                    screen:document.body.dataset.ad4Screen,pageScroll:p.scrollHeight,
+                    section:c&&{display:getComputedStyle(c).display,rect:c.getBoundingClientRect().toJSON()}};
+                }"""),flush=True)
                 if native.count()!=1 or native.get_attribute("open") is None:
                     failures.append(f"{width}: actual printer manager is not mounted inline and open")
                 features=set(page.locator("#ad4-v3-printer-page #ad4-manager [data-printer-feature]").evaluate_all(
@@ -401,7 +410,7 @@ with sync_playwright() as p:
                     failures.append(f"{width}: inline printer dashboard has horizontal overflow")
                 page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollTop=0")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
-                page.locator('#ad4-v3-printer-page [data-printer-feature="files"]').scroll_into_view_if_needed()
+                page.locator("#ad4-v3-printer-page").evaluate("(e)=>e.scrollTop= Math.round(e.scrollHeight/2)")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-controls-{width}.png",full_page=False)
                 page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollTop=el.scrollHeight")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-bottom-{width}.png",full_page=False)
@@ -475,7 +484,7 @@ with sync_playwright() as p:
                 failures.append(f"Desktop printer grid not integrated with three columns: {layout}")
             page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollTop=0")
             page.screenshot(path="/tmp/ad4-pages-printer-1280.png",full_page=False)
-            cards.first.scroll_into_view_if_needed()
+            page.locator("#ad4-v3-printer-page").evaluate("(e)=>e.scrollTop= Math.round(e.scrollHeight/2)")
             page.screenshot(path="/tmp/ad4-pages-printer-controls-1280.png",full_page=False)
         if width==1280 and not startup_error and page.locator("#ad4-v3-remove-model").count():
             try:
