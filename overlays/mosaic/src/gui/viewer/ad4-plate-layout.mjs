@@ -55,22 +55,44 @@ export function polygonsOverlap(a,b,clearance=0) {
   return true;
 }
 export function validatePlate(entries,bed=AD4_BED) {
+  const invalid=(code,reason,entry,other)=>({
+    valid:false,code,reason,modelId:entry?.id||null,
+    otherModelId:other?.id||null
+  });
+  const name=p=>String(p?.name || p?.id || "Unnamed model").slice(0,75);
+  const mm=n=>Math.max(0,n).toFixed(1).replace(/\.0$/,"")+" mm";
   for (const entry of entries) {
     const p=entry.outline;
-    if (!p || p.length < 3 || !finite(entry.lowY) || !finite(entry.highY))
-      return {valid:false,reason:"Invalid model geometry or transform"};
-    if (entry.lowY < bed.minY-0.02 || entry.highY > bed.maxY+EPS)
-      return {valid:false,reason:"Model extends beyond the printable height"};
+    if (!p || p.length < 3 || !finite(entry.lowY) || !finite(entry.highY) ||
+        p.some(v=>v.some(n=>!finite(n))))
+      return invalid("INVALID_GEOMETRY",
+        "Model “"+name(entry)+"” has invalid geometry or coordinates",entry);
+    if (entry.lowY < bed.minY-0.02)
+      return invalid("BELOW_BED",
+        "Model “"+name(entry)+"” is "+mm(bed.minY-entry.lowY)+" below the build plate",entry);
+    if (entry.highY > bed.maxY+EPS)
+      return invalid("HEIGHT_OVERFLOW",
+        "Model “"+name(entry)+"” exceeds Z height (250 mm) by "+mm(entry.highY-bed.maxY),entry);
     const b=bounds(p);
-    if (b.minX < bed.minX-EPS || b.maxX > bed.maxX+EPS ||
-        b.minZ < bed.minZ-EPS || b.maxZ > bed.maxZ+EPS)
-      return {valid:false,reason:"Model is outside the 220 × 200 mm build plate"};
+    if (b.minX < bed.minX-EPS)
+      return invalid("BED_X_MIN",
+        "Model “"+name(entry)+"” exceeds the left X edge by "+mm(bed.minX-b.minX),entry);
+    if (b.maxX > bed.maxX+EPS)
+      return invalid("BED_X_MAX",
+        "Model “"+name(entry)+"” exceeds the right X edge by "+mm(b.maxX-bed.maxX),entry);
+    if (b.minZ < bed.minZ-EPS)
+      return invalid("BED_Y_MIN",
+        "Model “"+name(entry)+"” exceeds the front Y edge by "+mm(bed.minZ-b.minZ),entry);
+    if (b.maxZ > bed.maxZ+EPS)
+      return invalid("BED_Y_MAX",
+        "Model “"+name(entry)+"” exceeds the rear Y edge by "+mm(b.maxZ-bed.maxZ),entry);
   }
   for (let i=0;i<entries.length;i++)
     for (let j=i+1;j<entries.length;j++)
       if (polygonsOverlap(entries[i].outline,entries[j].outline))
-        return {valid:false,reason:"Models would overlap on the build plate"};
-  return {valid:true,reason:""};
+        return invalid("MODEL_COLLISION",
+          "Model “"+name(entries[i])+"” overlaps “"+name(entries[j])+"”",entries[i],entries[j]);
+  return {valid:true,code:null,reason:"",modelId:null,otherModelId:null};
 }
 
 // The input outlines use MODEL-LOCAL x/z positions. Return all placements or
