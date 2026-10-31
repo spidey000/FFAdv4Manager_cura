@@ -1,37 +1,37 @@
-/* Shared G-code feature palette for Three.js geometry and the mobile legend.
+/* ThreeSlicer-style warm walls / cool infill feature palette for the GPU renderer and AD4 legend.
  * Cura emits WALL-OUTER / SKIN / FILL; PrusaSlicer, Orca and SuperSlicer emit
  * PERIMETER / OVERHANG PERIMETER / INTERNAL INFILL / SOLID INFILL.
  * Keep original names so toolpath visibility and timing controls remain exact.
  */
 export const TOOLPATH_COLORS = Object.freeze({
   // CuraEngine
-  "WALL-OUTER": "#ff5f57",
-  "WALL-INNER": "#38d98b",
-  "SKIN": "#f4ce46",
-  "FILL": "#f59e0b",
-  "SUPPORT": "#9973f9",
-  "SUPPORT-INTERFACE": "#c4a1ff",
-  "SKIRT": "#00bfa6",
-  "BRIM": "#2dd4bf",
-  "RAFT": "#60a5fa",
-  "TRAVEL": "#22d3ee",
+  "WALL-OUTER": "#fa7329",
+  "WALL-INNER": "#e98842",
+  "SKIN": "#338cdb",
+  "FILL": "#5cb8f0",
+  "SUPPORT": "#808a99",
+  "SUPPORT-INTERFACE": "#a5acb7",
+  "SKIRT": "#9ea8b8",
+  "BRIM": "#9ea8b8",
+  "RAFT": "#6b7585",
+  "TRAVEL": "#5a6270",
   // PrusaSlicer / Slic3r / OrcaSlicer / SuperSlicer
-  "PERIMETER": "#ff5f57",
-  "EXTERNAL PERIMETER": "#f87171",
-  "OVERHANG PERIMETER": "#ff57bd",
-  "INTERNAL INFILL": "#f59e0b",
-  "SOLID INFILL": "#f4ce46",
-  "TOP SOLID INFILL": "#a3e635",
-  "BRIDGE INFILL": "#5ed0e8",
-  "INTERNAL BRIDGE INFILL": "#5ed0e8",
-  "GAP FILL": "#38bdf8",
-  "IRONING": "#e879f9",
-  "SUPPORT MATERIAL": "#9973f9",
-  "SUPPORT MATERIAL INTERFACE": "#c4a1ff",
-  "SKIRT/BRIM": "#2dd4bf",
-  "WIPE TOWER": "#c084fc",
-  "CUSTOM": "#fb7185",
-  "OTHER": "#98a6a1"
+  "PERIMETER": "#fa7329",
+  "EXTERNAL PERIMETER": "#fa7329",
+  "OVERHANG PERIMETER": "#4dcca0",
+  "INTERNAL INFILL": "#5cb8f0",
+  "SOLID INFILL": "#338cdb",
+  "TOP SOLID INFILL": "#338cdb",
+  "BRIDGE INFILL": "#4dcca0",
+  "INTERNAL BRIDGE INFILL": "#4dcca0",
+  "GAP FILL": "#f5c238",
+  "IRONING": "#cc6bbb",
+  "SUPPORT MATERIAL": "#808a99",
+  "SUPPORT MATERIAL INTERFACE": "#a5acb7",
+  "SKIRT/BRIM": "#9ea8b8",
+  "WIPE TOWER": "#947fe0",
+  "CUSTOM": "#d78c45",
+  "OTHER": "#fa7329"
 });
 
 const dynamicColors = new Map();
