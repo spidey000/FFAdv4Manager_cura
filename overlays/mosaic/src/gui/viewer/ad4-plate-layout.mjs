@@ -67,7 +67,7 @@ export function validatePlate(entries,bed=AD4_BED) {
         p.some(v=>v.some(n=>!finite(n))))
       return invalid("INVALID_GEOMETRY",
         "Model “"+name(entry)+"” has invalid geometry or coordinates",entry);
-    if (entry.lowY < bed.minY-0.02)
+    if (entry.lowY < bed.minY-EPS)
       return invalid("BELOW_BED",
         "Model “"+name(entry)+"” is "+mm(bed.minY-entry.lowY)+" below the build plate",entry);
     if (entry.highY > bed.maxY+EPS)
@@ -103,7 +103,7 @@ export function arrangeFootprints(entries,bed=AD4_BED,clearance=2) {
   for (const entry of entries) {
     if (!entry.outline || entry.outline.length < 3 ||
         !finite(entry.lowY) || !finite(entry.highY) ||
-        entry.lowY < bed.minY-0.02 || entry.highY > bed.maxY+EPS) return null;
+        entry.lowY < bed.minY-EPS || entry.highY > bed.maxY+EPS) return null;
     const b=bounds(entry.outline);
     const xMin=bed.minX-b.minX, xMax=bed.maxX-b.maxX;
     const zMin=bed.minZ-b.minZ, zMax=bed.maxZ-b.maxZ;
