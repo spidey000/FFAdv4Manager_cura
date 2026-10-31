@@ -229,17 +229,35 @@ with sync_playwright() as p:
                     import_row.locator(".ad4-v3-model-visible").click()
                     assert page.evaluate("(uuid)=>app.gui.model_viewer.models[uuid].mesh.visible===false",model_uuid), "Model preview was not hidden"
                     assert page.evaluate("app.gui.model_viewer.export_stl().byteLength")==exported_before, "Hidden model was excluded from slicing export"
+                    # Deleting the selected model must close Move even if another
+                    # model remains in the scene. Restore preview visibility first.
+                    import_row=menu.locator('.ad4-v3-models-row[data-model-uuid="'+model_uuid+'"]')
+                    import_row.locator(".ad4-v3-model-visible").click()
+                    assert page.evaluate("(uuid)=>app.gui.model_viewer.models[uuid].mesh.visible===true",model_uuid)
+                    models_button.click()
+                    move_button=page.locator('#ad4-viewer-transform [data-viewer-mode="translate"]')
+                    move_button.click()
+                    assert move_button.get_attribute("aria-pressed")=="true"
+                    models_button.click()
                     import_row=menu.locator('.ad4-v3-models-row[data-model-uuid="'+model_uuid+'"]')
                     page.once("dialog",lambda dialog:dialog.accept())
                     import_row.locator(".ad4-v3-model-remove").click()
                     page.wait_for_function("() => Object.keys(app.gui.model_viewer.models).length===1",timeout=5000)
                     assert menu.is_visible(), "Deleting a model closed its list unexpectedly"
+                    assert move_button.get_attribute("aria-pressed")=="false", "Orphaned Move after model deletion"
+                    assert page.locator("#ad4-viewer-editor-box").is_hidden()
+                    assert page.evaluate("""() => {
+                      const c=app.gui.model_viewer.model_controls;
+                      return !c.object && !c.getHelper()?.parent && c.enabled===false;
+                    }"""), "Native transform helpers still attached after deletion"
                     models_button.click()
                     assert not menu.is_visible(), "Models button did not toggle menu closed"
                     models_button.click()
                     assert menu.is_visible()
                     page.locator('#ad4-v3-top [data-route="preview"]').click()
                     assert not menu.is_visible(), "Outside focus did not close the Models menu"
+                    move_button.click()
+                    assert move_button.get_attribute("aria-pressed")=="false", "Move trapped on empty selection"
                     print("MODEL LIST SELECTION / VISIBILITY / DELETE / OUTSIDE CLOSE PASSED",flush=True)
                     # An STL larger than the printer must still be registered and
                     # selected, so the user can resize it. The yellow warning is
@@ -790,6 +808,9 @@ with sync_playwright() as p:
                 # Deletion of the final model must atomically clear geometry and all UI.
                 page.locator('#ad4-v3-top [data-route="preview"]').click()
                 page.wait_for_timeout(1100)
+                move_button=page.locator('#ad4-viewer-transform [data-viewer-mode="translate"]')
+                move_button.click()
+                assert move_button.get_attribute("aria-pressed")=="true"
                 page.once("dialog", lambda dlg: dlg.accept())
                 page.locator("#ad4-v3-remove-model").click(timeout=3500)
                 page.wait_for_function("() => Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length===0",timeout=9000)
@@ -797,6 +818,10 @@ with sync_playwright() as p:
                 assert page.evaluate("Object.keys(app.gui.model_viewer.models).length")==0, "Model still present in actual Three.js scene"
                 assert not page.locator("body").evaluate("(el)=>el.classList.contains('ad4-has-model')")
                 assert page.locator("#ad4-v3-remove-model").is_hidden()
+                assert move_button.get_attribute("aria-pressed")=="false"
+                assert page.locator("#ad4-viewer-editor-box").is_hidden()
+                move_button.click()
+                assert move_button.get_attribute("aria-pressed")=="false", "Empty plate trapped in Move"
                 page.screenshot(path="/tmp/ad4-pages-remove-model-1280.png",full_page=False)
                 print("REMOVE LAST MODEL: UI STATE CLEAN",flush=True)
             except Exception as error:
