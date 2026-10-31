@@ -59,9 +59,14 @@ def run():
                 page.wait_for_function('globalThis.AD4LiveRenderer && globalThis.app?.gui?.slicer', timeout=30000)
                 original = page.evaluate('globalThis.app.gui.slicer.exported_gcode')
                 page.locator('#ad4-v3-top [data-route="printer"]').click()
-                page.wait_for_function('!document.querySelector("[data-printer-card=job] button").disabled', timeout=15000)
-                page.locator('[data-printer-card="job"] button').click()
+                page.wait_for_function('!document.querySelector("#ad4-live-consult").disabled', timeout=15000)
+                page.locator('#ad4-live-consult').click()
                 page.wait_for_function('document.querySelector("#ad4-live-canvas canvas") !== null', timeout=15000)
+                assert not page.locator('#ad4-live-camera-toggle').is_checked()
+                assert page.locator('#ad4-live-camera').get_attribute('src') is None
+                with page.expect_response('**/api/printer/camera/live') as requested:
+                    page.locator('#ad4-live-camera-toggle').check()
+                requested.value.finished()
                 page.wait_for_function('document.querySelector("#ad4-live-camera").naturalWidth > 0')
                 cameras_before = requests.count('/camera/live')
                 page.evaluate('Object.defineProperty(document,"hidden",{configurable:true,value:true});document.dispatchEvent(new Event("visibilitychange"))')

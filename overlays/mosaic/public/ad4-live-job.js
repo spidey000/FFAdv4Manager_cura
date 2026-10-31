@@ -13,7 +13,7 @@
  <p id="ad4-live-position" role="status">XYZ — · Estimated layer —</p>
  <details><summary>Layer estimate and colors</summary><p class="ad4-help">Red cone: reported XYZ nozzle position (tip at Z). Amber: estimated current layer. Green: lower layers. Gray: later layers. Z-hop and polling can affect the estimate; camera and position are not frame-synchronized.</p></details>
  <div class="ad4-tools"><button id="ad4-live-right" type="button">Right wall view</button>
- <label><input id="ad4-live-camera-toggle" type="checkbox" role="switch" checked>Live camera</label>
+ <label><input id="ad4-live-camera-toggle" type="checkbox" role="switch">Live camera</label>
  <button id="ad4-live-stop" type="button">Stop viewing</button>
  <button id="ad4-live-fetch" type="button" disabled>Fetch printer file</button></div>
  <details><summary>Associate the exact current GX/G-code</summary>
@@ -31,7 +31,7 @@
   }else{img.removeAttribute("src");img.hidden=true;text("ad4-live-camera-state","Camera stopped")}
  }
  $("ad4-live-camera").onerror=()=>{text("ad4-live-camera-state","Camera unavailable");$("ad4-live-camera").hidden=true};
- $("ad4-live-camera-toggle").onchange=camera;
+ $("ad4-live-camera-toggle").onchange=()=>{if($("ad4-live-camera-toggle").checked&&!viewing)start();else camera()};
  function ensureRenderer(){
   if(!renderer){
    if(!globalThis.AD4LiveRenderer)throw Error("3D renderer is still loading; retry in a moment");

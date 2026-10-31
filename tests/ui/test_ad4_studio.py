@@ -102,7 +102,10 @@ def test_printer_manager_is_inline_in_main_printer_tab():
     assert 'id="ad4-v3-open-printer"' not in shell
     assert 'ad4-v3-open-controls' not in shell
     assert 'ad4-v3-manager-tabs' not in shell
-    assert 'manager)page.append(manager)' in dashboard
+    assert 'page.append(manager)' in dashboard
+    assert 'data-printer-go' in dashboard
+    assert 'setFileSearch' in dashboard
+    assert 'ad4:printer-reset' in shell
     assert 'dialog.show()' in manager
     assert 'dialog.showModal()' not in manager
     assert 'embeddedManager.close()' in shell
