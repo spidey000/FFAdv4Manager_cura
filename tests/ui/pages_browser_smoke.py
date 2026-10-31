@@ -5,6 +5,7 @@ Cura definitions are loaded and users can interact with 3D STL and settings.
 Runs in GitHub Actions with Chromium; does not contact printer hardware.
 """
 import os
+import re
 from pathlib import Path
 import sys
 from playwright.sync_api import sync_playwright
@@ -12,6 +13,11 @@ from playwright.sync_api import sync_playwright
 url=os.environ.get("AD4_TEST_URL","http://127.0.0.1:8123/FFAdv4Manager_cura/")
 screenshot=Path(os.environ.get("AD4_SCREENSHOT","/tmp/ad4-pages-smoke.png"))
 failures=[]
+# Resolve the version dynamically: every PR may bump it.
+ui_source=(Path(__file__).resolve().parents[2]/"overlays/mosaic/public/ad4-v3.js").read_text()
+ui_match=re.search(r'const VERSION_UI\s*=\s*"(\d+\.\d+\.\d+)"',ui_source)
+assert ui_match, "Missing semantic UI version"
+ui_version=ui_match.group(1)
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path=os.environ.get("CHROME_BIN") or None,args=["--no-sandbox","--disable-dev-shm-usage","--use-gl=angle","--use-angle=swiftshader"])
     for width,height in [(320,568),(390,844),(1280,800)]:
@@ -42,7 +48,7 @@ with sync_playwright() as p:
             failures.append(f"{width}: missing viewport version indicator")
         else:
             label=stamp.inner_text()
-            if "UI v0.1.0" not in label or "API —" not in label:
+            if f"UI v{ui_version}" not in label or "API —" not in label:
                 failures.append(f"{width}: incorrect static preview version indicator: {label!r}")
             marker=stamp.bounding_box()
             viewport=page.locator("#viewer").bounding_box()
