@@ -2,6 +2,7 @@
 // This is installed over pinned Mosaic's renderer by prepare_mosaic.py.
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import {updateGcodePixelScale} from "./ad4-gpu-seams.mjs";
 
 export const viewport = document.getElementById("viewer");
 export const canvas = document.getElementById("stl-viewer");
@@ -52,6 +53,8 @@ function frame() {
   // OrbitControls emits 'change' while damping is active, scheduling only the
   // frames needed for the camera to settle after user input.
   controls.update();
+  // O(1) shader uniform update: no per-segment or per-layer CPU work on zoom.
+  updateGcodePixelScale(camera, view_height, controls.target);
   if (current_scene) renderer.render(current_scene, camera);
 }
 

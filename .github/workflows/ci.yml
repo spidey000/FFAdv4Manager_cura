@@ -29,10 +29,12 @@ jobs:
           node --check overlays/mosaic/src/gui/viewer/renderer.mjs
           node --check overlays/mosaic/src/gui/viewer/parser.mjs
           node --check overlays/mosaic/src/gui/viewer/ad4-gcode-geometry.mjs
+          node --check overlays/mosaic/src/gui/viewer/ad4-gpu-seams.mjs
           node --check overlays/mosaic/src/gui/viewer/ad4-layer-stack.mjs
           node --check overlays/mosaic/src/gui/viewer/ad4-bevel-profile.mjs
           node --test tests/ui/gcode_parser_perf.test.mjs
           node --test tests/ui/gcode_bevel_profile.test.mjs
+          node --test tests/ui/gcode_gpu_seams.test.mjs
       - name: Benchmark external real 3DBenchy G-code fixture
         run: |
           curl -fsSL --retry 2 --max-time 90 \

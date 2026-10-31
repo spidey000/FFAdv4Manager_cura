@@ -14,6 +14,10 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={"width":390,"height":844})
     failures = []
     page.on("pageerror", lambda error: failures.append(str(error)))
+    page.on("console", lambda msg: failures.append("GPU shader: "+msg.text)
+            if msg.type == "error" and (
+                "WebGLProgram" in msg.text or "Shader Error" in msg.text or
+                "INVALID_OPERATION" in msg.text) else None)
     page.goto(URL, wait_until="domcontentloaded", timeout=30000)
     page.wait_for_function(
         "() => globalThis.app?.gui?.slicer?.load_demo_gcode && "
@@ -55,6 +59,14 @@ with sync_playwright() as p:
     assert 0.895 < stats["bevelShade"] < 0.905, stats
     assert stats["bevelMesh"]["broken"] == 0, stats
     assert stats["bevelMesh"]["bevelMeshes"] == stats["solidMesh"]["solid"], stats
+    assert stats["gpuInstanced"] is True, stats
+    assert stats["bevelMesh"]["instances"] == stats["solidSegments"], stats
+    assert stats["bevelMesh"]["instanceBytes"] == stats["instanceBytes"], stats
+    assert stats["bevelMesh"]["vertices"] <= 32 * stats["bevelMesh"]["bevelMeshes"], stats
+    assert stats["instanceBytes"] <= stats["solidSegments"] * 32, stats
+    assert stats["instanceBytes"] < 4_500_000, (
+        "3DBenchy should fit in compact per-segment GPU attributes: " + str(stats)
+    )
     assert stats["bevelMesh"]["shadeBytes"] == stats["bevelMesh"]["vertices"], stats
     assert stats["bevelMesh"]["shadeBytes"] < 8000000, (
         "Excessive vertex-shading GPU memory consumption: " + str(stats)
@@ -73,6 +85,15 @@ with sync_playwright() as p:
     assert 0.04 < stats["solidMesh"]["maxThickness"] < 0.81, stats
     page.screenshot(path="/tmp/ad4-solid-3dbenchy-mobile.png", full_page=False)
     assert stats["canvasWidth"] > 0, stats
+    # Ensure the browser actually rendered instanced vertices, not only
+    # created geometry objects that fail shader compilation at first draw.
+    page.wait_for_timeout(120)
+    gpu_draw = page.evaluate("""() => {
+      const renderer=app.gui.renderer?.renderer;
+      return {calls:renderer?.info.render.calls || 0,
+              triangles:renderer?.info.render.triangles || 0};
+    }""")
+    assert gpu_draw["triangles"] > 1000, gpu_draw
     assert not failures, failures
     # Layer scrubbing and Cura feature visibility still operate on the
     # actual parsed scene after a heavy source file.
