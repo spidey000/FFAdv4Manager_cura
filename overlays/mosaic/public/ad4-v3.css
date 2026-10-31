@@ -964,3 +964,65 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
 .ad4-v3-move-scrub label{display:flex;justify-content:space-between;font-size:12px;color:#b5c7be;gap:8px}
 .ad4-v3-move-scrub input{width:100%;accent-color:#20e37c;touch-action:pan-y}
 .ad4-v3-move-scrub input:disabled{opacity:.4}
+
+/* Fixed-height, equal-size mobile slice panels. Only the toolpath is scrollable
+ * via the range; the cards themselves never scroll or clip hidden controls. */
+body[data-ad4-screen=sliced] #ad4-v3-layer-card,
+body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #ad4-v3-layer-card{
+ height:178px!important;min-height:178px!important;max-height:178px!important;
+ padding:9px 12px!important;overflow:hidden!important;box-sizing:border-box!important;
+}
+body[data-ad4-screen=sliced] #viewer,
+body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
+ height:calc(100dvh - var(--v3-head) - var(--v3-tabs) - var(--v3-bottom) - var(--v3-actions) - 194px)!important;
+}
+#ad4-v3-layer-card .ad4-v3-card-title,
+#ad4-v3-layer-card .ad4-v3-type-heading{display:none!important}
+#ad4-v3-double-range{height:60px!important;margin:8px 22px 1px!important}
+#ad4-v3-double-range .ad4-v3-range-track,
+#ad4-v3-double-range .ad4-v3-range-selected{top:30px!important}
+#ad4-v3-double-range .ad4-v3-range-thumb{top:18px!important}
+#ad4-v3-layer-card .ad4-v3-move-scrub{gap:1px;padding:0 12px 1px}
+#ad4-v3-layer-card .ad4-v3-move-scrub label{font-size:12px}
+#ad4-v3-layer-card .ad4-v3-move-scrub input{margin:1px 0;height:20px}
+#ad4-v3-layer-card .ad4-v3-estimates{
+ margin-top:2px!important;padding-top:2px!important;border-top:0!important;
+ min-height:36px!important;
+}
+#ad4-v3-layer-card .ad4-v3-estimates .ad4-v3-stat{gap:7px;padding:0 2px}
+#ad4-v3-layer-card .ad4-v3-estimates .ad4-v3-stat .ad4-icon-svg,
+#ad4-v3-layer-card .ad4-v3-estimates .ad4-v3-stat svg{width:22px!important;height:22px!important}
+#ad4-v3-layer-card .ad4-v3-estimates .ad4-v3-stat .ad4-lucide{width:22px;height:22px}
+#ad4-v3-layer-card .ad4-v3-estimates .ad4-v3-stat strong{font-size:clamp(12px,3.1vw,15px)}
+#ad4-v3-layer-card .ad4-v3-mode-selector{
+ margin:0;padding:0 2px 4px;min-height:34px;gap:9px;
+}
+#ad4-v3-layer-card .ad4-v3-mode-selector select{padding:5px 7px}
+#ad4-v3-type-list{
+ max-height:none!important;overflow:hidden!important;display:grid!important;gap:0!important;
+}
+#ad4-v3-type-list .ad4-v3-type-row{
+ box-sizing:border-box;min-height:34px!important;height:34px!important;padding:2px 1px;
+}
+#ad4-v3-type-list .ad4-v3-type-row .ad4-v3-type-name{
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;
+}
+#ad4-v3-layer-card .ad4-v3-type-pages{
+ display:flex;align-items:center;justify-content:center;gap:15px;height:26px;
+ font-size:12px;color:#b9d9c9;font-variant-numeric:tabular-nums;
+}
+#ad4-v3-layer-card .ad4-v3-type-pages button{
+ width:36px;height:25px;border:1px solid #405a4d;border-radius:7px;
+ background:#25382e;color:#e0f5e8;font-size:18px;line-height:1;
+}
+#ad4-v3-layer-card .ad4-v3-type-pages button:disabled{opacity:.28}
+@media(max-width:360px){
+ body[data-ad4-screen=sliced] #ad4-v3-layer-card{padding-inline:9px!important}
+ #ad4-v3-layer-card .ad4-v3-estimates .ad4-v3-stat strong{font-size:12px}
+}
+
+/* Regression: exact 390px screenshot showed 4px internal overflow in type view.
+ * Leave 10px slack instead of relying on browser font metrics and borders. */
+#ad4-v3-layer-card .ad4-v3-mode-selector{min-height:30px!important;padding-bottom:2px!important}
+#ad4-v3-type-list .ad4-v3-type-row{height:31px!important;min-height:31px!important}
+#ad4-v3-layer-card .ad4-v3-type-pages{height:24px!important}
