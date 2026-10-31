@@ -109,7 +109,7 @@ export async function slice(stl, on_progress) {
     };
   } catch (error) {
     if (error.name !== "AbortError") {
-      document.dispatchEvent(new CustomEvent("ad4:slice-progress", {detail: {state: "failed"}}));
+      document.dispatchEvent(new CustomEvent("ad4:slice-progress", {detail: {state: "failed", message:error?.message || String(error)}}));
     }
     throw error;
   } finally {
