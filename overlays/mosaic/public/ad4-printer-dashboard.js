@@ -63,7 +63,7 @@
   if(demo)return;
   const dialog=$("ad4-manager");
   if(!dialog)return;
-  if(!dialog.open)$("ad4-open-manager")?.click();
+  if(!dialog.open)document.dispatchEvent(new Event("ad4:printer-enter"));
   const key={live:"controls",control:"controls",files:"files",
    camera:"camera",timelapse:"timelapse",
    connection:"connection",diagnostics:"connection"}[pane]||"controls";
