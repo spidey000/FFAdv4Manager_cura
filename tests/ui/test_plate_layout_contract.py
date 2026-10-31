@@ -11,7 +11,7 @@ OPS = (ROOT / "overlays/mosaic/src/gui/viewer/ad4-plate-operations.mjs").read_te
 def test_build_installs_authoritative_collision_guard():
     assert "ad4-plate-layout.mjs" in PREP
     assert "ad4-plate-operations.mjs" in PREP
-    assert "if (!ad4Plate.acceptNewModel(mesh))" in PREP
+    assert "if (!ad4Plate.acceptNewModel(mesh, file_name))" in PREP
     assert "if (!ad4Plate.isValid()) throw new Error" in PREP
     assert "export const ad4_auto_arrange" in PREP
     assert "export const ad4_clone_selected" in PREP
