@@ -122,7 +122,7 @@ with sync_playwright() as p:
     page.screenshot(path="/tmp/ad4-mobile-layer-range.png")
     page.locator("#ad4-v3-show-layers").click()
     page.wait_for_function(
-        "() => document.querySelectorAll('#ad4-v3-type-list .ad4-v3-type-row').length >= 4",
+        "() => document.querySelectorAll('#ad4-v3-type-list .ad4-v3-type-row').length >= 1",
         timeout=10000
     )
     types_layout=page.evaluate("""() => {
@@ -137,22 +137,27 @@ with sync_playwright() as p:
     assert types_layout["visibleRows"]<=3, types_layout
     assert not types_layout["heading"], types_layout
     page.screenshot(path="/tmp/ad4-mobile-layer-types.png")
-    palette = page.evaluate("""() => {
+    # Collect every page; fixed-height panels intentionally show only 3 rows.
+    palette=page.evaluate("""() => {
       const wanted=["PERIMETER","OVERHANG PERIMETER","INTERNAL INFILL","SOLID INFILL"];
-      const rows=[...document.querySelectorAll("#ad4-v3-type-list .ad4-v3-type-row")];
       const api=globalThis.AD4GCodePreview;
-      const rendered=api.renderedColors;
-      const swatches={};
-      for(const type of wanted){
-        const row=rows.find(row => row.dataset.toolpathType===type);
-        if(!row) continue;
-        const color=getComputedStyle(row.querySelector(".ad4-v3-type-swatch")).backgroundColor;
-        const rgb=(color.match(/\\d+/g)||[]).slice(0,3);
-        swatches[type]="#" + rgb.map(x=>Number(x).toString(16).padStart(2,"0")).join("");
-      }
-      return {types:api.types,swatches,rendered,
-        expected:Object.fromEntries(wanted.map(type=>[type,api.colorForType(type)]))};
+      return {types:api.types,swatches:{},rendered:api.renderedColors,
+        expected:Object.fromEntries(wanted.map(t=>[t,api.colorForType(t)]))};
     }""")
+    for _ in range(30):
+        entries=page.evaluate("""() => {
+          const wanted=["PERIMETER","OVERHANG PERIMETER","INTERNAL INFILL","SOLID INFILL"];
+          const rows=[...document.querySelectorAll("#ad4-v3-type-list .ad4-v3-type-row")];
+          return Object.fromEntries(rows.filter(r=>wanted.includes(r.dataset.toolpathType)).map(row=>{
+            const rgb=(getComputedStyle(row.querySelector('.ad4-v3-type-swatch'))
+              .backgroundColor.match(/\\d+/g)||[]).slice(0,3);
+            return [row.dataset.toolpathType, '#' + rgb.map(x=>Number(x).toString(16).padStart(2,'0')).join('')];
+          }));
+        }""")
+        palette["swatches"].update(entries)
+        if page.locator("#ad4-v3-types-next").is_disabled():
+            break
+        page.locator("#ad4-v3-types-next").click()
     assert len(palette["swatches"]) == 4, "Missing Benchy categories from mobile legend: " + str(palette)
     assert len(set(palette["expected"].values())) == 4, "The Benchy palette is monochromatic"
     for category,color in palette["expected"].items():
