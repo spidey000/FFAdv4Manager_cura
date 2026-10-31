@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.10";
+const VERSION_UI = "0.2.11";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -723,7 +723,7 @@ for(const axis of ["x","y","z"]){
  const prefix=mode==="rotate"?"rotation":mode==="translate"?"movement":"scale";
  return $(prefix+"-"+axis+"-value");
 }
-function hasSelection(){return Boolean(globalThis.app?.gui?.model_viewer?.focused)}
+function hasSelection(){return Boolean(selectedMesh())}
 function normalized(mode,value,snap,exact,axis){
  if(!Number.isFinite(value))return null;
  const rounded=snap&&!exact?Math.round(value/5)*5:value;
@@ -873,7 +873,15 @@ const viewerTransform=make("nav","ad4-viewer-transform");
 viewerTransform.id="ad4-viewer-transform";
 viewerTransform.setAttribute("aria-label","Model transforms");
 for(const [type,iconName,label] of [["translate","move","Move"],["rotate","rotate","Rotate"],["scale","scale","Scale"]]){
- const btn=navButton(iconName,label,()=>{if(!hasSelection()){notify("Select a model on the plate");return}setTransform(activeViewerMode===type?null:type)});
+ const btn=navButton(iconName,label,()=>{
+  // Turning a tool off never requires a selected model.
+  if(activeViewerMode===type){setTransform(null);return}
+  if(!hasSelection()){
+   if(activeViewerMode)setTransform(null);
+   notify("Select a model on the plate");return;
+  }
+  setTransform(type);
+ });
  btn.dataset.viewerMode=type;btn.setAttribute("aria-label",label+" selected model");
  viewerTransform.append(btn);
 }
@@ -959,8 +967,18 @@ function setTransform(next){
  snapLabel.hidden=next===null;
  proportionsLabel.hidden=next!=="scale";
  $("ad4-v3-scale-lock-row").hidden=next!=="scale";
- if(next===null){for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed","false");
-  globalThis.app?.gui?.model_viewer?.model_controls?.detach?.();return;}
+ if(next===null){
+  for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed","false");
+  for(const b of transform.querySelectorAll("[data-mode]"))b.setAttribute("aria-pressed","false");
+  const controls=globalThis.app?.gui?.model_viewer?.model_controls;
+  controls?.detach?.();
+  const helper=controls?.getHelper?.();
+  helper?.parent?.remove(helper);
+  if(controls)controls.enabled=false;
+  scaleBaseline=null;scaleDragActive=false;
+  globalThis.app?.gui?.renderer?.invalidate?.();
+  return;
+ }
  mode=next;
  if(next==="scale"){ensureScaleLock();captureScaleBaseline();}
  for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed",String(b.dataset.viewerMode===next));
@@ -991,6 +1009,12 @@ function setTransform(next){
  updateCompactValues();
  requestAnimationFrame(initRulers);
 }
+// Clear an active mode after deletion, irrespective of the deletion entrypoint.
+// Periodic selection reconciliation below covers native-only changes as well.
+function reconcileTransformSelection(){
+ if(activeViewerMode&&!selectedMesh())setTransform(null);
+}
+document.addEventListener("ad4:models-changed",reconcileTransformSelection);
 // Read the live Three.js mesh rather than the native text inputs: upstream
 // updates those inputs only after dragging ends, so they lag the gizmo.
 function liveTransformValue(mesh,axis){
@@ -1005,6 +1029,7 @@ function liveTransformValue(mesh,axis){
 let previousLockSelection=null;
 function updateCompactValues(){
  if(!activeViewerMode)return;
+ if(!selectedMesh()){setTransform(null);return}
  const mv=globalThis.app?.gui?.model_viewer;
  if(mv?.focused!==previousLockSelection){
   previousLockSelection=mv?.focused;
