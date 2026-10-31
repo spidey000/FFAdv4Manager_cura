@@ -28,7 +28,7 @@ def build():
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     # Keep performant viewer code as tracked overlays, never edit generated frontend.
-    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-stl-worker-client.mjs"):
+    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-stl-worker-client.mjs"):
         shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     shutil.copy2(OV/"public/ad4-stl-worker.js", DEST/"public/ad4-stl-worker.js")
@@ -177,6 +177,10 @@ main().catch(error => {
   globalThis.AD4GcodePreviewStats = {
     sourceSegments: built.segmentCount,
     displayedSegments: built.displayed,
+    solidSegments: built.solidSegments,
+    solidPreview: built.solidPreview,
+    minLayerHeight: Math.min(...built.layerHeights),
+    maxLayerHeight: Math.max(...built.layerHeights),
     simplified: built.simplified
   };
   renderer.invalidate();
@@ -203,6 +207,25 @@ globalThis.AD4GCodePreview = {
   },
   get types(){return globalThis.__AD4_GCODE_CATEGORIES__||[]},
   colorForType(type){return colorForToolpathType(type)},
+  get solidMeshStats(){
+    let indexed=0,solid=0,minThickness=Infinity,maxThickness=0;
+    for(const group of layers)for(const part of group.children){
+      if(part.userData.ad4Category==="TRAVEL")continue;
+      const geo=part.geometry;
+      if(!geo.index)continue;
+      indexed++;
+      if(!geo.boundingBox)geo.computeBoundingBox();
+      const height=geo.boundingBox.max.z-geo.boundingBox.min.z;
+      if(height>0.001){
+        solid++;
+        minThickness=Math.min(minThickness,height);
+        maxThickness=Math.max(maxThickness,height);
+      }
+    }
+    return {indexed,solid,
+      minThickness:Number.isFinite(minThickness)?minThickness:0,
+      maxThickness};
+  },
   get renderedColors(){
     const colors={};
     for(const group of layers)for(const part of group.children){
