@@ -400,9 +400,13 @@ with sync_playwright() as p:
                     const holder=getComputedStyle(el.closest('.setting-value'));
                     el.checked=before;
                     el.style.transition=oldTransition;
-                    return {color,border:holder.borderWidth,background:holder.backgroundColor};
+                    const probe=document.createElement("span");
+                    probe.style.backgroundColor="var(--v3-green)";
+                    document.body.append(probe);
+                    const expected=getComputedStyle(probe).backgroundColor;probe.remove();
+                    return {color,expected,border:holder.borderWidth,background:holder.backgroundColor};
                 }""")
-                if switch_look and (switch_look["color"]!="rgb(45, 236, 121)" or switch_look["border"]!="0px"):
+                if switch_look and (switch_look["color"]!=switch_look["expected"] or switch_look["border"]!="0px"):
                     failures.append(f"{width}: toggle still has outer box or wrong accent: {switch_look}")
                 native_stats=page.evaluate("""() => {
                     const rows=[...document.querySelectorAll('#sections .setting[data-setting_id]')];
