@@ -39,6 +39,7 @@ jobs:
           node --test tests/ui/gcode_parser_perf.test.mjs
           node --test tests/ui/gcode_bevel_profile.test.mjs
           node --test tests/ui/gcode_gpu_seams.test.mjs
+          node --test tests/ui/print_time_format.test.mjs
       - name: Benchmark external real 3DBenchy G-code fixture
         run: |
           curl -fsSL --retry 2 --max-time 90 \
