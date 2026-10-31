@@ -25,6 +25,7 @@ unless the authoritative Three.js model-viewer passes validation.
 | `FILE_UNSUPPORTED`, `FILE_TOO_LARGE`, `FILE_READ_FAILED` | STL/3MF file selection or browser FileReader | Choose supported file below 250 MB with readable data. |
 | `MODEL_LOAD_FAILED`, `MODEL_DEMO_FAILED` | STL/3MF parser, worker or sample load | Re-upload or repair geometry. |
 | `GCODE_MISSING`, `GCODE_PARSE_FAILED`, `GCODE_DEMO_FAILED` | Layer viewer or sample toolpath load | Re-slice or load a valid demo. |
+| `MODEL_RENDER_FAILED`, `LAYER_RENDER_FAILED` | Three.js failed to draw the model or construct/render layer toolpaths | Check GPU/browser compatibility or faulty geometry and reload. |
 | `WEBGL_CONTEXT_LOST` | Browser graphics context lost | GPU/context restore event clears error; otherwise reload. |
 | `ENGINE_UNAVAILABLE` | Server CuraEngine status endpoint failed / is offline | Check server installation and connection. GitHub Pages deliberately has no backend. |
 | `SLICE_FAILED` | CuraEngine rejected the request, network failed or server returned error | Investigate the reported cause, geometry and server. |
