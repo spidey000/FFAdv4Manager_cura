@@ -238,7 +238,7 @@ function syncMoveScrub(force=false){
   movePosition.value=String(Math.max(1,total));
   movePosition.disabled=total===0;
   root.querySelector("#ad4-v3-move-status").textContent=total+" / "+total;
-  globalThis.AD4GCodePreview?.setMoveRange(null);
+  globalThis.AD4GCodePreview?.setMoveRange(total);
 }
 movePosition.addEventListener("input",()=>{
   const at=Number(movePosition.value);
