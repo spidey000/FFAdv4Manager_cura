@@ -96,7 +96,10 @@ export function installPlateOperations({
     remember(mesh);
     const individual=check([mesh]);
     if(!individual.valid)return fail(individual.reason);
-    if (check([...current,mesh]).valid) return true;
+    if (check([...current,mesh]).valid) {
+      clearSliceState();
+      return true;
+    }
     return arrange([...current,mesh]);
   }
   function cloneSelected() {
@@ -133,6 +136,7 @@ export function installPlateOperations({
     if (transaction) return true;
     const result=check(activeMeshes());
     if (result.valid) {
+      clearSliceState();
       for (const mesh of activeMeshes()) remember(mesh);
       renderer.invalidate();
       emit("plate-valid");
