@@ -17,8 +17,8 @@
   ["files","Stored printer files","Files on printer","—","files","Files"],
   ["timelapse","Timelapses","Recording and gallery","Unavailable","timelapse","Timelapses"],
   ["controls","Print & fan controls","Pause, resume, cancel, fan","Unavailable","control","Controls"],
-  ["connection","Connection profiles","Selected profile","—","control","Connections"],
-  ["diagnostics","Diagnostics","Doctor, printer info, M114","Unavailable","control","Diagnostics"]
+  ["connection","Connection profiles","Selected profile","—","connection","Connections"],
+  ["diagnostics","Diagnostics","Doctor, printer info, M114","Unavailable","diagnostics","Diagnostics"]
  ];
  const escape=text=>String(text).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
  page.innerHTML='<div class="ad4-printer-overview"><div><h2>Adventurer 4</h2>'+
