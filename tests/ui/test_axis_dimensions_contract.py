@@ -44,6 +44,17 @@ def test_first_move_attaches_native_gizmo_even_when_mode_is_translate():
     assert "!controls?.getHelper?.()?.parent" in JS
 
 
+def test_removing_selected_model_clears_transform_and_native_gizmo():
+    assert 'function hasSelection(){return Boolean(selectedMesh())}' in JS
+    assert 'if(activeViewerMode===type){setTransform(null);return}' in JS
+    assert 'document.addEventListener("ad4:models-changed",reconcileTransformSelection)' in JS
+    assert 'if(activeViewerMode&&!selectedMesh())setTransform(null)' in JS
+    assert 'if(!selectedMesh()){setTransform(null);return}' in JS
+    assert 'helper?.parent?.remove(helper)' in JS
+    assert 'if(controls)controls.enabled=false' in JS
+    assert 'scaleBaseline=null;scaleDragActive=false' in JS
+
+
 def test_nav_focus_no_longer_paints_rectangle():
     assert "#ad4-v3-top > .ad4-v3-icon-button:focus-visible" in CSS
     assert "outline:none!important" in CSS
