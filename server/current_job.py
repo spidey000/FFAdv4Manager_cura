@@ -109,7 +109,8 @@ def snapshot(bridge):
     position = {k: v for k, v in position.items()
                 if k.upper() in ('X', 'Y', 'Z') and isinstance(v, (int, float)) and math.isfinite(v)}
     name = status.get('current_file') or ''
-    active = str(status.get('machine_status', '')).upper() in ('PRINTING', 'BUILDING', 'BUILDING_FROM_SD', 'PAUSED')
+    machine = str(status.get('machine_status', '')).upper()
+    active = machine in ('PRINTING', 'BUILDING', 'BUILDING_FROM_SD', 'PAUSED')
     source = _index(bridge).get(scope + ':' + name.rsplit('/', 1)[-1]) if name else None
     result = {'status': status, 'position': position, 'active': active, 'source': source,
               'job_token': None, 'layer_current': None, 'layer_total': None,
@@ -133,6 +134,7 @@ def snapshot(bridge):
                 TRACKERS[scope] = LayerTracker()
             tracker = TRACKERS[scope]
             result['layer_current'] = tracker.update(token, toolpath['layers'], position, active=active,
+                                                     printing=machine != 'PAUSED',
                                                      progress=status.get('progress_percent'))
             TRACKERS.move_to_end(scope)
             while len(TRACKERS) > 8:

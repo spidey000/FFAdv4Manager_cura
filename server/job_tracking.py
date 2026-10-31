@@ -18,6 +18,8 @@ NUMBER = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)'
 WORD = re.compile(r'([A-Z])\s*(' + NUMBER + ')', re.I)
 MAX_LAYERS = 10000
 MAX_SEGMENTS = 120000
+# Reject brief travel/Z-hop observations before committing a higher layer.
+STABLE_LAYER_SECONDS = 2.5
 CACHE = OrderedDict()
 LOCK = threading.RLock()
 
@@ -194,19 +196,25 @@ class LayerTracker:
         self.candidate = None
         self.samples = 0
         self.observed_at = 0
+        self.candidate_started_at = 0
         self.last_seen = 0
         self.last_progress = None
 
-    def update(self, job, layers, position, *, active=True, progress=None):
+    def update(self, job, layers, position, *, active=True, printing=True, progress=None):
         now = time.monotonic()
         restarted = (isinstance(progress, (int, float)) and isinstance(self.last_progress, (int, float))
                      and progress + 1 < self.last_progress)
         if self.job != job or not active or restarted or now - self.last_seen > 30:
             self.job, self.layer, self.candidate, self.samples = job, None, None, 0
+            self.candidate_started_at = 0
         self.last_seen = now
         self.last_progress = progress
         if not active:
             return None
+        if not printing:
+            # Paused-head parking/lifting is not deposited material.
+            self.candidate, self.samples = None, 0
+            return self.layer
         z = next((v for k, v in position.items() if k.upper() == 'Z'), None)
         if not isinstance(z, (float, int)) or not math.isfinite(z):
             return self.layer
@@ -221,8 +229,9 @@ class LayerTracker:
                 self.observed_at = now
         else:
             self.candidate, self.samples = candidate, 1
-            self.observed_at = now
-        if self.samples >= 2 and (self.layer is None or candidate >= self.layer):
+            self.observed_at = self.candidate_started_at = now
+        if (self.samples >= 2 and now - self.candidate_started_at >= STABLE_LAYER_SECONDS
+                and (self.layer is None or candidate >= self.layer)):
             self.layer = candidate
         return self.layer
 

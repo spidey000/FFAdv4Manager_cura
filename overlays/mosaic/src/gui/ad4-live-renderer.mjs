@@ -12,8 +12,11 @@ export function createLiveRenderer(container){
  const grid=new THREE.GridHelper(220,22,0x47605b,0x22342f);scene.add(grid);
  const plate=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([
   new THREE.Vector3(-110,0,-100),new THREE.Vector3(110,0,-100),new THREE.Vector3(110,0,100),new THREE.Vector3(-110,0,100)]),new THREE.LineBasicMaterial({color:0x79978c}));scene.add(plate);
- const marker=new THREE.Mesh(new THREE.SphereGeometry(2,12,8),new THREE.MeshBasicMaterial({color:0xffde75}));
- marker.visible=false;scene.add(marker);
+ const nozzleGeometry=new THREE.ConeGeometry(4,12,18);
+ // A cone normally points upward. Flip it so its red tip is exactly at M114 XYZ.
+ nozzleGeometry.rotateZ(Math.PI);nozzleGeometry.translate(0,6,0);
+ const marker=new THREE.Mesh(nozzleGeometry,new THREE.MeshBasicMaterial({color:0xff3344,depthTest:false,depthWrite:false}));
+ marker.renderOrder=20;marker.visible=false;scene.add(marker);
  const paths=new THREE.Group();scene.add(paths);
  let layers=[],offsets=[],meshes=[],disposed=false,raf=null,center=new THREE.Vector3(0,30,0);
  const render=()=>renderer.render(scene,camera);
@@ -42,7 +45,7 @@ export function createLiveRenderer(container){
    meshes[2].geometry.setDrawRange(valid?offsets[index+1]:0,valid?last-offsets[index+1]:last);
   }
   const p=Object.fromEntries(Object.entries(state.position||{}).map(([k,v])=>[k.toUpperCase(),v]));
-  marker.visible=[p.X,p.Y,p.Z].every(Number.isFinite);
+  marker.visible=state.active!==false&&[p.X,p.Y,p.Z].every(Number.isFinite);
   if(marker.visible)marker.position.set(p.X,p.Z,-p.Y);
   render();
  }
