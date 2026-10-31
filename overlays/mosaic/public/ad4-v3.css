@@ -1754,3 +1754,8 @@ body[data-ad4-screen=printer] #ad4-v3-printer-page{
  border:0!important;padding:0!important;margin:0!important;background:transparent!important;
 }
 #ad4-v3-printer-page #ad4-manager .ad4-timelapse-menu[open] .ad4-timelapse-actions{display:grid!important}
+
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-placeholder{position:relative;overflow:hidden}
+#ad4-v3-printer-page #ad4-manager .ad4-timelapse-placeholder img{
+ position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit
+}
