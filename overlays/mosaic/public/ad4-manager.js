@@ -459,6 +459,10 @@ for(const kind of ["doctor","info","position"])el("ad4-diagnostic-"+kind).addEve
  el("ad4-diagnostic-result").textContent=typeof result.output==="string"?result.output:JSON.stringify(result.output,null,2)}
  catch(e){say(e.message,true)}
 });
-dialog.addEventListener("toggle",()=>{if(dialog.open)loadProfiles().catch(()=>{})});
-el("ad4-open-manager").addEventListener("click",()=>loadProfiles().catch(()=>{}));
+dialog.addEventListener("toggle",()=>{
+ if(dialog.open && globalThis.__AD4_STATIC_PREVIEW__!==true)loadProfiles().catch(()=>{});
+});
+el("ad4-open-manager").addEventListener("click",()=>{
+ if(globalThis.__AD4_STATIC_PREVIEW__!==true)loadProfiles().catch(()=>{});
+});
 document.addEventListener("ad4:profiles-changed",()=>loadProfiles().catch(()=>{}));
