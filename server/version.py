@@ -3,7 +3,6 @@
 The semantic version follows pyproject.toml. Git is optional: source archives
 still expose their real package version without inventing a commit hash.
 """
-from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version
 import os
 from pathlib import Path
@@ -13,8 +12,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@lru_cache(maxsize=1)
-def backend_version_info():
+def _detect_backend_version():
     try:
         package_version = version("ffadv4manager")
     except PackageNotFoundError:
@@ -41,3 +39,12 @@ def backend_version_info():
         "version": package_version,
         "revision": revision[:8] if re.fullmatch(r"[0-9a-fA-F]{7,40}", revision) else None,
     }
+
+
+# Snapshot at server import/startup. Git pulls do not retroactively change the
+# build identifier of an already-running Python process.
+_RUNNING_BACKEND_VERSION = _detect_backend_version()
+
+
+def backend_version_info():
+    return dict(_RUNNING_BACKEND_VERSION)
