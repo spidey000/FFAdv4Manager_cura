@@ -31,7 +31,7 @@ export function installPlateOperations({
   }
   function entry(mesh) {
     if (!mesh?.geometry) return {id:mesh?.uuid,outline:[],lowY:NaN,highY:NaN};
-    mesh.geometry.computeBoundingBox();
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
     const b=mesh.geometry.boundingBox;
     if (!b || !mesh.position || !mesh.scale) return {id:mesh?.uuid,outline:[],lowY:NaN,highY:NaN};
     mesh.updateMatrixWorld(true);
@@ -44,6 +44,7 @@ export function installPlateOperations({
     }
     return {
       id:mesh.uuid,
+      name:mesh.name || models[mesh.uuid]?.name || "Model",
       outline:convexHull(corners.map(p=>[p.x,p.z])),
       lowY:Math.min(...corners.map(p=>p.y)),
       highY:Math.max(...corners.map(p=>p.y))
@@ -51,7 +52,10 @@ export function installPlateOperations({
   }
   const activeMeshes=()=>Object.values(models).map(record=>record.mesh);
   const check=meshes=>validatePlate(meshes.map(entry),AD4_BED);
-  const isValid=()=>check(activeMeshes()).valid;
+  const status=()=>activeMeshes().length?check(activeMeshes()):{
+    valid:false,code:"EMPTY_PLATE",reason:"Add an STL or 3MF model before slicing"
+  };
+  const isValid=()=>status().valid;
 
   function arrange(meshes=activeMeshes()) {
     const pieces=meshes.map(mesh=>{
@@ -78,6 +82,7 @@ export function installPlateOperations({
     updateOverlays();
     renderer.invalidate();
     emit("plate-arranged",{count:meshes.length});
+    emit("plate-valid");
     return true;
   }
   function acceptNewModel(mesh) {
@@ -110,6 +115,7 @@ export function installPlateOperations({
     clearSliceState();
     renderer.invalidate();
     emit("models-changed",{count:Object.keys(models).length});
+    emit("plate-valid");
     return true;
   }
   // Native focus is an ES module live binding, so obtain it at call time.
@@ -122,6 +128,7 @@ export function installPlateOperations({
     if (result.valid) {
       for (const mesh of activeMeshes()) remember(mesh);
       renderer.invalidate();
+      emit("plate-valid");
       return true;
     }
     const selected=models[getFocused()]?.mesh || controls.object;
@@ -155,6 +162,6 @@ export function installPlateOperations({
     if (/^(movement|rotation|scale)-[xyz]-value$/.test(id) && !transaction)
       validateSelected();
   });
-  return {setFocusedGetter,isValid,arrange,acceptNewModel,cloneSelected,
+  return {setFocusedGetter,status,isValid,arrange,acceptNewModel,cloneSelected,
           beginTransform,commitTransform,validateSelected};
 }
