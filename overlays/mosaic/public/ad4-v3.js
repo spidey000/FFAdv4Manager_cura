@@ -843,7 +843,7 @@ if(manager){
 }
 function openPrinter(pane="controls"){
  if(current!=="printer")activate("printer");
- const key={live:"controls",control:"controls",files:"files",camera:"camera",
+ const key={live:"live",control:"controls",files:"files",camera:"camera",
   timelapse:"timelapse",connection:"connection",diagnostics:"connection",tools:"tools"}[pane]||"controls";
  requestAnimationFrame(()=>{
   const target=manager?.querySelector('[data-printer-feature="'+key+'"]');
