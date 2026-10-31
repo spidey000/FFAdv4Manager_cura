@@ -2,14 +2,14 @@
 import { createElement, Box, Wrench, Disc3, Printer, Settings, Folder, Camera, Move,
  Layers, RotateCw, Maximize2, FolderPlus, Trash, Upload, Send, ChevronDown, Clock,
  Save, Download, Info, Lock, LockOpen, SlidersHorizontal, RotateCcw, Ruler,
- FileUp, Scan, File, Check, X, RefreshCw, Plus, Minus, Play, Pause, LayoutGrid, CopyPlus } from "lucide";
+ FileUp, Scan, File, Check, X, RefreshCw, Plus, Minus, Play, Pause, LayoutGrid, CopyPlus, Square, Eye, ChevronRight, Hourglass, Thermometer, Fan } from "lucide";
 const ICONS={cube:Box,box:Box,wrench:Wrench,filament:Disc3,printer:Printer,gear:Settings,
  file:Folder,camera:Camera,orient:RotateCw,move:Move,rotate:RotateCw,scale:Maximize2,
  layers:Layers,plus:Plus,arrow:Send,back:RotateCcw,chevron:ChevronDown,clock:Clock,
  upload:Upload,send:Send,sliders:SlidersHorizontal,trash:Trash,"folder-plus":FolderPlus,
  download:Download,save:Save,info:Info,lock:Lock,unlock:LockOpen,ruler:Ruler,
  scan:Scan,"file-up":FileUp,check:Check,x:X,refresh:RefreshCw,minus:Minus,
- play:Play,pause:Pause,"layout-grid":LayoutGrid,"copy-plus":CopyPlus};
+ play:Play,pause:Pause,square:Square,eye:Eye,"chevron-right":ChevronRight,hourglass:Hourglass,thermometer:Thermometer,fan:Fan,"layout-grid":LayoutGrid,"copy-plus":CopyPlus};
 const ACTIONS={"ad4-v3-open-model":"folder-plus","ad4-v3-remove-model":"trash",
  "ad4-v3-demo":"box","ad4-v3-show-layers":"layers","ad4-v3-export":"download",
  "ad4-v3-send":"upload","ad4-v3-print":"send","ad4-v3-run-slice":"layers",
