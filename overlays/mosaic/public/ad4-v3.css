@@ -1176,3 +1176,24 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
  #ad4-viewer-transform .ad4-icon-svg{width:18px!important;height:18px!important}
  #ad4-v3-auto-arrange{margin-top:2px!important}
 }
+
+/* Shared model / layer-viewer error banner. Persistent while the plate is
+   unsafe, never covered by the translucent toolpath or model canvas. */
+#viewer #ad4-viewer-error{
+ position:absolute;z-index:72;left:max(9px,env(safe-area-inset-left));
+ bottom:max(9px,env(safe-area-inset-bottom));
+ width:max-content;max-width:min(440px,calc(100% - 18px));
+ box-sizing:border-box;padding:10px 12px 10px 13px;
+ background:#ffe083;color:#982013;border:1px solid #eab53c;
+ border-left:4px solid #b52919;border-radius:10px;
+ box-shadow:0 6px 20px #0007;pointer-events:none;
+ white-space:normal;overflow-wrap:anywhere;
+}
+#viewer #ad4-viewer-error[hidden]{display:none!important}
+#viewer #ad4-viewer-error-heading{display:block;color:#81150c;font-size:12px;font-weight:800;line-height:1.3}
+#viewer #ad4-viewer-error-message{font-size:11px;line-height:1.4;margin:3px 0 0;color:#982013;font-weight:650}
+@media(max-width:390px){
+ #viewer #ad4-viewer-error{max-width:calc(100% - 16px);padding:7px 9px}
+ #viewer #ad4-viewer-error-heading{font-size:11px}
+ #viewer #ad4-viewer-error-message{font-size:10px}
+}
