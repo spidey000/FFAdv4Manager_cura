@@ -173,7 +173,7 @@
  document.addEventListener("ad4:icons-ready",()=>globalThis.AD4Icons?.hydrate?.(monitorModal),{once:true});
  const modalContent=monitorModal.querySelector(".ad4-printer-modal-content");
  let expanded=null,parent=null,next=null,opener=null;
- function closeMonitor(){if(monitorModal.open)monitorModal.close()}
+ function closeMonitor(){if(monitorModal.open){monitorModal.close();restoreMonitor()}}
  function expandMonitor(kind){
   if(monitorModal.open)return;
   const node=kind==="toolpath"?$("ad4-live-canvas"):$("ad4-live-camera")?.closest(".ad4-live-camera-wrap");
@@ -185,14 +185,15 @@
   monitorModal.showModal();
   $("ad4-printer-modal-close").focus();
  }
- monitorModal.addEventListener("close",()=>{
+ function restoreMonitor(){
   if(!expanded||!parent)return;
   if(next?.parentNode===parent)parent.insertBefore(expanded,next);
   else parent.append(expanded);
   expanded=null;parent=null;next=null;
   if(opener?.isConnected&&document.body.dataset.ad4Screen==="printer")opener.focus();
   opener=null;
- });
+ }
+ monitorModal.addEventListener("close",restoreMonitor);
  $("ad4-printer-modal-close").addEventListener("click",closeMonitor);
  $("ad4-live-toolpath-expand")?.addEventListener("click",()=>expandMonitor("toolpath"));
  $("ad4-live-camera-expand")?.addEventListener("click",()=>expandMonitor("camera"));
