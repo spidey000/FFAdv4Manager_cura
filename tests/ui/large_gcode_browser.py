@@ -119,6 +119,24 @@ with sync_playwright() as p:
     assert mobile_layout["scroll"] <= mobile_layout["client"] + 2, mobile_layout
     assert mobile_layout["statsBottom"] <= mobile_layout["cardBottom"], mobile_layout
     assert mobile_layout["moveBottom"] <= mobile_layout["cardBottom"], mobile_layout
+    nozzle=page.evaluate("""() => {
+      const api=AD4GCodePreview,marker=api.handle?.nozzle;
+      const total=api.moveCount;
+      const start=api.setMoveRange(Math.max(1,Math.floor(total/2)));
+      const middle={visible:marker.visible,
+        pos:marker.position.toArray(),
+        tip:start?.point};
+      const last=api.setMoveRange(total);
+      return {total,middle,last:marker.position.toArray(),
+        endVisible:marker.visible,color:marker.material.color.getHexString(),
+        markerInScene:marker.parent===api.handle.mesh};
+    }""")
+    assert nozzle["total"] > 10, nozzle
+    assert nozzle["middle"]["visible"] and nozzle["endVisible"], nozzle
+    assert nozzle["color"] == "20e37c", nozzle
+    assert abs(nozzle["middle"]["pos"][2]-nozzle["middle"]["tip"][2]-1.8)<0.0001, nozzle
+    assert nozzle["markerInScene"], nozzle
+
     page.screenshot(path="/tmp/ad4-mobile-layer-range.png")
     page.locator("#ad4-v3-show-layers").click()
     page.wait_for_function(
