@@ -554,6 +554,10 @@ with sync_playwright() as p:
                     failures.append(f"{width}: live job camera pre-enabled without request")
                 if page.locator("#ad4-live-camera").get_attribute("src"):
                     failures.append(f"{width}: public preview started camera")
+                camera_text=page.locator("#ad4-live-camera-expand > span:nth-child(2)")
+                if camera_text.evaluate("(el)=>el.scrollWidth>el.clientWidth+1"):
+                    failures.append(f"{width}: Live camera title truncated in the preview card")
+
                 if page.locator("#ad4-live-job > .ad4-printer-current").count()!=1:
                     failures.append(f"{width}: Current print not integrated with Monitoring")
                 if page.locator('#ad4-live-job details').count():
