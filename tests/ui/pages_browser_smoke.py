@@ -228,6 +228,22 @@ with sync_playwright() as p:
                     assert unsafe["code"] in ("BED_X_MIN","BED_X_MAX"),unsafe
                     assert "oversized-editable.stl" in unsafe["warning"],unsafe
                     assert page.evaluate("document.getElementById('ad4-v3-run-slice').disabled")
+                    # Clone is also non-destructive: if both models cannot
+                    # fit, the clone still exists and is selectable for repair.
+                    clone_ok=page.evaluate("""()=>{
+                      const mv=app.gui.model_viewer;
+                      const count=Object.keys(mv.models).length;
+                      const created=mv.ad4_clone_selected();
+                      const cloneId=mv.focused;
+                      return {created,count:Object.keys(mv.models).length,
+                        expected:count+1,cloneId,status:mv.ad4_plate_status()};
+                    }""")
+                    assert clone_ok["created"] and clone_ok["count"]==clone_ok["expected"],clone_ok
+                    assert not clone_ok["status"]["valid"],clone_ok
+                    assert page.evaluate("(uuid)=>app.gui.model_viewer.ad4_delete_model(uuid)",
+                                         clone_ok["cloneId"])
+                    assert page.evaluate("(uuid)=>app.gui.model_viewer.ad4_select_model(uuid)",
+                                         unsafe["uuid"])
                     fix=page.evaluate("""(uuid)=>{
                       const mv=app.gui.model_viewer,mesh=mv.models[uuid].mesh;
                       mv.ad4_begin_transform();
