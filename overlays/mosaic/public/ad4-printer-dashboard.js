@@ -33,6 +33,10 @@
    '<strong id="ad4-printer-value-'+id+'" class="ad4-printer-value">'+escape(placeholder)+'</strong>'+
    '<p id="ad4-printer-detail-'+id+'" class="ad4-printer-detail">Unavailable · Printer disconnected</p>'+
    '<button type="button" data-printer-pane="'+pane+'">'+escape(action)+'</button></article>').join('')+'</div>';
+ // Mount the actual controller into the primary Printer tab.
+ // This preserves all existing API bindings and avoids a second manager UI.
+ const manager=$("ad4-manager");
+ if(manager)page.append(manager);
  const defaults=Object.fromEntries(cards.map(([id,,,placeholder])=>[id,placeholder]));
  let backend=false,connected=false,inFlight=false,lastPoll=0,serial=0;
  const unavailable=demo?"Unavailable · Public preview":"Unavailable · Printer disconnected";
@@ -56,15 +60,19 @@
   $("ad4-printer-refresh").disabled=demo;
  }
  function openManager(pane){
+  if(demo)return;
   const dialog=$("ad4-manager");
-  if(!dialog||demo)return;
-  if(!dialog.open)$("ad4-open-manager")?.click();
-  const tab=dialog.querySelector('#ad4-v3-manager-tabs [data-pane="'+pane+'"]');
-  tab?.click();
-  if(pane==="control"){
-   const target=dialog.querySelector("details.ad4-section");
-   if(target)target.open=true;
-  }
+  if(!dialog)return;
+  if(!dialog.open)document.dispatchEvent(new Event("ad4:printer-enter"));
+  const key={live:"live",control:"controls",files:"files",
+   camera:"camera",timelapse:"timelapse",
+   connection:"connection",diagnostics:"connection"}[pane]||"controls";
+  const target=dialog.querySelector('[data-printer-feature="'+key+'"]');
+  if(target?.tagName==="DETAILS")target.open=true;
+  target?.scrollIntoView({behavior:"smooth",block:"start"});
+  // The user clicked "View current print": run the existing read-only
+  // camera/toolpath consultation, rather than merely scrolling to its card.
+  if(pane==="live")dialog.querySelector("#ad4-live-consult")?.click();
  }
  page.addEventListener("click",event=>{
   const button=event.target.closest("[data-printer-pane]");

@@ -122,3 +122,30 @@ independently before configuring it.
 side-by-side camera layout, provenance labels, cleanup, and editor isolation at
 390 and 1280 px against a simulated printer API.
 
+
+ 
+## Printer workspace unificado (interfaz 0.2.0)
+
+La pestaña superior **Printer** es ahora el único punto de entrada al gestor
+de la Adventurer 4. La opción anterior `App → Open printer manager` y el
+diálogo modal separado se eliminan de la navegación.
+
+El panel conserva las diez tarjetas de estado (siempre visibles, también
+sin impresora) y monta **el controlador de impresora existente** bajo ellas,
+sin duplicar lógica ni endpoints: controles de impresión y ventilador,
+archivos almacenados, cámara, galería de timelapse, conexiones y diagnósticos,
+y herramientas avanzadas del CLI. Las tarjetas enlazan mediante desplazamiento
+a sus funciones correspondientes.
+
+Diseño responsivo: tres columnas en escritorio ancho (a partir de 1100 px),
+dos columnas intermedias y una columna para tarjetas de funciones en móvil.
+Las tarjetas de resumen se mantienen en dos columnas cuando caben. Los
+controles físicos no se activan sin conexión y la demo pública mantiene las
+acciones deshabilitadas. La vista de cámara se cierra al abandonar Printer;
+no se abre automáticamente ni se inicia ninguna impresión al entrar.
+
+La verificación visual del diseño se obtiene de
+`tests/ui/pages_browser_smoke.py`, que guarda capturas con Chromium a
+320 px, 390 px y 1280 px en los artefactos de GitHub Actions. La prueba no
+contacta directamente con una impresora ni usa credenciales del servidor
+privado.

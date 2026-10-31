@@ -27,6 +27,7 @@ with sync_playwright() as p:
         page.on("console",lambda e: errors.append("CONSOLE: "+e.text) if e.type=="error" else None)
         page.on("requestfailed",lambda req: errors.append("REQUEST FAILED: "+req.url+" "+str(req.failure)))
         page.on("response",lambda r: errors.append(f"HTTP {r.status}: {r.url}") if r.status>=400 and "/api/" not in r.url else None)
+        page.on("response",lambda r: print("BROWSER HTTP",width,r.status,r.url,flush=True) if r.status>=400 else None)
         page.goto(url,wait_until="domcontentloaded",timeout=30000)
         try:
             page.wait_for_function("""() => {
@@ -382,13 +383,44 @@ with sync_playwright() as p:
                         failures.append(f"{width}: public preview exposed hardware action {card_id}")
                 if not page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollHeight>el.clientHeight"):
                     failures.append(f"{width}: printer dashboard has no scroll to reach lower cards")
+                native=page.locator("#ad4-v3-printer-page > #ad4-manager")
+                print("INLINE MANAGER DIAGNOSTIC",width,page.evaluate("""() => {
+                  const p=document.getElementById("ad4-v3-printer-page");
+                  const d=document.getElementById("ad4-manager");
+                  const c=d?.querySelector(".ad4-section");
+                  return {parent:d?.parentElement?.id,open:d?.open,
+                    display:getComputedStyle(d).display,rect:d?.getBoundingClientRect().toJSON(),
+                    screen:document.body.dataset.ad4Screen,pageScroll:p.scrollHeight,
+                    section:c&&{display:getComputedStyle(c).display,rect:c.getBoundingClientRect().toJSON()}};
+                }"""),flush=True)
+                if native.count()!=1 or native.get_attribute("open") is None:
+                    failures.append(f"{width}: actual printer manager is not mounted inline and open")
+                features=set(page.locator("#ad4-v3-printer-page #ad4-manager [data-printer-feature]").evaluate_all(
+                    "(nodes)=>nodes.map(x=>x.dataset.printerFeature)"))
+                expected_features={"live","controls","files","camera","timelapse","connection","tools"}
+                if features != expected_features:
+                    failures.append(f"{width}: printer feature cards missing: {expected_features-features}")
+                if page.locator("#ad4-v3-open-controls, #ad4-v3-manager-tabs").count():
+                    failures.append(f"{width}: legacy printer manager navigation remains")
+                for control in ("ad4-pause","ad4-snapshot","ad4-timelapse-start","ad4-profile-add","ad4-upload-job"):
+                    if not page.locator("#"+control).is_visible():
+                        failures.append(f"{width}: printer feature {control} hidden in public preview")
+                    if not page.locator("#"+control).is_disabled():
+                        failures.append(f"{width}: printer feature {control} not disabled in public preview")
+                if page.locator("#ad4-v3-printer-page").evaluate("(e)=>e.scrollWidth>e.clientWidth+1"):
+                    failures.append(f"{width}: inline printer dashboard has horizontal overflow")
+                page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollTop=0")
+                page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
+                page.locator("#ad4-v3-printer-page").evaluate("(e)=>e.scrollTop= Math.round(e.scrollHeight/2)")
+                page.screenshot(path=f"/tmp/ad4-pages-printer-controls-{width}.png",full_page=False)
                 page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollTop=el.scrollHeight")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-bottom-{width}.png",full_page=False)
-                page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
                 page.locator('#ad4-v3-top [data-route="app"]').click()
                 page.wait_for_function("document.body.dataset.ad4Screen==='app'",timeout=4000)
                 if not page.locator("#ad4-v3-export-profiles:visible").count():
                     failures.append("App profile exporter missing")
+                if page.locator("#ad4-v3-open-printer").count():
+                    failures.append(f"{width}: duplicate printer manager button still in App")
                 page.locator('#ad4-v3-top [data-route="preview"]').click()
                 if page.locator("#ad4-v3-bottom button").count()!=3:
                     failures.append(f"{width}: expected File, Models and Slice footer actions")
@@ -438,6 +470,23 @@ with sync_playwright() as p:
                     failures.append("Public Pages exposed physical printing")
             except Exception as error:
                 failures.append(f"{width}: V3 navigation failed: {error}")
+        if width==1280 and not startup_error:
+            page.locator('#ad4-v3-top [data-route="printer"]').click()
+            cards=page.locator('#ad4-v3-printer-page #ad4-manager [data-printer-feature]')
+            if cards.count() != 7:
+                failures.append("Desktop inline Printer lacks all seven feature cards")
+            layout=page.locator("#ad4-manager").evaluate("""(el)=>({
+              columns:getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length,
+              overflow:el.scrollWidth>el.clientWidth+1,
+              parent:el.parentElement?.id,
+              open:el.open
+            })""")
+            if layout["columns"] != 3 or layout["overflow"] or not layout["open"] or layout["parent"]!="ad4-v3-printer-page":
+                failures.append(f"Desktop printer grid not integrated with three columns: {layout}")
+            page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollTop=0")
+            page.screenshot(path="/tmp/ad4-pages-printer-1280.png",full_page=False)
+            page.locator("#ad4-v3-printer-page").evaluate("(e)=>e.scrollTop= Math.round(e.scrollHeight/2)")
+            page.screenshot(path="/tmp/ad4-pages-printer-controls-1280.png",full_page=False)
         if width==1280 and not startup_error and page.locator("#ad4-v3-remove-model").count():
             try:
                 # Deletion of the final model must atomically clear geometry and all UI.

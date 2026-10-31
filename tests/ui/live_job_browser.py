@@ -79,7 +79,7 @@ def run():
                 assert page.evaluate('globalThis.app.gui.slicer.exported_gcode') == original
                 assert page.evaluate('document.body.dataset.ad4Screen') == 'printer'
                 page.screenshot(path=f'/tmp/ad4-current-job-{width}.png')
-                page.locator('#ad4-close-manager').click()
+                page.locator('#ad4-v3-top [data-route="preview"]').click()
                 page.wait_for_function('document.querySelector("#ad4-live-canvas canvas") === null')
                 assert page.locator('#ad4-live-camera').get_attribute('src') is None
                 assert not errors, errors
