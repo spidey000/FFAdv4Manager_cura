@@ -19,6 +19,12 @@ body{background:var(--v3-black)!important;color:var(--v3-ink);overflow:hidden}
 body.ad4-printer-online .ad4-v3-status-dot{background:var(--v3-green);box-shadow:0 0 0 3px #2dec7933}
 #ad4-v3-top{top:var(--v3-head);height:var(--v3-tabs);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
  gap:4px;align-items:stretch;padding:5px 10px 9px;background:#0c0f10;border-bottom:1px solid #212829}
+/* Suppress the unintended full green browser focus rectangle on mobile tabs.
+   Keep keyboard focus discoverable using a restrained underline instead. */
+#ad4-v3-top > .ad4-v3-icon-button:focus-visible{
+ outline:none!important;outline-offset:0!important;box-shadow:none!important}
+#ad4-v3-top > .ad4-v3-icon-button:focus-visible:not([aria-pressed=true]) > span:last-child{
+ text-decoration:underline;text-decoration-color:var(--v3-green);text-underline-offset:3px}
 .ad4-v3-icon-button{min-width:0;border:0;background:transparent;color:#99a5a6;display:flex;
  align-items:center;justify-content:center;flex-direction:column;gap:5px;cursor:pointer;
  font-size:11px;font-weight:700;border-radius:12px;padding:6px 2px}
@@ -735,6 +741,9 @@ body[data-ad4-screen=filament] #sidebar-container{
 #ad4-viewer-transform .ad4-viewer-snap input[type=checkbox]::after,#ad4-viewer-transform .ad4-viewer-lock input[type=checkbox]::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;background:#fff;border-radius:50%;transition:transform .15s}
 #ad4-viewer-transform .ad4-viewer-snap input[type=checkbox]:checked::after,#ad4-viewer-transform .ad4-viewer-lock input[type=checkbox]:checked::after{transform:translateX(15px)}
 
+/* The group lock shares Snap 5 switch styling in both Scale editors. */
+#ad4-v3-scale-lock-row{display:flex;align-items:center;gap:8px;margin:7px 0 0;color:var(--v3-ink);font-size:12px}
+#ad4-v3-scale-lock-row[hidden],#ad4-viewer-transform .ad4-viewer-lock-proportions[hidden]{display:none!important}
 /* One unified expandable panel for XYZ, snap and proportional scaling. */
 #ad4-viewer-transform .ad4-viewer-editor-box{box-sizing:border-box;width:156px;max-width:calc(100vw - 30px);display:flex;flex-direction:column;gap:6px;padding:9px;border:1px solid #3f5750;border-radius:12px;background:rgba(14,28,25,.96);box-shadow:0 5px 20px #0005}
 #ad4-viewer-transform .ad4-viewer-editor-box[hidden]{display:none!important}
