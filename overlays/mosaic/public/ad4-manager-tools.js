@@ -8,7 +8,7 @@
  section.innerHTML=`<h3>Files and diagnostics</h3>
  <div class="ad4-tools"><label>Print file <input id="ad4-local-job" type="file" accept=".gx,.gcode,.gco,.g"></label>
  <button id="ad4-inspect-job" type="button">Inspect file</button><button id="ad4-upload-job" type="button">Send file</button>
- <button id="ad4-print-job" type="button">Send &amp; print file</button><button id="ad4-convert-job" type="button">Download GX</button>
+ <button id="ad4-print-job" class="ad4-primary" type="button">Send &amp; print file</button><button id="ad4-convert-job" type="button">Download GX</button>
  <button id="ad4-export-slice-gx" type="button">Export sliced GX</button></div>
  <pre id="ad4-inspect-result" class="ad4-tool-output" aria-live="polite"></pre>
  <details><summary>Advanced diagnostics</summary><div class="ad4-tools">
