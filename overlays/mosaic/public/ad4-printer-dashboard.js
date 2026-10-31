@@ -112,6 +112,7 @@
    const search=document.createElement("label");search.className="ad4-printer-search";
    search.innerHTML=icon("file")+'<input id="ad4-file-search" type="search" aria-label="Search all printer files" placeholder="Search printer files…">';
    filters.before(search);
+   $("ad4-file-search").addEventListener("input",()=>globalThis.AD4Printer?.setFileSearch?.());
   }
   const pagination=fileSection.querySelector(".ad4-pagination");
   if(pagination){pagination.classList.add("ad4-printer-pagination");}
