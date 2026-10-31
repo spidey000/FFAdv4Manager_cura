@@ -149,6 +149,9 @@
     } catch (error) {
       console.error("Could not load example STL", error);
       byId("ad4-dock-state").textContent = "3DBenchy demo failed to load";
+      document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+        detail:{code:/g.code|parser|toolpath/i.test(error.message)?"GCODE_DEMO_FAILED":"MODEL_DEMO_FAILED",message:"3DBenchy demo failed: "+error.message}
+      }));
     } finally {
       demoPending = false;
     }
@@ -223,6 +226,12 @@
       engineAvailable = false;
       engineNotice = "Cannot reach server CuraEngine";
     }
+    if(Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length){
+      document.dispatchEvent(new CustomEvent(
+        engineAvailable?"ad4:viewer-recovered":"ad4:viewer-error",{
+        detail:{code:"ENGINE_UNAVAILABLE",message:engineNotice}
+      }));
+    }
     refreshDock();
   }
   function refreshDock() {
@@ -247,7 +256,11 @@
     sliceButton.hidden = exported;
     uploadButton.hidden = !exported;
     printButton.hidden = !exported;
-    sliceButton.disabled = staticPreview || !engineAvailable || !hasModel || progress;
+    const plate=app?.gui?.model_viewer;
+    const validPlate=hasModel && plate?.ad4_plate_status?.().valid===true;
+    sliceButton.disabled = staticPreview || !engineAvailable || !validPlate || progress;
+    sliceButton.title=!validPlate && hasModel?"Resolve the build plate error before slicing":
+      (!engineAvailable?"Server CuraEngine unavailable":"");
     sliceButton.textContent = progress ? "Slicing…" : "Slice model";
     uploadButton.disabled = staticPreview || !exported;
     printButton.disabled = staticPreview || !exported;

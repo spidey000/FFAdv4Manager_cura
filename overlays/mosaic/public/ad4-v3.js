@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.1";
+const VERSION_UI = "0.2.3";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -134,10 +134,108 @@ const note=make("div","ad4-v3-toast");note.id="ad4-v3-toast";note.setAttribute("
 note.innerHTML='<span id="ad4-v3-toast-message"></span><button type="button" aria-label="Dismiss notification">×</button>';
 note.querySelector("button").addEventListener("click",()=>{note.hidden=true});root.append(note);
 let noteHandle;
+// Shared surface: both the model scene and the layer toolpath use #viewer.
+// Errors are text-only to avoid interpreting filenames/server messages as HTML.
+const viewerError=document.createElement("aside");
+viewerError.id="ad4-viewer-error";
+viewerError.hidden=true;
+viewerError.setAttribute("role","alert");
+viewerError.setAttribute("aria-live","assertive");
+viewerError.innerHTML='<strong id="ad4-viewer-error-heading">Cannot slice</strong>'+
+ '<p id="ad4-viewer-error-message"></p>';
+$("viewer")?.append(viewerError);
+const viewerErrors=new Map();
+const priorities={plate:100,model:80,slicer:70,transfer:65,layers:60,engine:50,operation:40};
+let plateErrorSignature="";
+function renderViewerError(){
+ const candidates=[...viewerErrors.entries()]
+  .sort((a,b)=>(priorities[b[0]]||0)-(priorities[a[0]]||0));
+ const first=candidates[0];
+ if(!first){viewerError.hidden=true;return}
+ viewerError.hidden=false;
+ $("ad4-viewer-error-heading").textContent=first[1].heading;
+ $("ad4-viewer-error-message").textContent=first[1].message;
+ viewerError.dataset.errorCode=first[1].code;
+}
+function showViewerError(channel,code,message,heading="Editor error"){
+ viewerErrors.set(channel,{code,heading,message:String(message||"Unknown error").slice(0,400)});
+ renderViewerError();
+}
+function clearViewerError(channel){viewerErrors.delete(channel);renderViewerError()}
+function currentPlateStatus(){
+ const plate=globalThis.app?.gui?.model_viewer;
+ if(!plate || modelCount()===0)return null;
+ return plate.ad4_plate_status?.() || {valid:false,code:"PLATE_CHECK_UNAVAILABLE",
+  reason:"Build plate validation is not ready. Slicing is blocked."};
+}
+function updatePlateError(){
+ const status=currentPlateStatus();
+ const signature=status&&!status.valid?status.code+"|"+status.reason:"";
+ if(signature===plateErrorSignature)return;
+ plateErrorSignature=signature;
+ if(signature)showViewerError("plate",status.code,status.reason+
+  " · Correct the model before slicing.","Slice blocked · Build plate");
+ else clearViewerError("plate");
+}
+document.addEventListener("ad4:plate-rejected",event=>{
+ showViewerError("operation",event.detail?.code||"INVALID_TRANSFORM",
+  event.detail?.reason||"The attempted operation would violate the plate limits",
+  "Position rejected · No changes applied");
+});
+document.addEventListener("ad4:plate-valid",()=>{clearViewerError("operation");updatePlateError()});
+document.addEventListener("ad4:viewer-error",event=>{
+ const info=event.detail||{},code=String(info.code||"EDITOR_ERROR");
+ const channel=/GCODE|LAYER|PREVIEW|WEBGL/.test(code)?"layers":
+  /MODEL|FILE/.test(code)?"model":/PRINT_TRANSFER/.test(code)?"transfer":
+  /ENGINE/.test(code)?"engine":"slicer";
+ showViewerError(channel,code,info.message||"The operation could not be completed",
+  channel==="layers"?"Layer preview error":
+  channel==="model"?"Model loading error":
+  channel==="engine"?"CuraEngine unavailable":
+  channel==="transfer"?"Printer transfer error":"Slicing error");
+});
+document.addEventListener("ad4:slice-progress",event=>{
+ const info=event.detail||{};
+ if(info.state==="running"||info.state==="completed")clearViewerError("slicer");
+ else if(info.state==="failed")showViewerError("slicer","SLICE_FAILED",
+  info.message||"CuraEngine could not generate the G-code. Check the model and server.",
+  "Slicing failed");
+});
+document.addEventListener("ad4:demo-gcode-ready",()=>clearViewerError("layers"));
+document.addEventListener("ad4:viewer-recovered",event=>{
+ const code=String(event.detail?.code||"");
+ if(code.startsWith("GCODE")||code.startsWith("LAYER"))clearViewerError("layers");
+ if(code.startsWith("MODEL")||code.startsWith("FILE"))clearViewerError("model");
+ if(code.startsWith("ENGINE"))clearViewerError("engine");
+ if(code.startsWith("PRINT_TRANSFER"))clearViewerError("transfer");
+});
+document.addEventListener("ad4:models-changed",()=>{clearViewerError("model");updatePlateError()});
+const sceneCanvas=$("stl-viewer");
+sceneCanvas?.addEventListener("webglcontextlost",event=>{
+ event.preventDefault();
+ showViewerError("layers","WEBGL_CONTEXT_LOST",
+   "The 3D graphics context was lost. Try another browser tab or reload if it does not recover.",
+   "3D renderer unavailable");
+});
+sceneCanvas?.addEventListener("webglcontextrestored",()=>clearViewerError("layers"));
 function notify(message){
  $("ad4-v3-toast-message").textContent=message;note.hidden=false;clearTimeout(noteHandle);
  noteHandle=setTimeout(()=>note.hidden=true,4200);
 }
+document.addEventListener("ad4:plate-arranged",event=>{
+ notify(event.detail?.count===1?"Model positioned safely":"Models arranged without collisions");
+});
+// Reject print/slice actions even if another component bypasses this UI.
+document.addEventListener("click",event=>{
+ if (!event.target?.closest?.("#slice-button,#ad4-v3-run-slice,#ad4-dock-slice")) return;
+ const plate=globalThis.app?.gui?.model_viewer;
+ const status=currentPlateStatus();
+ if(status?.valid!==true){
+   event.preventDefault();event.stopImmediatePropagation();
+   updatePlateError();
+   if(!status)showViewerError("model","NO_MODEL","Add a model before slicing","Slice blocked");
+ }
+},true);
 function closeSheet(){
  if(root.classList.contains("ad4-sheet-open"))$("ad4-sheet-close")?.click();
 }
@@ -147,6 +245,8 @@ function ensureSheet(){
 function sliceReady(){return $("slice-export-container")?.dataset.active==="true" && typeof globalThis.app?.gui?.slicer?.exported_gcode==="string";}
 function hasModel(){return Boolean(globalThis.app?.gui?.file?.stl_file_name) && modelCount()>0;}
 function refreshState(){
+ updatePlateError();
+ const status=currentPlateStatus(),plateValid=status?.valid===true;
  const model=hasModel(),sliced=model&&sliceReady();
  if(previousModelCount>0 && modelCount()===0){$("slice-export-container")?.setAttribute("data-active","false")}
  previousModelCount=modelCount();
@@ -158,12 +258,12 @@ function refreshState(){
  const state=null;
  if(state)state.textContent=sliced?[$("gcode-time-estimate")?.textContent,$("material-estimate")?.textContent].filter(Boolean).join(" · "):model?"Ready for CuraEngine · server-side slicing":"STL or 3MF · FlashForge Adventurer 4";
  const slice=$("ad4-dock-slice");
- if(slice)slice.disabled=staticPreview || !model || $("slice-progress-container")?.dataset.active==="true";
+ if(slice)slice.disabled=staticPreview || !model || !plateValid || $("slice-progress-container")?.dataset.active==="true";
  const newPreview=$("ad4-v3-preview-status");
  if(newPreview)newPreview.textContent=sliced?(staticPreview?"Demo G-code · preview only":"Real G-code ready"):"Slice a model to preview layers";
  const navSlice=$("ad4-v3-nav-slice");if(navSlice)navSlice.classList.toggle("ready",sliced);
  const slicingBusy=$("slice-progress-container")?.dataset.active==="true";
- const start=$("ad4-v3-run-slice");if(start){start.hidden=staticPreview||!model||sliced;start.disabled=staticPreview||slicingBusy}
+ const start=$("ad4-v3-run-slice");if(start){start.hidden=staticPreview||!model||sliced;start.disabled=staticPreview||slicingBusy||!plateValid}
  const preview=$("ad4-v3-show-layers");if(preview)preview.hidden=!sliced;
  for(const name of ["ad4-v3-export","ad4-v3-send","ad4-v3-print"]){
   const b=$(name);if(b)b.disabled=!sliced||(staticPreview&&name!=="ad4-v3-export");
@@ -200,7 +300,11 @@ function activate(name){
  }
  if(name==="preview"||name==="transform"||name==="slice-info")$("prepare-tab-button")?.click();
  if(name==="sliced"){
-  if(!sliceReady()){notify("Slice a model on the server to view actual layers");current="preview";root.dataset.ad4Screen="preview";$("prepare-tab-button")?.click()}
+  if(!sliceReady()){
+   showViewerError("layers","GCODE_MISSING",
+    "Slice a model on the server before opening the layer preview.",
+    "No layer preview available");
+   notify("Slice a model on the server to view actual layers");current="preview";root.dataset.ad4Screen="preview";$("prepare-tab-button")?.click()}
   else $("preview-tab-button")?.click();
  }
  if(name==="app"||name==="printer"||name==="slice-info")closeSheet();
@@ -535,11 +639,16 @@ function setAxis(axis,raw,{exact=false}={}){
  if(!hasSelection()){notify("Tap a model to select it before transforming");return}
  const snap=$("ad4-v3-snap").checked;
  const value=normalized(mode,raw,snap,exact);
- if(value===null){notify("Enter a valid numeric value");return}
+ if(value===null){
+  showViewerError("operation","INVALID_TRANSFORM_VALUE",
+   "Enter a finite number within the permitted "+mode+" range.",
+   "Invalid transform value");return}
  const old=Number(sourceAxis(axis)?.value)|| (mode==="scale"?100:0);
  const locked=mode==="scale"&&$("ad4-v3-resize-lock").checked;
  if(mode==="scale")lockLabel.querySelector("input").checked=locked;
  const factor=locked&&old!==0?value/old:1;
+ const plate=globalThis.app?.gui?.model_viewer;
+ plate?.ad4_begin_transform?.();
  for(const key of locked?["x","y","z"]:[axis]){
   const source=sourceAxis(key);if(!source)continue;
   const prior=Number(source.value);
@@ -547,6 +656,8 @@ function setAxis(axis,raw,{exact=false}={}){
   source.value=String(target);
   source.dispatchEvent(new Event("input",{bubbles:true}));
  }
+ const accepted=plate?.ad4_commit_transform?.();
+ if(accepted===false) updateCompactValues();
  $("slice-export-container")?.setAttribute("data-active","false");
  refreshAxis();
  updateCompactValues();
@@ -591,6 +702,32 @@ for(const [type,iconName,label] of [["translate","move","Move"],["rotate","rotat
  btn.dataset.viewerMode=type;btn.setAttribute("aria-label",label+" selected model");
  viewerTransform.append(btn);
 }
+// Permanent plate tools beside Move / Rotate / Scale. Clone always repacks.
+const arrangeButton=navButton("layout-grid","Arrange",()=>{
+ const plate=globalThis.app?.gui?.model_viewer;
+ if(!plate?.ad4_auto_arrange){notify("Model editor is still loading");return}
+ plate.ad4_auto_arrange();
+});
+arrangeButton.id="ad4-v3-auto-arrange";
+arrangeButton.setAttribute("aria-label","Auto arrange all models without collisions");
+arrangeButton.title="Auto Arrange · keep every model inside the build plate";
+viewerTransform.append(arrangeButton);
+const cloneButton=navButton("copy-plus","Clone",()=>{
+ const plate=globalThis.app?.gui?.model_viewer;
+ if(!plate?.ad4_clone_selected){notify("Model editor is still loading");return}
+ plate.ad4_clone_selected();
+});
+cloneButton.id="ad4-v3-clone";
+cloneButton.setAttribute("aria-label","Clone selected model and auto arrange");
+cloneButton.title="Clone selected model and arrange all without collisions";
+viewerTransform.append(cloneButton);
+function updatePlateButtons(){
+ arrangeButton.disabled=modelCount()===0;
+ cloneButton.disabled=!hasSelection();
+}
+document.addEventListener("ad4:models-changed",updatePlateButtons);
+setInterval(updatePlateButtons,300);
+updatePlateButtons();
 let activeViewerMode=null;
 const compactValues=make("div","ad4-viewer-values");compactValues.id="ad4-viewer-values";compactValues.hidden=true;
 for(const axis of ["x","y","z"]){const label=make("label","ad4-viewer-value-row");label.innerHTML='<span>'+axis.toUpperCase()+'</span><input type="number" inputmode="decimal" step="any" aria-label="'+axis.toUpperCase()+' transform value"><span class="ad4-viewer-value-unit"></span>';const input=label.querySelector("input");input.addEventListener("change",()=>setAxis(axis,Number(input.value),{exact:true}));input.addEventListener("keydown",e=>{if(e.key==="Enter")input.blur()});compactValues.append(label)}
@@ -1016,6 +1153,7 @@ function renderTools(){
  }
  syncModelsDock();
  runSlice.hidden=staticPreview||!hasModel()||sliceReady();
+ runSlice.disabled=staticPreview||currentPlateStatus()?.valid!==true;
   removeModel.hidden=!hasModel();
  previewLayers.hidden=!sliceReady();
  exportGcode.disabled=!sliceReady();

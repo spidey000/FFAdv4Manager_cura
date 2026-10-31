@@ -5,7 +5,16 @@ const dialog=el("ad4-manager"), status=el("ad4-manager-status");
 let files=[], page=0, poll=null, isLive=false, gallery=[], playing=null, busy=false;
 let hardwareConnected=false, activeJob=false, recordingState=null, refreshPromise=null;
 const encode=encodeURIComponent;
-function say(msg,isError=false){status.textContent=msg;status.dataset.error=String(isError)}
+function say(msg,isError=false){
+ status.textContent=msg;status.dataset.error=String(isError);
+ // Upload/print actions originate in the layer viewport as well as the
+ // manager. Surface their failure where the user initiated the action.
+ if(document.body?.dataset?.ad4Screen==="sliced"){
+  document.dispatchEvent(new CustomEvent(isError?"ad4:viewer-error":"ad4:viewer-recovered",{
+   detail:{code:"PRINT_TRANSFER_FAILED",message:String(msg)}
+  }));
+ }
+}
 function fmt(v,suffix=""){return v==null||v===""?"—":String(v)+suffix}
 function bytes(n){return Number.isFinite(n)?(n/1024/1024).toFixed(1)+" MB":"—"}
 function duration(seconds){if(!Number.isFinite(seconds))return "—";const v=Math.round(seconds);return Math.floor(v/3600)+"h "+Math.floor(v%3600/60)+"m"}

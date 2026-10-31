@@ -431,8 +431,10 @@ with sync_playwright() as p:
                 if page.locator("#ad4-v3-nav-camera, #ad4-v3-nav-move").count():
                     failures.append(f"{width}: redundant Camera/Transform footer tools")
                 toolbar=page.locator("#ad4-viewer-transform")
-                if toolbar.locator("button").count()!=3:
-                    failures.append(f"{width}: three in-view model transform tools missing")
+                if toolbar.locator("button").count()!=5:
+                    failures.append(f"{width}: expected Move, Rotate, Scale, Arrange, Clone rail")
+                if toolbar.locator("#ad4-v3-auto-arrange").count()!=1 or toolbar.locator("#ad4-v3-clone").count()!=1:
+                    failures.append(f"{width}: missing Arrange or Clone button")
                 if page.locator("#ad4-viewer-snap").count()!=1:
                     failures.append(f"{width}: snap switch missing inside viewer")
                 if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
@@ -449,6 +451,47 @@ with sync_playwright() as p:
                     if page.locator("#ad4-v3-snap").is_checked():
                         failures.append(f"{width}: snap toolbar not linked to native control")
                     page.locator("#ad4-viewer-snap").check()
+                # Exercise the real model viewer, not a mock list.
+                if page.evaluate("Boolean(globalThis.app?.gui?.model_viewer?.focused)"):
+                    before_count=page.evaluate("Object.keys(app.gui.model_viewer.models).length")
+                    toolbar.locator("#ad4-v3-clone").click()
+                    page.wait_for_function(
+                        "(old) => Object.keys(app.gui.model_viewer.models).length===old+1",
+                        arg=before_count,timeout=7000)
+                    plate=page.evaluate("""()=>{
+                      const mv=app.gui.model_viewer;
+                      return {status:mv.ad4_plate_status(),count:Object.keys(mv.models).length};
+                    }""")
+                    if not plate["status"]["valid"]:
+                        failures.append(f"{width}: cloned models overlap or escape bed: {plate}")
+                    if not page.evaluate("app.gui.model_viewer.ad4_delete_model(app.gui.model_viewer.focused)"):
+                        failures.append(f"{width}: cannot remove just-created clone")
+                    if page.evaluate("Object.keys(app.gui.model_viewer.models).length")!=before_count:
+                        failures.append(f"{width}: clone left stale registry or scene bookkeeping")
+                    toolbar.locator("#ad4-v3-auto-arrange").click()
+                    if not page.evaluate("app.gui.model_viewer.ad4_plate_status().valid"):
+                        failures.append(f"{width}: Auto Arrange created unsafe geometry")
+                    # Attempt an illegal gizmo move/scale: native transform
+                    # events must restore the last committed mesh at release.
+                    rollback=page.evaluate("""()=>{
+                      const mv=app.gui.model_viewer;
+                      const id=Object.keys(mv.models)[0];
+                      mv.ad4_select_model(id);
+                      const mesh=mv.models[id].mesh,controls=mv.model_controls;
+                      const beforeX=mesh.position.x, beforeScale=mesh.scale.x;
+                      controls.dispatchEvent({type:"dragging-changed",value:true});
+                      mesh.position.x=900;
+                      controls.dispatchEvent({type:"dragging-changed",value:false});
+                      const moveRestored=Math.abs(mesh.position.x-beforeX)<1e-6;
+                      controls.dispatchEvent({type:"dragging-changed",value:true});
+                      mesh.scale.x=1000;
+                      controls.dispatchEvent({type:"dragging-changed",value:false});
+                      const scaleRestored=Math.abs(mesh.scale.x-beforeScale)<1e-6;
+                      return {moveRestored,scaleRestored,status:mv.ad4_plate_status()};
+                    }""")
+                    if not (rollback["moveRestored"] and rollback["scaleRestored"]
+                            and rollback["status"]["valid"]):
+                        failures.append(f"{width}: unsafe transform was not reverted: {rollback}")
                 dock_rect=page.locator("#ad4-v3-bottom").evaluate("""(el)=>{
                     const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,viewport:innerHeight};
                 }""")

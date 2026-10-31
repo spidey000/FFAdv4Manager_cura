@@ -31,7 +31,7 @@ def build():
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     # Keep performant viewer code as tracked overlays, never edit generated frontend.
-    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-bevel-profile.mjs", "ad4-gpu-seams.mjs", "ad4-stl-worker-client.mjs"):
+    for name in ("ad4-plate-layout.mjs", "ad4-plate-operations.mjs", "renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-bevel-profile.mjs", "ad4-gpu-seams.mjs", "ad4-stl-worker-client.mjs"):
         shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
     # MIT-licensed ThreeSlicer viewer only, never its AGPL slicer kernel.
     shutil.copytree(OV/"src/gui/viewer/ad4-three-slicer",
@@ -391,8 +391,14 @@ layer_slider.addEventListener("input",()=>{
     # They operate on Mosaic's authoritative registry and selection, not a
     # second, disconnected UI-side collection.
     patch("src/gui/file.mjs",
+          "    stl_file_name = reader.file_name;\n",
+          "")
+    patch("src/gui/file.mjs",
           '    load_model(array_buffer, stl_file_name.endsWith(".stl") ? "stl" : "3mf");',
-          '    load_model(array_buffer, stl_file_name.endsWith(".stl") ? "stl" : "3mf", reader.file_name);')
+          '    Promise.resolve(load_model(array_buffer, reader.file_name.toLowerCase().endsWith(".stl") ? "stl" : "3mf", reader.file_name))\n'
+          '      .then(mesh => { if (mesh) stl_file_name = reader.file_name; })\n'
+          '      .catch(error => document.dispatchEvent(new CustomEvent("ad4:viewer-error",\n'
+          '        {detail:{code:"MODEL_LOAD_FAILED",message:"Could not load “"+reader.file_name+"”: "+error.message}})));\n')
     patch("src/gui/viewer/model_viewer.mjs",
           'export function load_model(raw_data, model_type) {',
           'export async function load_model(raw_data, model_type, file_name = "") {')
@@ -418,8 +424,99 @@ layer_slider.addEventListener("input",()=>{
     patch("src/gui/viewer/model_viewer.mjs",
           "    let mesh = models[model].mesh.clone();",
           "    let mesh = models[model].mesh.clone();\n    mesh.visible = true;")
+    # Every import, clone, transform and STL export must pass the same
+    # authoritative geometry test. Reject invalid initial placement before it
+    # ever enters the scene/registry.
+    patch("src/gui/viewer/model_viewer.mjs",
+          "  scene.add(mesh);\n\n  mesh.name =",
+          "  if (!ad4Plate.acceptNewModel(mesh, file_name)) {\n"
+          "    mesh.geometry.dispose();\n    mesh.material.dispose();\n"
+          "    return null;\n  }\n  scene.add(mesh);\n\n  mesh.name =")
+    patch("src/gui/viewer/model_viewer.mjs",
+          "export function export_stl() {\n",
+          "export function export_stl() {\n"
+          "  if (!ad4Plate.isValid()) throw new Error('Cannot slice overlapping or out-of-bounds models');\n")
+    # Clones share large STL buffer geometry; deleting one must not dispose
+    # geometry still referenced by the others.
+    patch("src/gui/viewer/model_viewer.mjs",
+          "    models[focused].mesh.geometry.dispose();",
+          "    if (!Object.values(models).some(m => m.mesh !== models[focused].mesh &&\n"
+          "        m.mesh.geometry === models[focused].mesh.geometry))\n"
+          "      models[focused].mesh.geometry.dispose();")
+    # Validate import parameters before creating expensive geometry. FileReader
+    # and worker exceptions are announced to the same viewport error surface.
+    patch("src/gui/file.mjs",
+          "export function load_file(file) {\n",
+          '''export function load_file(file) {
+  if (!file || !/\\.(stl|3mf)$/i.test(file.name || "")) {
+    document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+      detail:{code:"FILE_UNSUPPORTED",message:"Select an STL or 3MF file."}
+    }));
+    return;
+  }
+  if (file.size > 250 * 1024 * 1024) {
+    document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+      detail:{code:"FILE_TOO_LARGE",message:"Model exceeds the 250 MB import limit."}
+    }));
+    return;
+  }
+''')
+    patch("src/gui/file.mjs",
+          "  reader.readAsArrayBuffer(file);",
+          '''  reader.onerror = () => document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+    detail:{code:"FILE_READ_FAILED",message:"Cannot read “"+file.name+"” from device storage."}
+  }));
+  reader.readAsArrayBuffer(file);''')
+    # Report toolpath failures in the SAME warning spot as model errors; never
+    # silently leave an empty layer scene following a failed parser promise.
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          "  let parsed_data = await gcode.parse(exported_gcode);",
+          '''  let parsed_data;
+  try {
+    parsed_data = await gcode.parse(exported_gcode);
+    if (!Array.isArray(parsed_data) || !parsed_data.length)
+      throw Error("The toolpath contains no printable layers");
+    document.dispatchEvent(new CustomEvent("ad4:viewer-recovered",{
+      detail:{code:"GCODE_PARSE_FAILED"}
+    }));
+  } catch (error) {
+    document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+      detail:{code:"GCODE_PARSE_FAILED",
+        message:"Cannot display G-code layers: "+(error?.message || String(error))}
+    }));
+    return;
+  }''')
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          '    notify("No G-Code to show", "Slice a model to generate G-Code");',
+          '''    notify("No G-Code to show", "Slice a model to generate G-Code");
+    document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+      detail:{code:"GCODE_MISSING",message:"There is no G-code yet. Slice a model first."}
+    }));''')
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          "    show_gcode_viewer();",
+          '''    show_gcode_viewer().catch(error => {
+      document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+        detail:{code:"LAYER_RENDER_FAILED",
+          message:"Unable to build layer preview: "+(error?.message || String(error))}
+      }));
+    });''')
     model_source = DEST / "src/gui/viewer/model_viewer.mjs"
     model_source.write_text(model_source.read_text() + """
+// Install plate rules in Mosaic's real model registry, not in the visual shell.
+import {installPlateOperations} from "./ad4-plate-operations.mjs";
+const ad4Plate = installPlateOperations({
+  models, scene, interactions, controls:model_controls, renderer,
+  focusModel:focus_stl, updateOverlays:update_overlays,
+  clearSliceState:clear_slice_state
+});
+ad4Plate.setFocusedGetter(()=>focused);
+export const ad4_auto_arrange = () => ad4Plate.arrange();
+export const ad4_clone_selected = () => ad4Plate.cloneSelected();
+export const ad4_plate_valid = () => ad4Plate.isValid();
+export const ad4_plate_status = () => ad4Plate.status();
+export const ad4_begin_transform = () => ad4Plate.beginTransform();
+export const ad4_commit_transform = () => ad4Plate.commitTransform();
+
 // Public model-list operations, bound to Mosaic's own selected mesh.
 export function ad4_select_model(uuid) {
   if (!Object.prototype.hasOwnProperty.call(models, uuid)) return false;
@@ -464,6 +561,9 @@ export function ad4_delete_model(uuid) {
         '  } catch (error) {\n'
         '    clear_slice_state();\n'
         '    notify("Server-side CuraEngine unavailable", error?.message || String(error));\n'
+        '    document.dispatchEvent(new CustomEvent("ad4:viewer-error",{\n'
+        '      detail:{code:"SLICE_FAILED",message:error?.message || String(error)}\n'
+        '    }));\n'
         '  }\n'
         '});', 1)
     # The percentage must come from CuraEngine, not a simulated timer.
