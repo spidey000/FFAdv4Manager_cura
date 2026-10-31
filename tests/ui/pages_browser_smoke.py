@@ -91,6 +91,16 @@ with sync_playwright() as p:
                 if width == 390:
                     # Exercise the real Three.js mesh, not DOM text or mocked
                     # percentages. X may be frozen while Y/Z resize together.
+                    move_tool=page.locator('#ad4-viewer-transform [data-viewer-mode="translate"]')
+                    move_tool.click()
+                    first_move=page.evaluate("""() => {
+                      const mv=app.gui.model_viewer, controls=mv.model_controls;
+                      const mesh=mv.models[mv.focused]?.mesh;
+                      return {attached:controls?.object===mesh,enabled:controls?.enabled,
+                        helperVisible:Boolean(controls?.getHelper?.()?.parent)};
+                    }""")
+                    assert all(first_move.values()), f"First Move lost its gizmo: {first_move}"
+                    move_tool.click()
                     scale_tool=page.locator('#ad4-viewer-transform [data-viewer-mode="scale"]')
                     scale_tool.click()
                     assert page.locator('#ad4-v3-resize-lock').count()==0
@@ -112,6 +122,21 @@ with sync_playwright() as p:
 
                     before=dimensions()
                     assert all(0 < before[a] < 250 for a in ("x","y","z")), before
+                    lock_all=page.locator("#ad4-viewer-scale-lock-all")
+                    sheet_lock_all=page.locator("#ad4-v3-scale-lock-all")
+                    assert lock_all.is_visible() and not lock_all.is_checked()
+                    lock_all.check()
+                    assert lock_all.is_checked() and sheet_lock_all.is_checked()
+                    assert all(page.locator(
+                        f'#ad4-viewer-values [data-lock-axis="{axis}"]').get_attribute(
+                        "aria-pressed")=="true" for axis in ("x","y","z"))
+                    page.locator('#ad4-viewer-values [data-lock-axis="x"]').click()
+                    assert not lock_all.is_checked() and not sheet_lock_all.is_checked()
+                    lock_all.check()
+                    lock_all.uncheck()
+                    assert all(page.locator(
+                        f'#ad4-viewer-values [data-lock-axis="{axis}"]').get_attribute(
+                        "aria-pressed")=="false" for axis in ("x","y","z"))
                     lock_x=page.locator('#ad4-viewer-values [data-lock-axis="x"]')
                     lock_x.click()
                     assert lock_x.get_attribute("aria-pressed")=="true"
