@@ -51,7 +51,7 @@ with sync_playwright() as p:
     # that actual rendered meshes are closed indexed 3D solids, not lines.
     assert stats["solidPreview"] is True, stats
     assert stats["solidSegments"] > 500, stats
-    assert stats["solidMesh"]["solid"] > 100, stats
+    assert stats["solidMesh"]["solid"] == 1, stats
     assert stats["solidMesh"]["indexed"] == stats["solidMesh"]["solid"], stats
     # Faithful ThreeSlicer viewer: ONE GPU mesh, 8 vertices and 24 indices
     # in the original template, all print segments instanced.
