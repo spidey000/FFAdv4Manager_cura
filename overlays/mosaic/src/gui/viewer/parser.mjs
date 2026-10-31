@@ -26,7 +26,7 @@ export async function parse(gcode) {
     const semicolon = line.indexOf(";");
     const command = (semicolon < 0 ? line : line.slice(0, semicolon)).trim();
     const comment = semicolon < 0 ? "" : line.slice(semicolon + 1).trim();
-    if (/^(?:LAYER\s*:\s*\d+|LAYER_CHANGE)\b/i.test(comment)) {
+    if (/^(?:LAYER\s*:?\s*\d+(?:\s+Z\s*[-+\d.]+)?|LAYER_CHANGE)\b/i.test(comment)) {
       if (layer.length) { layers.push(layer); layer = []; }
     } else if (/^TYPE\s*:/i.test(comment)) {
       subtype = comment.slice(comment.indexOf(":") + 1).trim().toUpperCase() || "OTHER";
