@@ -70,6 +70,9 @@
   const target=dialog.querySelector('[data-printer-feature="'+key+'"]');
   if(target?.tagName==="DETAILS")target.open=true;
   target?.scrollIntoView({behavior:"smooth",block:"start"});
+  // The user clicked "View current print": run the existing read-only
+  // camera/toolpath consultation, rather than merely scrolling to its card.
+  if(pane==="live")dialog.querySelector("#ad4-live-consult")?.click();
  }
  page.addEventListener("click",event=>{
   const button=event.target.closest("[data-printer-pane]");
