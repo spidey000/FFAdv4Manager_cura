@@ -221,6 +221,9 @@ globalThis.AD4GCodePreview = {
     return Object.fromEntries(this.types.map(t=>[t,colorForToolpathType(t)]));
   },
   get hiddenTypes(){return this.handle?.hiddenTypes||new Set()},
+  get viewMode(){return this.handle?.viewMode||"feature"},
+  setViewMode(mode){this.handle?.setViewMode(mode);renderer.invalidate()},
+
   get threeSlicerStats(){
     const h=this.handle, data=h?.handle?.data;
     if(!data)return null;
