@@ -1161,3 +1161,18 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
  grid-column:1/-1;display:grid;grid-template-columns:auto minmax(0,1fr)}
 #ad4-v3-printer-page #ad4-manager .ad4-tools label input[type=file]{
  width:100%!important;max-width:100%!important}
+
+
+/* Plate tools share the compact left-hand transform rail. Disabled operations
+   remain discoverable and never intercept the STL canvas underneath. */
+#ad4-v3-auto-arrange{margin-top:5px!important;border-top:1px solid #496154!important;
+ border-top-left-radius:3px!important;border-top-right-radius:3px!important}
+#ad4-viewer-transform .ad4-v3-icon-button:disabled{
+ opacity:.36!important;cursor:not-allowed!important;pointer-events:none!important}
+#ad4-viewer-transform .ad4-v3-icon-button:focus-visible{
+ outline:2px solid var(--v3-green)!important;outline-offset:2px}
+@media(max-height:650px){
+ #ad4-viewer-transform .ad4-v3-icon-button{min-height:40px!important;padding:3px!important}
+ #ad4-viewer-transform .ad4-icon-svg{width:18px!important;height:18px!important}
+ #ad4-v3-auto-arrange{margin-top:2px!important}
+}
