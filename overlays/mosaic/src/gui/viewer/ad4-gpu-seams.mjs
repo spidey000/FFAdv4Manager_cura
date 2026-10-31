@@ -3,6 +3,14 @@
  * handling. No shadow maps, extra draw calls or physically fake layers.
  */
 const pixelScale={value:1};
+export function projectedLayerBand(pixelsPerLayer){
+  return pixelsPerLayer<0.4?16:
+    pixelsPerLayer<0.8?8:
+    pixelsPerLayer<1.5?4:
+    pixelsPerLayer<3.0?2:1;
+}
+export function getGcodePixelScale(){return pixelScale.value;}
+
 export function updateGcodePixelScale(camera,viewportHeight,target){
   if(!camera?.isPerspectiveCamera||!target||viewportHeight<=0)return;
   const distance=Math.max(0.5,camera.position.distanceTo(target));
