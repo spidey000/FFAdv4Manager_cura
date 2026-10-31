@@ -67,8 +67,10 @@
   const key={live:"live",control:"controls",files:"files",
    camera:"camera",timelapse:"timelapse",
    connection:"connection",diagnostics:"connection"}[pane]||"controls";
-  const target=dialog.querySelector('[data-printer-feature="'+key+'"]');
-  if(target?.tagName==="DETAILS")target.open=true;
+  const section=dialog.querySelector('[data-printer-feature="'+key+'"]');
+  if(section?.tagName==="DETAILS")section.open=true;
+  // Diagnostics is nested in Connections: land on its real controls.
+  const target=pane==="diagnostics"?dialog.querySelector("#ad4-diagnostic-doctor"):section;
   target?.scrollIntoView({behavior:"smooth",block:"start"});
   // The user clicked "View current print": run the existing read-only
   // camera/toolpath consultation, rather than merely scrolling to its card.
