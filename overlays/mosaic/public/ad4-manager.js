@@ -73,7 +73,8 @@ function updateState(s){
 }
 function sortedFiles(){
  const sort=el("ad4-file-sort").value;
- return [...files].sort((a,b)=>{
+ const search=(el("ad4-file-search")?.value||"").trim().toLocaleLowerCase();
+ return files.filter(file=>!search||String(file.name).toLocaleLowerCase().includes(search)).sort((a,b)=>{
   if(sort==="duration")return (a.estimated_seconds??Infinity)-(b.estimated_seconds??Infinity)||a.name.localeCompare(b.name);
   if(sort==="date")return (b.uploaded_at||"").localeCompare(a.uploaded_at||"")||a.name.localeCompare(b.name);
   return a.name.localeCompare(b.name);
@@ -85,12 +86,20 @@ function renderFiles(){
  const holder=el("ad4-file-list");holder.replaceChildren();
  for(const file of list.slice(page*size,(page+1)*size)){
   const line=document.createElement("div");line.className="ad4-file-row";
+  line.tabIndex=0;line.setAttribute("role","group");line.title="Select "+file.name+" to load its thumbnail";
+  line.addEventListener("keydown",event=>{
+   if(event.target===line&&(event.key==="Enter"||event.key===" ")){
+    event.preventDefault();line.click();
+   }
+  });
   const meta=document.createElement("div");meta.className="ad4-file-meta";
-  const title=document.createElement("strong");title.textContent=file.name;
+  const title=document.createElement("strong");title.textContent=file.name;title.title=file.name;
   const small=document.createElement("small");
   small.textContent=[duration(file.estimated_seconds),file.hotend!=null?file.hotend+"°C / "+fmt(file.bed,"°C"):"",date(file.uploaded_at)].filter(x=>x&&x!=="—").join(" · ")||"Stored on printer";
   meta.append(title,small);
   const start=document.createElement("button");start.textContent="Print";start.disabled=busy||!hardwareConnected||activeJob;
+  const reason=busy?"Another printer action is running":!hardwareConnected?"Printer disconnected":activeJob?"A print is already running":"Review and start this stored file";
+  start.title=reason;start.setAttribute("aria-label","Print "+file.name+" — "+reason);
   start.addEventListener("click",async()=>{
    const selection=await confirmPrint({filename:file.name,time:file.estimated_seconds!=null?duration(file.estimated_seconds):null,
     nozzle:file.hotend,bed:file.bed,remoteFile:file.path,start:true});
@@ -101,44 +110,58 @@ function renderFiles(){
   });
   line.append(meta,start);holder.append(line);
  }
- if(!list.length){const p=document.createElement("p");p.className="ad4-help";p.textContent=hardwareConnected?"No files stored on the printer":"Files unavailable · Printer disconnected";holder.append(p)}
- el("ad4-files-page").textContent=(page+1)+" / "+pages;
+ if(!list.length){const p=document.createElement("p");p.className="ad4-help";
+  p.textContent=!hardwareConnected?"Files unavailable · Printer disconnected":files.length?"No files match your search":"No files stored on the printer";
+  holder.append(p)}
+ el("ad4-files-page").textContent="Page "+(page+1)+" / "+pages;
  el("ad4-files-prev").disabled=page===0;
  el("ad4-files-next").disabled=page>=pages-1;
 }
 function renderGallery(){
  const holder=el("ad4-gallery");holder.replaceChildren();
  for(const item of gallery){
-  const line=document.createElement("div");line.className="ad4-file-row";
+  const line=document.createElement("div");line.className="ad4-file-row ad4-timelapse-row";
+  const art=document.createElement("span");art.className="ad4-timelapse-placeholder";
+  art.innerHTML='<span data-ad4-icon="play" aria-hidden="true"></span>';
+  art.title="No recording thumbnail available";
   const meta=document.createElement("div");meta.className="ad4-file-meta";
   const title=document.createElement("strong");title.textContent=date(item.created_at);
   const small=document.createElement("small");
-  small.textContent=[item.mode==="layer"?"Z-layer experimental":"Time interval",item.frames+" frames",bytes(item.size_bytes),
-    item.video_ready?"MP4 ready":item.encoding?"Encoding":item.error||"Not yet ready"].join(" · ");
+  small.textContent=[item.mode==="layer"?"Z-layer · experimental":"Time interval",
+   item.frames+" frames",bytes(item.size_bytes),
+   item.video_ready?"MP4":item.encoding?"Encoding":item.error||"Not ready"].join(" · ");
   meta.append(title,small);
-  const actions=document.createElement("span");actions.className="ad4-item-buttons";
+  const menu=document.createElement("details");menu.className="ad4-timelapse-menu";
+  const summary=document.createElement("summary");summary.textContent="···";
+  summary.title="Timelapse actions";summary.setAttribute("aria-label","Actions for recording "+date(item.created_at));
+  const actions=document.createElement("div");actions.className="ad4-timelapse-actions";
   if(item.video_ready){
    const play=document.createElement("button");play.textContent=playing===item.id?"Close":"Play";
    play.addEventListener("click",()=>{
-    const video=el("ad4-timelapse-preview");
+    const video=el("ad4-timelapse-preview");menu.open=false;
     if(playing===item.id){video.pause();video.removeAttribute("src");video.load();video.hidden=true;playing=null}
     else{video.pause();video.src=root+"/timelapses/video?id="+encode(item.id);video.hidden=false;video.load();playing=item.id}
     renderGallery();
    });
-   const a=document.createElement("a");a.textContent="MP4";a.download="timelapse-"+item.id+".mp4";
+   const a=document.createElement("a");a.textContent="Download MP4";a.download="timelapse-"+item.id+".mp4";
    a.href=root+"/timelapses/download?id="+encode(item.id);a.className="ad4-download";
    actions.append(play,a);
   }
   const remove=document.createElement("button");remove.textContent="Delete";remove.className="ad4-destructive";
   remove.disabled=item.running||item.encoding;
+  remove.title=remove.disabled?"Cannot delete an active or encoding recording":"Delete recording permanently";
   remove.addEventListener("click",async()=>{
    if(!confirm("Permanently delete timelapse from "+date(item.created_at)+"?"))return;
+   menu.open=false;
    await task("Deleting timelapse",()=>post("/timelapses/delete",{id:item.id}));
    if(playing===item.id){el("ad4-timelapse-preview").hidden=true;el("ad4-timelapse-preview").removeAttribute("src");playing=null}
    await loadGallery();
-  });actions.append(remove);line.append(meta,actions);holder.append(line);
+  });
+  actions.append(remove);menu.append(summary,actions);
+  line.append(art,meta,menu);holder.append(line);
  }
  if(!gallery.length)holder.textContent=hardwareConnected?"No timelapses recorded":"Gallery unavailable · Printer disconnected";
+ globalThis.AD4Icons?.hydrate?.(holder);
 }
 async function loadGallery(){gallery=await api("/timelapses");renderGallery()}
 async function refresh(){
@@ -200,6 +223,7 @@ dialog.addEventListener("close",()=>{clearInterval(poll);closeVideo();el("ad4-ti
 el("ad4-refresh").addEventListener("click",()=>refresh().then(()=>say("Updated")).catch(e=>say(e.message,true)));
 el("ad4-refresh-files").addEventListener("click",()=>refresh().catch(e=>say(e.message,true)));
 for(const id of ["ad4-file-sort","ad4-page-size"])el(id).addEventListener("change",()=>{page=0;renderFiles()});
+el("ad4-file-search")?.addEventListener("input",()=>{page=0;renderFiles()});
 el("ad4-files-prev").addEventListener("click",()=>{page--;renderFiles()});
 el("ad4-files-next").addEventListener("click",()=>{page++;renderFiles()});
 for(const action of ["pause","resume","cancel","fan_on","fan_off"]){
