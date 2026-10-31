@@ -1891,7 +1891,7 @@ body[data-ad4-screen=printer] #ad4-v3-printer-page{
 /* Printer visual reference · v0.2.9
    All surface, border, accent and text values derive from Studio theme tokens.
    Flat, compact dark-petrol cards with one luminous primary accent. */
-#ad4-v3-printer-page{
+body[data-ad4-screen=printer] #ad4-v3-printer-page{
  --printer-surface:var(--v3-card2);
  --printer-border:var(--v3-border);
  --printer-accent:var(--v3-green);
