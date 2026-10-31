@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.7";
+const VERSION_UI = "0.2.8";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -1157,7 +1157,7 @@ $("ad4-v3-profile-file").addEventListener("change",async e=>{
 const manager=$("ad4-manager");
 if(manager){
  const names={
-  "Current print":"live","Print controls":"controls","Printer files":"files","Camera":"camera",
+  "Monitoring":"live","Print controls":"controls","Printer files":"files","Camera":"camera",
   "Timelapses":"timelapse","Printer connections and diagnostics":"connection",
   "Files and diagnostics":"tools"
  };
