@@ -550,7 +550,34 @@ with sync_playwright() as p:
                         failures.append(f"{width}: printer feature {control} not disabled in public preview")
                 if page.locator("#ad4-v3-printer-page").evaluate("(e)=>e.scrollWidth>e.clientWidth+1"):
                     failures.append(f"{width}: inline printer dashboard has horizontal overflow")
-                page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollTop=0")
+                # Printer uses Cura-style switches and expandable headings.
+                switches=page.locator("#ad4-v3-printer-page #ad4-manager input[type=checkbox]")
+                if switches.count()<3 or any(switches.nth(i).get_attribute("role")!="switch" for i in range(switches.count())):
+                    failures.append(f"{width}: Printer checkboxes are not accessible toggles")
+                toggle_style=page.evaluate("""() => {
+                    const el=document.querySelector('#ad4-v3-printer-page #ad4-auto-timelapse');
+                    if(!el)return null;
+                    const css=getComputedStyle(el);
+                    return {width:css.width,height:css.height,radius:css.borderRadius,appearance:css.appearance};
+                }""")
+                if not toggle_style or toggle_style["width"]!="43px" or toggle_style["appearance"]!="none":
+                    failures.append(f"{width}: Printer toggles do not match Cura style: {toggle_style}")
+                accordion_style=page.evaluate("""() => {
+                    const el=document.querySelector('#ad4-v3-printer-page #ad4-manager details > summary');
+                    if(!el)return null;
+                    const css=getComputedStyle(el);
+                    return {cursor:css.cursor,display:css.display};
+                }""")
+                if not accordion_style or accordion_style["cursor"]!="pointer":
+                    failures.append(f"{width}: Printer accordions are not interactive: {accordion_style}")
+                # After visiting the bottom, reentering the active Printer tab must
+                # restore the overview; a new entry from another tab must too.
+                printer_scroller=page.locator("#ad4-v3-printer-page")
+                printer_scroller.evaluate("(el)=>el.scrollTop=el.scrollHeight")
+                if printer_scroller.evaluate("(el)=>el.scrollTop")<20:
+                    failures.append(f"{width}: Printer menu did not scroll before reentry test")
+                page.locator('#ad4-v3-top [data-route="printer"]').click()
+                page.wait_for_function("document.querySelector('#ad4-v3-printer-page').scrollTop === 0")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
                 page.locator("#ad4-v3-printer-page").evaluate("(e)=>e.scrollTop= Math.round(e.scrollHeight/2)")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-controls-{width}.png",full_page=False)
