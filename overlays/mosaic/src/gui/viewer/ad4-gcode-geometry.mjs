@@ -14,6 +14,7 @@ import {ROLE} from "./ad4-three-slicer/core/toolpath_encoding.mjs";
 import {packColor,hexToRgb} from "./ad4-three-slicer/core/toolpath_palette.mjs";
 import {buildSegmentData} from "./ad4-three-slicer/core/toolpath_segments.mjs";
 import {makeToolpath} from "./ad4-three-slicer/scene/toolpath_mesh.mjs";
+import {moveCursor,topMoveLayer} from "./ad4-three-slicer/core/toolpath_segments.mjs";
 import {computeColors} from "./ad4-three-slicer/core/toolpath_views.mjs";
 
 export const EXTRUSION_WIDTH_MM=0.42;
@@ -129,6 +130,30 @@ export async function buildGcodeLayers(parsedData){
   refreshColors();
   const root=new THREE.Group();
   root.add(handle.mesh,handle.travLines);
+  // Nozzle points at the actual toolpath Z (the green cone stays above it).
+  const nozzle=new THREE.Mesh(
+    new THREE.ConeGeometry(1.2,3.6,12),
+    new THREE.MeshBasicMaterial({color:0x20e37c,depthTest:false,depthWrite:false})
+  );
+  nozzle.rotation.x=-Math.PI/2;
+  nozzle.renderOrder=999;nozzle.frustumCulled=false;nozzle.visible=false;
+  root.add(nozzle);
+  function moveNozzle(cursor){
+    const p=cursor?.point;
+    nozzle.visible=Array.isArray(p)&&p.every(Number.isFinite);
+    if(nozzle.visible)nozzle.position.set(p[0],p[1],p[2]+1.8);
+  }
+  function showMove(at){
+    if(at==null){handle.setMoveRange(null);nozzle.visible=false;return null}
+    const layer=topMoveLayer(data,0,data.layerCount-1);
+    const total=data.movePrefix[layer+1]-data.movePrefix[layer];
+    // Do not disable ThreeSlicer LOD for the last (complete) move.
+    const cursor=at>=total?
+      (handle.setMoveRange(null),moveCursor(data,layer,total)):
+      handle.setMoveRange(at);
+    moveNozzle(cursor);
+    return cursor;
+  }
   const layerHeights=stack.map(x=>x.height);
   const returned={
     mesh:root,layers:Array.from({length:parsedData.length},()=>({visible:true})),
@@ -139,6 +164,7 @@ export async function buildGcodeLayers(parsedData){
       viewMode=mode;refreshColors();
     },
     handle,hiddenTypes:hidden,categories:[...categories].sort(),
+    nozzle,showMove,
     layerHeights,segmentCount:countSource,
     displayed:data.nSeg+countTravel,solidSegments:data.nSeg,
     solidPreview:true,gpuInstanced:true,threeSlicerViewer:true,
@@ -154,7 +180,7 @@ export async function buildGcodeLayers(parsedData){
       else refreshColors();
     },
     updateLod(camera,viewportPixels){handle.updateLod(camera,viewportPixels);},
-    dispose(){handle.dispose();}
+    dispose(){handle.dispose();nozzle.geometry.dispose();nozzle.material.dispose();}
   };
   root.userData.ad4Toolpath=returned;
   return returned;
