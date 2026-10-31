@@ -43,7 +43,7 @@ with sync_playwright() as p:
       layers: AD4GCodePreview.count,
       ...AD4GcodePreviewStats,
       solidMesh: AD4GCodePreview.solidMeshStats,
-      bevelMesh: AD4GCodePreview.bevelMeshStats,
+      threeSlicer: AD4GCodePreview.threeSlicerStats,
       canvasWidth: document.getElementById('stl-viewer').getBoundingClientRect().width
     })""")
     assert stats["displayedSegments"] > 500, stats
@@ -53,34 +53,20 @@ with sync_playwright() as p:
     assert stats["solidSegments"] > 500, stats
     assert stats["solidMesh"]["solid"] > 100, stats
     assert stats["solidMesh"]["indexed"] == stats["solidMesh"]["solid"], stats
-    # Chamfered cross sections have a BYTE attribute for brightness: one
-    # mesh/draw call per feature/layer, no extra light or shadow pass.
-    assert stats["bevelPreview"] is True, stats
-    assert 0.895 < stats["bevelShade"] < 0.905, stats
-    assert stats["bevelMesh"]["broken"] == 0, stats
-    assert stats["bevelMesh"]["bevelMeshes"] == stats["solidMesh"]["solid"], stats
+    # Faithful ThreeSlicer viewer: ONE GPU mesh, 8 vertices and 24 indices
+    # in the original template, all print segments instanced.
+    ts = stats["threeSlicer"]
+    assert stats["threeSlicerViewer"] is True, stats
     assert stats["gpuInstanced"] is True, stats
-    assert stats["bevelMesh"]["instances"] == stats["solidSegments"], stats
-    assert stats["bevelMesh"]["instanceBytes"] == stats["instanceBytes"], stats
-    assert stats["bevelMesh"]["vertices"] <= 32 * stats["bevelMesh"]["bevelMeshes"], stats
-    assert stats["instanceBytes"] <= stats["solidSegments"] * 32, stats
-    assert stats["instanceBytes"] < 4_500_000, (
-        "3DBenchy should fit in compact per-segment GPU attributes: " + str(stats)
-    )
-    assert stats["bevelMesh"]["shadeBytes"] == stats["bevelMesh"]["vertices"], stats
-    assert stats["bevelMesh"]["shadeBytes"] < 8000000, (
-        "Excessive vertex-shading GPU memory consumption: " + str(stats)
-    )
-    bead = page.evaluate("""() => {
-      const meshes=AD4GCodePreview.count && AD4GCodePreview;
-      // Inspect the actual GPU-ready geometry, not a detached test mock.
-      const rendered=Object.values(globalThis.app.gui || {});
-      const api=globalThis.AD4GCodePreview;
-      const geometry=api.bevelMeshStats;
-      const colors=api.renderedColors;
-      return {bevelMeshes:geometry.bevelMeshes,colors:Object.keys(colors).length};
-    }""")
-    assert bead["bevelMeshes"] > 100, bead
+    assert ts["shader"] is True, ts
+    assert ts["segments"] == stats["solidSegments"], ts
+    assert ts["vertices"] == 8, ts
+    assert ts["indices"] == 24, ts
+    assert ts["drawMeshes"] == 1, ts
+    assert ts["lod"] in (1, 2, 4), ts
+    assert ts["hasNaN"] is False, ts
+    assert 0 < stats["instanceBytes"] < 6_000_000, stats
+    assert ts["instanceBytes"] == stats["instanceBytes"], stats
     assert 0.04 < stats["solidMesh"]["minThickness"] < 0.81, stats
     assert 0.04 < stats["solidMesh"]["maxThickness"] < 0.81, stats
     page.screenshot(path="/tmp/ad4-solid-3dbenchy-mobile.png", full_page=False)
@@ -97,6 +83,15 @@ with sync_playwright() as p:
     assert not failures, failures
     # Layer scrubbing and Cura feature visibility still operate on the
     # actual parsed scene after a heavy source file.
+    assert page.evaluate("""() => {
+      const h=AD4GCodePreview.handle.handle;
+      const color=h.mesh.geometry.getAttribute('iColor');
+      const before=color.array[0];
+      AD4GCodePreview.setTypeVisible('PERIMETER',false);
+      const after=color.array[0];
+      AD4GCodePreview.setTypeVisible('PERIMETER',true);
+      return before>=0 && after===-1 && color.array[0]===before;
+    }"""), "GPU per-feature visibility must update the actual color attribute"
     assert page.evaluate("""() => {
       const count=AD4GCodePreview.count;
       const range=AD4GCodePreview.setRange(Math.max(1,count-20),count);
