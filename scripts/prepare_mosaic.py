@@ -28,7 +28,7 @@ def build():
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     # Keep performant viewer code as tracked overlays, never edit generated frontend.
-    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-bevel-profile.mjs", "ad4-stl-worker-client.mjs"):
+    for name in ("renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-bevel-profile.mjs", "ad4-gpu-seams.mjs", "ad4-stl-worker-client.mjs"):
         shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     shutil.copy2(OV/"public/ad4-stl-worker.js", DEST/"public/ad4-stl-worker.js")
@@ -181,6 +181,8 @@ main().catch(error => {
     solidPreview: built.solidPreview,
     bevelPreview: built.bevelPreview,
     bevelShade: built.bevelShade,
+    gpuInstanced: built.gpuInstanced,
+    instanceBytes: built.instanceBytes,
     minLayerHeight: Math.min(...built.layerHeights),
     maxLayerHeight: Math.max(...built.layerHeights),
     simplified: built.simplified
@@ -210,19 +212,31 @@ globalThis.AD4GCodePreview = {
   get types(){return globalThis.__AD4_GCODE_CATEGORIES__||[]},
   colorForType(type){return colorForToolpathType(type)},
   get bevelMeshStats(){
-    let bevelMeshes=0,shadeBytes=0,vertices=0,indexCount=0,broken=0;
+    let bevelMeshes=0,shadeBytes=0,vertices=0,indexCount=0,
+      instanceBytes=0,instances=0,broken=0;
     for(const group of layers)for(const part of group.children){
       if(part.userData.ad4Category==="TRAVEL")continue;
-      const attribute=part.geometry.getAttribute("ad4Shade");
-      if(!attribute||attribute.itemSize!==1||!attribute.normalized){
-        broken++;continue;
-      }
+      const geo=part.geometry,shade=geo.getAttribute("ad4Shade");
+      const start=geo.getAttribute("iStart");
+      const end=geo.getAttribute("iEnd");
+      const dimension=geo.getAttribute("iDimensions");
+      const layer=geo.getAttribute("iLayer");
+      if(!geo.isInstancedBufferGeometry || !shade?.normalized ||
+         !start || !end || !dimension || !layer ||
+         start.count!==geo.instanceCount ||
+         end.count!==geo.instanceCount ||
+         dimension.count!==geo.instanceCount ||
+         layer.count!==geo.instanceCount){broken++;continue}
       bevelMeshes++;
-      shadeBytes+=attribute.array.byteLength;
-      vertices+=part.geometry.getAttribute("position").count;
-      indexCount+=part.geometry.index.count;
+      shadeBytes+=shade.array.byteLength;
+      vertices+=geo.getAttribute("position").count;
+      indexCount+=geo.index.count;
+      instanceBytes+=start.array.byteLength+end.array.byteLength+
+        dimension.array.byteLength+layer.array.byteLength;
+      instances+=geo.instanceCount;
     }
-    return {bevelMeshes,shadeBytes,vertices,indexCount,broken};
+    return {bevelMeshes,shadeBytes,vertices,indexCount,
+      instanceBytes,instances,broken};
   },
   get solidMeshStats(){
     let indexed=0,solid=0,minThickness=Infinity,maxThickness=0;
