@@ -429,7 +429,7 @@ layer_slider.addEventListener("input",()=>{
     # ever enters the scene/registry.
     patch("src/gui/viewer/model_viewer.mjs",
           "  scene.add(mesh);\n\n  mesh.name =",
-          "  if (!ad4Plate.acceptNewModel(mesh)) {\n"
+          "  if (!ad4Plate.acceptNewModel(mesh, file_name)) {\n"
           "    mesh.geometry.dispose();\n    mesh.material.dispose();\n"
           "    return null;\n  }\n  scene.add(mesh);\n\n  mesh.name =")
     patch("src/gui/viewer/model_viewer.mjs",
