@@ -98,6 +98,14 @@ export async function buildGcodeLayers(parsedData){
   if(data.hasNaN)throw Error("Invalid non-finite print geometry");
   if(data.nSeg!==types.length)throw Error("G-code category/segment synchronization failed");
   const handle=makeToolpath(THREE,data);
+  // ThreeSlicer uses shader-expanded vertices (tpl, not "position"), so
+  // Three.js cannot infer the model bounds from the template. Supply them.
+  if(data.bbox){
+    handle.mesh.geometry.boundingBox=new THREE.Box3(
+      new THREE.Vector3(...data.bbox.min),
+      new THREE.Vector3(...data.bbox.max));
+  }
+
   // This is exactly the category array the shader instancing uses. A hidden
   // type is represented by -1, which the vertex shader safely clips.
   const packed=new Float32Array(data.nV*4);
