@@ -88,6 +88,62 @@ with sync_playwright() as p:
                 print("AUTOMATIC REAL 3DBENCHY G-CODE READY",flush=True)
                 assert count>=1
                 assert page.locator("#ad4-dock-demo").count()==1
+                if width == 390:
+                    # Exercise the real Three.js mesh, not DOM text or mocked
+                    # percentages. X may be frozen while Y/Z resize together.
+                    scale_tool=page.locator('#ad4-viewer-transform [data-viewer-mode="scale"]')
+                    scale_tool.click()
+                    assert page.locator('#ad4-v3-resize-lock').count()==0
+                    assert page.locator('#ad4-viewer-lock').count()==0
+                    assert page.locator('#ad4-viewer-values [data-lock-axis]').count()==3
+                    assert page.locator('#ad4-v3-transform [data-lock-axis]').count()==3
+                    assert [v.strip() for v in page.locator(
+                        '#ad4-viewer-values .ad4-viewer-value-unit').all_inner_texts()] == ["mm"]*3
+
+                    def dimensions():
+                        return page.evaluate("""() => {
+                          const v=app.gui.model_viewer;
+                          const mesh=v.models[v.focused].mesh;
+                          mesh.geometry.computeBoundingBox();
+                          const b=mesh.geometry.boundingBox;
+                          return Object.fromEntries(["x","y","z"].map(a=>
+                            [a,(b.max[a]-b.min[a])*Math.abs(mesh.scale[a])]));
+                        }""")
+
+                    before=dimensions()
+                    assert all(0 < before[a] < 250 for a in ("x","y","z")), before
+                    lock_x=page.locator('#ad4-viewer-values [data-lock-axis="x"]')
+                    lock_x.click()
+                    assert lock_x.get_attribute("aria-pressed")=="true"
+                    assert page.locator('#ad4-viewer-values [data-axis="x"] input').is_disabled()
+                    assert page.locator('#ad4-v3-transform [data-lock-axis="x"]').get_attribute(
+                        "aria-pressed")=="true"
+                    y_input=page.locator('#ad4-viewer-values [data-axis="y"] input')
+                    target_y=round(before["y"]*1.05,3)
+                    y_input.fill(str(target_y))
+                    y_input.press("Tab")
+                    page.wait_for_timeout(180)
+                    after=dimensions()
+                    assert page.evaluate("app.gui.model_viewer.ad4_plate_status().valid")
+                    assert abs(after["x"]-before["x"])<0.01, (before,after)
+                    assert abs(after["y"]-target_y)<0.03, (target_y,after)
+                    assert abs(after["z"]-before["z"]*(target_y/before["y"]))<0.03, (before,after)
+
+                    # Locking both X/Y leaves only Z editable, without moving
+                    # the other dimensions or changing them proportionally.
+                    page.locator('#ad4-viewer-values [data-lock-axis="y"]').click()
+                    z_input=page.locator('#ad4-viewer-values [data-axis="z"] input')
+                    target_z=round(after["z"]*1.05,3)
+                    z_input.fill(str(target_z))
+                    z_input.press("Tab")
+                    page.wait_for_timeout(180)
+                    final=dimensions()
+                    assert abs(final["x"]-after["x"])<0.01, (after,final)
+                    assert abs(final["y"]-after["y"])<0.01, (after,final)
+                    assert abs(final["z"]-target_z)<0.03, (target_z,final)
+                    print("MILLIMETRE SCALE / PER-AXIS LOCKS PASSED",flush=True)
+                    scale_tool.click()
+
                 # Public documentation shots must show the REAL loaded Three.js model,
                 # not a fabricated mockup. Only the Pages pipeline enables this output.
                 docs_dir=os.environ.get("AD4_DOC_SCREENSHOT_DIR")
