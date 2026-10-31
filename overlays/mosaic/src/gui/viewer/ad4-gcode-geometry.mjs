@@ -109,7 +109,9 @@ export async function buildGcodeLayers(parsedData){
   // This is exactly the category array the shader instancing uses. A hidden
   // type is represented by -1, which the vertex shader safely clips.
   const packed=new Float32Array(data.nV*4);
-  const hidden=new Set();
+  // ThreeSlicer hides non-extruding travel lines by default.
+  // Keep the AD4 layer-type switch truthful about that initial state.
+  const hidden=new Set(categories.has("TRAVEL")?["TRAVEL"]:[]);
   const packedByType=new Map();
   for(const type of categories)packedByType.set(type,rgbPacked(type));
   function refreshColors(){
