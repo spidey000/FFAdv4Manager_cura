@@ -510,76 +510,74 @@ with sync_playwright() as p:
                 page.locator('#ad4-v3-top [data-route="printer"]').click()
                 if page.evaluate("document.body.dataset.ad4Screen")!="printer":failures.append(f"{width}: Printer tab does not navigate")
                 if not page.locator("#ad4-v3-printer-page:visible").count():failures.append(f"{width}: Printer page empty")
-                dashboard=page.locator('#ad4-v3-printer-page [data-printer-card]')
-                expected={"status","temperatures","progress","job","camera","files","timelapse","controls","connection","diagnostics"}
-                actual=set(dashboard.evaluate_all("(nodes)=>nodes.map(el=>el.dataset.printerCard)"))
-                print("PRINTER OFFLINE CARDS",width,sorted(actual),flush=True)
-                if actual!=expected:failures.append(f"{width}: missing offline printer cards: {expected-actual}")
-                for card_id in expected:
-                    card=page.locator(f'#ad4-v3-printer-page [data-printer-card="{card_id}"]')
-                    if not card.is_visible():failures.append(f"{width}: offline card {card_id} hidden")
-                    if not card.locator(".ad4-printer-value").inner_text().strip():
-                        failures.append(f"{width}: offline card {card_id} has no placeholder")
-                    if not card.locator("button").is_disabled():
-                        failures.append(f"{width}: public preview exposed hardware action {card_id}")
-                if not page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollHeight>el.clientHeight"):
-                    failures.append(f"{width}: printer dashboard has no scroll to reach lower cards")
+                # New Printer workspace: four internal routes, native controller retained.
+                nav=page.locator('#ad4-v3-printer-page .ad4-printer-nav [data-printer-go]')
+                routes=set(nav.evaluate_all("(nodes)=>nodes.map(n=>n.dataset.printerGo)"))
+                if routes!={"overview","files","media","diagnostics"}:
+                    failures.append(f"{width}: Printer internal navigation missing: {routes}")
+                if page.locator("#ad4-v3-printer-page").get_attribute("data-printer-view")!="overview":
+                    failures.append(f"{width}: Printer did not start at overview")
                 native=page.locator("#ad4-v3-printer-page > #ad4-manager")
-                print("INLINE MANAGER DIAGNOSTIC",width,page.evaluate("""() => {
-                  const p=document.getElementById("ad4-v3-printer-page");
-                  const d=document.getElementById("ad4-manager");
-                  const c=d?.querySelector(".ad4-section");
-                  return {parent:d?.parentElement?.id,open:d?.open,
-                    display:getComputedStyle(d).display,rect:d?.getBoundingClientRect().toJSON(),
-                    screen:document.body.dataset.ad4Screen,pageScroll:p.scrollHeight,
-                    section:c&&{display:getComputedStyle(c).display,rect:c.getBoundingClientRect().toJSON()}};
-                }"""),flush=True)
                 if native.count()!=1 or native.get_attribute("open") is None:
-                    failures.append(f"{width}: actual printer manager is not mounted inline and open")
-                features=set(page.locator("#ad4-v3-printer-page #ad4-manager [data-printer-feature]").evaluate_all(
+                    failures.append(f"{width}: actual printer manager not mounted inline")
+                features=set(page.locator("#ad4-manager [data-printer-feature]").evaluate_all(
                     "(nodes)=>nodes.map(x=>x.dataset.printerFeature)"))
                 expected_features={"live","controls","files","camera","timelapse","connection","tools"}
-                if features != expected_features:
-                    failures.append(f"{width}: printer feature cards missing: {expected_features-features}")
-                if page.locator("#ad4-v3-open-controls, #ad4-v3-manager-tabs").count():
-                    failures.append(f"{width}: legacy printer manager navigation remains")
-                for control in ("ad4-pause","ad4-snapshot","ad4-timelapse-start","ad4-profile-add","ad4-upload-job"):
-                    if not page.locator("#"+control).is_visible():
-                        failures.append(f"{width}: printer feature {control} hidden in public preview")
-                    if not page.locator("#"+control).is_disabled():
-                        failures.append(f"{width}: printer feature {control} not disabled in public preview")
-                if page.locator("#ad4-v3-printer-page").evaluate("(e)=>e.scrollWidth>e.clientWidth+1"):
-                    failures.append(f"{width}: inline printer dashboard has horizontal overflow")
-                # Printer uses Cura-style switches and expandable headings.
-                switches=page.locator("#ad4-v3-printer-page #ad4-manager input[type=checkbox]")
-                if switches.count()<3 or any(switches.nth(i).get_attribute("role")!="switch" for i in range(switches.count())):
-                    failures.append(f"{width}: Printer checkboxes are not accessible toggles")
-                toggle_style=page.evaluate("""() => {
-                    const el=document.querySelector('#ad4-v3-printer-page #ad4-auto-timelapse');
-                    if(!el)return null;
-                    const css=getComputedStyle(el);
-                    return {width:css.width,height:css.height,radius:css.borderRadius,appearance:css.appearance};
-                }""")
-                if not toggle_style or toggle_style["width"]!="43px" or toggle_style["appearance"]!="none":
-                    failures.append(f"{width}: Printer toggles do not match Cura style: {toggle_style}")
-                accordion_style=page.evaluate("""() => {
-                    const el=document.querySelector('#ad4-v3-printer-page #ad4-manager details > summary');
-                    if(!el)return null;
-                    const css=getComputedStyle(el);
-                    return {cursor:css.cursor,display:css.display};
-                }""")
-                if not accordion_style or accordion_style["cursor"]!="pointer":
-                    failures.append(f"{width}: Printer accordions are not interactive: {accordion_style}")
-                # After visiting the bottom, reentering the active Printer tab must
-                # restore the overview; a new entry from another tab must too.
-                printer_scroller=page.locator("#ad4-v3-printer-page")
-                printer_scroller.evaluate("(el)=>el.scrollTop=el.scrollHeight")
-                if printer_scroller.evaluate("(el)=>el.scrollTop")<20:
-                    failures.append(f"{width}: Printer menu did not scroll before reentry test")
-                page.locator('#ad4-v3-top [data-route="printer"]').click()
-                page.wait_for_function("document.querySelector('#ad4-v3-printer-page').scrollTop === 0")
+                if not expected_features.issubset(features):
+                    failures.append(f"{width}: missing printer functions {expected_features-features}")
+                for id in ("ad4-printer-machine","ad4-printer-nozzle","ad4-printer-bed",
+                           "ad4-printer-job-name","ad4-printer-layer","ad4-printer-file-count"):
+                    if not page.locator("#"+id).is_visible():
+                        failures.append(f"{width}: overview item {id} missing")
+                if page.locator('#ad4-printer-progress-track').get_attribute("aria-valuenow") is not None:
+                    failures.append(f"{width}: invented print progress in public preview")
+                if page.locator("#ad4-live-camera-toggle").is_checked():
+                    failures.append(f"{width}: live job camera pre-enabled without request")
+                if page.locator("#ad4-live-camera").get_attribute("src"):
+                    failures.append(f"{width}: public preview started camera")
+                if not page.locator("#ad4-pause").is_disabled():
+                    failures.append(f"{width}: public preview enables printer pause")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-{width}.png",full_page=False)
-                page.locator("#ad4-v3-printer-page").evaluate("(e)=>e.scrollTop= Math.round(e.scrollHeight/2)")
+                nav.filter(has=page.locator('span:text-is("Files")')).first.click()
+                if page.locator("#ad4-v3-printer-page").get_attribute("data-printer-view")!="files":
+                    failures.append(f"{width}: files panel route failed")
+                if not page.locator("#ad4-file-search:visible").count():
+                    failures.append(f"{width}: file search not visible")
+                page.locator("#ad4-file-search").fill("benchy")
+                if page.locator("#ad4-file-search").input_value()!="benchy":
+                    failures.append(f"{width}: file filter input not editable")
+                if not page.locator("#ad4-file-sort").is_visible() or not page.locator("#ad4-page-size").is_visible():
+                    failures.append(f"{width}: file sorting or pagination missing")
+                if not page.locator("#ad4-upload-job").is_visible() or not page.locator("#ad4-upload-job").is_disabled():
+                    failures.append(f"{width}: upload action missing or enabled in demo")
+                page.screenshot(path=f"/tmp/ad4-pages-printer-files-{width}.png",full_page=False)
+                page.locator('#ad4-v3-printer-page .ad4-printer-nav [data-printer-go="media"]').click()
+                if not page.locator("#ad4-printer-camera-switch:visible").count():
+                    failures.append(f"{width}: on-demand camera switch missing")
+                if page.locator("#ad4-printer-camera-switch").is_checked() or not page.locator("#ad4-printer-camera-switch").is_disabled():
+                    failures.append(f"{width}: public demo camera switch must be disabled and off")
+                if not page.locator("#ad4-gallery").is_visible() or not page.locator("#ad4-timelapse-start").is_disabled():
+                    failures.append(f"{width}: timelapse gallery/actions missing or unsafe")
+                page.screenshot(path=f"/tmp/ad4-pages-printer-media-{width}.png",full_page=False)
+                page.locator('#ad4-v3-printer-page .ad4-printer-nav [data-printer-go="diagnostics"]').click()
+                connection=page.locator('#ad4-manager [data-printer-feature="connection"]')
+                if connection.get_attribute("open") is not None:
+                    failures.append(f"{width}: diagnostics accordion unexpectedly expanded")
+                connection.locator(":scope > summary").click()
+                if not page.locator("#ad4-profile-add").is_visible():
+                    failures.append(f"{width}: connection profile management inaccessible")
+                for id in ("ad4-diagnostic-doctor","ad4-diagnostic-info","ad4-diagnostic-position"):
+                    if not page.locator("#"+id).is_visible():
+                        failures.append(f"{width}: missing diagnostics action {id}")
+                page.screenshot(path=f"/tmp/ad4-pages-printer-diagnostics-{width}.png",full_page=False)
+                if page.locator("#ad4-v3-printer-page").evaluate("(e)=>e.scrollWidth>e.clientWidth+1"):
+                    failures.append(f"{width}: Printer horizontal overflow")
+                # Re-enter Printer from the primary nav: return to overview and top.
+                page.locator('#ad4-v3-top [data-route="printer"]').click()
+                page.wait_for_function("""() => {
+                    const p=document.getElementById("ad4-v3-printer-page");
+                    return p.dataset.printerView==="overview" && p.scrollTop===0;
+                }""")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-controls-{width}.png",full_page=False)
                 page.locator("#ad4-v3-printer-page").evaluate("(el)=>el.scrollTop=el.scrollHeight")
                 page.screenshot(path=f"/tmp/ad4-pages-printer-bottom-{width}.png",full_page=False)
