@@ -241,7 +241,7 @@ with sync_playwright() as p:
                     assert unsafe["uuid"] and unsafe["focused"]==unsafe["uuid"],unsafe
                     assert unsafe["code"] in ("BED_X_MIN","BED_X_MAX"),unsafe
                     assert "oversized-editable.stl" in unsafe["warning"],unsafe
-                    assert page.evaluate("document.getElementById('ad4-v3-run-slice').disabled")
+                    assert page.evaluate("app.gui.model_viewer.ad4_plate_valid()===false")
                     # Clone is also non-destructive: if both models cannot
                     # fit, the clone still exists and is selectable for repair.
                     clone_ok=page.evaluate("""()=>{
