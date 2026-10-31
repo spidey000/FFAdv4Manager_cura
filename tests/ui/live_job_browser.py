@@ -59,6 +59,11 @@ def run():
                 page.wait_for_function('globalThis.AD4LiveRenderer && globalThis.app?.gui?.slicer', timeout=30000)
                 original = page.evaluate('globalThis.app.gui.slicer.exported_gcode')
                 page.locator('#ad4-v3-top [data-route="printer"]').click()
+                assert page.locator("#ad4-printer-shell").get_attribute("open") is None
+                page.wait_for_function('document.querySelector("#ad4-printer-progress-text").textContent === "42%"',timeout=15000)
+                assert page.locator("#ad4-printer-job-name").inner_text()=="/data/part.gx"
+                assert page.locator("#ad4-printer-progress-track").get_attribute("aria-valuenow")=="42"
+                assert page.locator("#ad4-live-camera-toggle").locator("xpath=ancestor::*[contains(@class,'ad4-live-visual-head')]").count()==1
                 page.wait_for_function('!document.querySelector("#ad4-live-consult").disabled', timeout=15000)
                 page.locator('#ad4-live-consult').click()
                 page.wait_for_function('document.querySelector("#ad4-live-canvas canvas") !== null', timeout=15000)
