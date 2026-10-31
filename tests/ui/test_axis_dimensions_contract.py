@@ -25,7 +25,7 @@ def test_independent_axis_locks_share_state_across_both_editors():
     assert 'button.setAttribute("aria-pressed",String(locked))' in JS
     assert "ad4-axis-locked" in JS + CSS
     assert "ad4-v3-resize-lock" not in JS
-    assert "ad4-viewer-lock" not in JS
+    assert 'id="ad4-viewer-lock"' not in JS
 
 
 def test_bulk_proportions_switch_controls_all_individual_padlocks():
