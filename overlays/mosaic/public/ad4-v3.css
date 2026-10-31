@@ -1197,3 +1197,46 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
  #viewer #ad4-viewer-error-heading{font-size:11px}
  #viewer #ad4-viewer-error-message{font-size:10px}
 }
+
+/* Scale dimensions use real millimetres. Independent axis locks replace the
+   obsolete global aspect-ratio toggle in both transform editors. */
+#ad4-v3-transform .ad4-v3-axis-top .ad4-axis-lock,
+#ad4-viewer-transform .ad4-viewer-value-row .ad4-axis-lock{
+  display:inline-grid;place-items:center;flex:none;width:28px;height:28px;
+  min-width:28px;min-height:28px;padding:3px;border:1px solid #425b50;
+  border-radius:7px;background:#1a2e26;color:#b9cdc3;cursor:pointer;
+  touch-action:manipulation
+}
+#ad4-v3-transform .ad4-v3-axis-top .ad4-axis-lock .ad4-icon-svg,
+#ad4-viewer-transform .ad4-viewer-value-row .ad4-axis-lock .ad4-icon-svg{
+  width:16px;height:16px;stroke-width:2
+}
+#ad4-v3-transform .ad4-axis-lock[aria-pressed=true],
+#ad4-viewer-transform .ad4-axis-lock[aria-pressed=true]{
+  color:#3af296;background:#214934;border-color:#62ad81
+}
+#ad4-v3-transform .ad4-axis-lock:focus-visible,
+#ad4-viewer-transform .ad4-axis-lock:focus-visible{
+  outline:2px solid var(--v3-green);outline-offset:2px
+}
+.ad4-axis-lock[hidden]{display:none!important}
+.ad4-axis-lock:disabled{opacity:.45;cursor:not-allowed}
+#ad4-v3-transform .ad4-axis-locked .ad4-v3-axis-ruler{
+  pointer-events:none;opacity:.36;cursor:default
+}
+#ad4-v3-transform .ad4-axis-locked .ad4-v3-axis-value,
+#ad4-viewer-transform .ad4-viewer-value-row input:disabled{
+  opacity:.53;cursor:not-allowed
+}
+#ad4-v3-transform .ad4-v3-axis-top .ad4-v3-axis-unit{min-width:21px}
+#ad4-viewer-transform .ad4-viewer-editor-box{width:191px}
+#ad4-viewer-transform .ad4-viewer-value-row{
+  grid-template-columns:16px minmax(0,1fr) 28px 21px;gap:4px
+}
+#ad4-viewer-transform .ad4-viewer-value-row .ad4-axis-lock{
+  width:27px;min-width:27px;height:30px;min-height:30px
+}
+
+#ad4-viewer-transform .ad4-viewer-values:not([data-mode=scale]) .ad4-viewer-value-row{
+  grid-template-columns:16px minmax(0,1fr) 21px
+}
