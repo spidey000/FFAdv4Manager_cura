@@ -27,6 +27,7 @@ with sync_playwright() as p:
         page.on("console",lambda e: errors.append("CONSOLE: "+e.text) if e.type=="error" else None)
         page.on("requestfailed",lambda req: errors.append("REQUEST FAILED: "+req.url+" "+str(req.failure)))
         page.on("response",lambda r: errors.append(f"HTTP {r.status}: {r.url}") if r.status>=400 and "/api/" not in r.url else None)
+        page.on("response",lambda r: print("BROWSER HTTP",width,r.status,r.url,flush=True) if r.status>=400 else None)
         page.goto(url,wait_until="domcontentloaded",timeout=30000)
         try:
             page.wait_for_function("""() => {
@@ -396,7 +397,7 @@ with sync_playwright() as p:
                     failures.append(f"{width}: actual printer manager is not mounted inline and open")
                 features=set(page.locator("#ad4-v3-printer-page #ad4-manager [data-printer-feature]").evaluate_all(
                     "(nodes)=>nodes.map(x=>x.dataset.printerFeature)"))
-                expected_features={"controls","files","camera","timelapse","connection","tools"}
+                expected_features={"live","controls","files","camera","timelapse","connection","tools"}
                 if features != expected_features:
                     failures.append(f"{width}: printer feature cards missing: {expected_features-features}")
                 if page.locator("#ad4-v3-open-controls, #ad4-v3-manager-tabs").count():
@@ -472,8 +473,8 @@ with sync_playwright() as p:
         if width==1280 and not startup_error:
             page.locator('#ad4-v3-top [data-route="printer"]').click()
             cards=page.locator('#ad4-v3-printer-page #ad4-manager [data-printer-feature]')
-            if cards.count() != 6:
-                failures.append("Desktop inline Printer lacks all six feature cards")
+            if cards.count() != 7:
+                failures.append("Desktop inline Printer lacks all seven feature cards")
             layout=page.locator("#ad4-manager").evaluate("""(el)=>({
               columns:getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length,
               overflow:el.scrollWidth>el.clientWidth+1,
