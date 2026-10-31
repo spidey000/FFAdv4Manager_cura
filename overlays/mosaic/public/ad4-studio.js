@@ -226,6 +226,12 @@
       engineAvailable = false;
       engineNotice = "Cannot reach server CuraEngine";
     }
+    if(Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length){
+      document.dispatchEvent(new CustomEvent(
+        engineAvailable?"ad4:viewer-recovered":"ad4:viewer-error",{
+        detail:{code:"ENGINE_UNAVAILABLE",message:engineNotice}
+      }));
+    }
     refreshDock();
   }
   function refreshDock() {
