@@ -92,3 +92,23 @@ def test_version_stamp_is_attached_to_viewer_and_built_with_git_revision():
     assert "pointer-events:none" in css
     assert "env(safe-area-inset-right)" in css
     assert 'frontend_source.replace("__AD4_FRONTEND_REV__", revision)' in prepare
+
+
+def test_printer_manager_is_inline_in_main_printer_tab():
+    shell = (OVERLAY / "ad4-v3.js").read_text()
+    dashboard = (OVERLAY / "ad4-printer-dashboard.js").read_text()
+    manager = (OVERLAY / "ad4-manager.js").read_text()
+    styles = (OVERLAY / "ad4-v3.css").read_text()
+    assert 'id="ad4-v3-open-printer"' not in shell
+    assert 'ad4-v3-open-controls' not in shell
+    assert 'ad4-v3-manager-tabs' not in shell
+    assert 'manager)page.append(manager)' in dashboard
+    assert 'dialog.show()' in manager
+    assert 'dialog.showModal()' not in manager
+    assert 'embeddedManager.close()' in shell
+    for feature in ("controls", "files", "camera", "timelapse", "connection", "tools"):
+        assert '"' + feature + '"' in shell
+    assert 'repeat(3,minmax(0,1fr))' in styles
+    assert 'repeat(2,minmax(0,1fr))' in styles
+    assert '#ad4-v3-printer-page #ad4-manager[open]' in styles
+    assert 'globalThis.__AD4_STATIC_PREVIEW__===true' in manager
