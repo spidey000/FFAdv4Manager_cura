@@ -169,6 +169,9 @@ function closeVideo(){
 el("ad4-open-manager").addEventListener("click",()=>{
  if(!dialog.open)dialog.show();setHardwareAvailability(false);
  if(globalThis.__AD4_STATIC_PREVIEW__===true){
+  // Pages has no server. Keep every control visible but prevent mutations
+  // and network attempts from the sample interface.
+  for(const control of dialog.querySelectorAll("button,input,select"))control.disabled=true;
   say("Public preview · Open the authenticated server to use printer controls");
   return;
  }
