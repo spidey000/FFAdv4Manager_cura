@@ -32,6 +32,14 @@ with sync_playwright() as p:
         timeout=45000,
     )
     assert page.evaluate("typeof app.gui.renderer.invalidate") == "function"
+    # Static Pages opens 3DBenchy asynchronously. It must finish loading
+    # before taking the model count baseline, otherwise the fixture races
+    # and incorrectly attributes the demo to the imported stress STL.
+    page.wait_for_function(
+        """() => Object.values(app.gui.model_viewer.models)
+        .some(model => model.name === "3DBenchy.stl")""",
+        timeout=45000,
+    )
     source = large_stl()
     before = page.evaluate("Object.keys(app.gui.model_viewer.models).length")
     page.locator("#stl-file").set_input_files({
