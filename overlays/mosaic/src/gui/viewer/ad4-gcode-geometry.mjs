@@ -1,196 +1,150 @@
-/* GPU-instanced G-code preview, inspired by ThreeSlicer's MIT viewer.
- * Store per-segment typed attributes, not 32 expanded world-space vertices.
- * The old geometry expansion is replaced by one reusable 32-vertex bead.
- * This keeps all feature/category and layer selection API contracts intact.
+/* ThreeSlicer MIT viewer adapter: real GPU-mitered plastic beads.
+ *
+ * The actual instancing geometry, miter joins, Lambert face lighting, GL3
+ * shaders, travel lines and two real far-distance LODs come directly from
+ * ThreeSlicer's standalone MIT viewer (see ad4-three-slicer/LICENSE).
+ * This adapter only translates Mosaic's parsed Cura/Prusa G-code into the
+ * viewer's documented {z, paths, widths} interface and exposes AD4 controls.
+ * No dependency on ThreeSlicer's AGPL slicing kernel. Never changes G-code.
  */
 import * as THREE from "three";
-import {colorForToolpathType} from "./ad4-toolpath-colors.mjs";
 import {getLayerStack} from "./ad4-layer-stack.mjs";
-import {appendChamferedBead,BEVEL_SHADE} from "./ad4-bevel-profile.mjs";
-import {enableInstancedBeadShader} from "./ad4-gpu-seams.mjs";
+import {colorForToolpathType} from "./ad4-toolpath-colors.mjs";
+import {ROLE} from "./ad4-three-slicer/core/toolpath_encoding.mjs";
+import {packColor,hexToRgb} from "./ad4-three-slicer/core/toolpath_palette.mjs";
+import {buildSegmentData} from "./ad4-three-slicer/core/toolpath_segments.mjs";
+import {makeToolpath} from "./ad4-three-slicer/scene/toolpath_mesh.mjs";
 
+export const EXTRUSION_WIDTH_MM=0.42;
 export const PREVIEW_SEGMENT_BUDGET=320000;
 export const MOBILE_SEGMENT_BUDGET=220000;
-export const EXTRUSION_WIDTH_MM=0.42;
-export const INSTANCE_BYTES=32; // 8 float32 values per print segment
-export const TEMPLATE_VERTEX_COUNT=32;
-export const TEMPLATE_TRIANGLE_COUNT=28;
 
-const template=(()=>{
-  const data={vertices:[],indices:[],shades:[]};
-  if(!appendChamferedBead(data,{x:0,y:0},{x:1,y:0},1,0,1))
-    throw Error("Cannot initialize normalized filament template");
-  return {
-    position:new THREE.Float32BufferAttribute(data.vertices,3),
-    shade:new THREE.Uint8BufferAttribute(data.shades,1,true),
-    index:new THREE.BufferAttribute(new Uint16Array(data.indices),1)
-  };
-})();
+// Keep distinct category IDs for every label in the AD4 panel, even though
+// ThreeSlicer's shader uses a smaller set of semantic types for statistics.
+const roleMap=Object.freeze({
+  "PERIMETER":ROLE.WALL,"EXTERNAL PERIMETER":ROLE.WALL,
+  "WALL-OUTER":ROLE.WALL,"WALL-INNER":ROLE.WALL,
+  "OVERHANG PERIMETER":ROLE.BRIDGE,
+  "INTERNAL INFILL":ROLE.SPARSE,"FILL":ROLE.SPARSE,
+  "SOLID INFILL":ROLE.SOLID,"TOP SOLID INFILL":ROLE.SOLID,"SKIN":ROLE.SOLID,
+  "BRIDGE INFILL":ROLE.BRIDGE,"INTERNAL BRIDGE INFILL":ROLE.BRIDGE,
+  "SUPPORT":ROLE.SUPPORT,"SUPPORT MATERIAL":ROLE.SUPPORT,
+  "SUPPORT-INTERFACE":ROLE.SUPPORT,"SUPPORT MATERIAL INTERFACE":ROLE.SUPPORT,
+  "SKIRT":ROLE.SKIRT,"BRIM":ROLE.SKIRT,"SKIRT/BRIM":ROLE.SKIRT,
+  "RAFT":ROLE.RAFT,"GAP FILL":ROLE.GAP,
+  "IRONING":ROLE.IRONING,"WIPE TOWER":ROLE.PRIME
+});
+function roleFor(type){return roleMap[type]??ROLE.WALL;}
+function hexColor(type){return colorForToolpathType(type);}
+function rgbPacked(type){return packColor(hexToRgb(hexColor(type)));}
 
-function createPrintMaterial(type){
-  const material=new THREE.MeshBasicMaterial({
-    color:colorForToolpathType(type),
-    side:THREE.DoubleSide,transparent:false,depthWrite:true
-  });
-  enableInstancedBeadShader(material);
-  return material;
-}
-
-function createInstancedGeometry(data,layerIndex){
-  const count=data.starts.length/2;
-  const geometry=new THREE.InstancedBufferGeometry();
-  geometry.setAttribute("position",template.position);
-  geometry.setAttribute("ad4Shade",template.shade);
-  geometry.setIndex(template.index);
-  geometry.setAttribute("iStart",
-    new THREE.InstancedBufferAttribute(new Float32Array(data.starts),2));
-  geometry.setAttribute("iEnd",
-    new THREE.InstancedBufferAttribute(new Float32Array(data.ends),2));
-  geometry.setAttribute("iDimensions",
-    new THREE.InstancedBufferAttribute(new Float32Array(data.dimensions),3));
-  geometry.setAttribute("iLayer",
-    new THREE.InstancedBufferAttribute(new Float32Array(count).fill(layerIndex),1));
-  geometry.instanceCount=count;
-  // Template (0..1) bounds are NOT the real segment bounds. Computing real
-  // bounds avoids premature frustum culling of the boat as the camera moves.
-  const b=data.bounds;
-  geometry.boundingBox=new THREE.Box3(
-    new THREE.Vector3(b[0],b[1],b[2]),
-    new THREE.Vector3(b[3],b[4],b[5]));
-  geometry.boundingSphere=new THREE.Sphere();
-  geometry.boundingBox.getBoundingSphere(geometry.boundingSphere);
-  geometry.userData.ad4InstanceCount=count;
-  geometry.userData.ad4InstanceBytes=count*INSTANCE_BYTES;
-  return geometry;
-}
-
-function trackBounds(bounds,a,b,top,bottom,width){
-  const r=width/2;
-  bounds[0]=Math.min(bounds[0],a.x-r,b.x-r);
-  bounds[1]=Math.min(bounds[1],a.y-r,b.y-r);
-  bounds[2]=Math.min(bounds[2],bottom);
-  bounds[3]=Math.max(bounds[3],a.x+r,b.x+r);
-  bounds[4]=Math.max(bounds[4],a.y+r,b.y+r);
-  bounds[5]=Math.max(bounds[5],top);
-}
-
-function addTravel(out,a,b){
-  const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
-  if(!Number.isFinite(len)||len<0.0001||
-     !Number.isFinite(a.z)||!Number.isFinite(b.z))return false;
-  const ox=-dy/len*0.022,oy=dx/len*0.022;
-  const n=out.vertices.length/3;
-  out.vertices.push(a.x+ox,a.y+oy,a.z+0.012,
-    a.x-ox,a.y-oy,a.z+0.012,b.x+ox,b.y+oy,b.z+0.012,
-    b.x-ox,b.y-oy,b.z+0.012);
-  out.indices.push(n,n+1,n+2,n+1,n+3,n+2);
-  return true;
-}
-
-function previewBudget(){
-  const touch=typeof navigator!=="undefined" &&
-    (navigator.maxTouchPoints>0||navigator.hardwareConcurrency<=4);
-  return touch?MOBILE_SEGMENT_BUDGET:PREVIEW_SEGMENT_BUDGET;
+function physicalWidth(a,point,height,filamentDiameter){
+  const annotated=Number(point.width);
+  if(Number.isFinite(annotated) && annotated>0.05 && annotated<3)return annotated;
+  const travel=Math.hypot(point.vector.x-a.x,point.vector.y-a.y);
+  const length=Number(point.vector.w)-Number(a.w);
+  if(travel<1e-6||!Number.isFinite(length)||length<=0||height<=0)
+    return EXTRUSION_WIDTH_MM;
+  const area=length*Math.PI*(filamentDiameter/2)**2/travel;
+  // Rounded-rectangle deposition: A = h*(w - h)+pi*(h/2)^2.
+  const estimated=area/height + height*(1-Math.PI/4);
+  return Number.isFinite(estimated) && estimated>=0.18 && estimated<=1.6
+    ? estimated:EXTRUSION_WIDTH_MM;
 }
 
 export async function buildGcodeLayers(parsedData){
-  const group=new THREE.Group(),layers=[],materials=new Map(),categories=new Set();
   const stack=getLayerStack(parsedData);
-  const segmentCount=parsedData.reduce((sum,layer)=>sum+layer.length,0);
-  const stride=Math.max(1,Math.ceil(segmentCount/previewBudget()));
-  let index=0,displayed=0,processed=0,solidSegments=0,instanceBytes=0;
-
-  for(let layerIndex=0;layerIndex<parsedData.length;layerIndex++){
-    const layer=parsedData[layerIndex],{top,bottom}=stack[layerIndex];
-    let previous=null,printAnchor=null,anchorType=null;
-    const layerGroup=new THREE.Group(),byCategory=new Map();
-    let capturedLayerSegment=false;
+  const categories=new Set(),types=[],layerValues=[];
+  const layers=[];
+  let countSource=0,countPrinted=0,countTravel=0,lastZ=0;
+  // ThreeSlicer's buildSegmentData allocates typed arrays in exactly two
+  // passes. Only this light translation has a temporary G-code layer array.
+  for(let li=0;li<parsedData.length;li++){
+    const layer=parsedData[li],path=[];
+    const widths=[];
+    const level=stack[li];
+    const top=level.top??lastZ;
+    if(level.top!==null)lastZ=top;
+    let previous=null;
     for(const point of layer){
-      if(++processed%6000===0)await new Promise(resolve=>setTimeout(resolve,0));
-      const b=point.vector,a=previous?.vector;
-      const type=point.type==="travel"?"TRAVEL":
-        (point.subtype||"OTHER").trim().toUpperCase();
-      const continued=type!=="TRAVEL"&&previous?.type==="print"&&anchorType===type;
-      if(type==="TRAVEL"){printAnchor=null;anchorType=null;}
-      else if(!continued){printAnchor=a||null;anchorType=type;}
-      previous=point;
-      if(!a||!b)continue;
-      // Large files: connect only points within a continuous extrusion run,
-      // never over travel or a switch to another feature type.
-      if(++index%stride!==0&&capturedLayerSegment)continue;
-
-      let data=byCategory.get(type);
-      if(!data){
-        data=type==="TRAVEL"?{vertices:[],indices:[]}:
-          {starts:[],ends:[],dimensions:[],
-            bounds:[Infinity,Infinity,Infinity,-Infinity,-Infinity,-Infinity]};
-        byCategory.set(type,data);
-      }
-      let ok=false;
-      if(type==="TRAVEL")ok=addTravel(data,a,b);
-      else if(top!==null&&bottom!==null){
-        const start=printAnchor||a;
-        if(Number.isFinite(start.x)&&Number.isFinite(start.y)&&
-           Number.isFinite(b.x)&&Number.isFinite(b.y)&&
-           Math.hypot(b.x-start.x,b.y-start.y)>0.0001){
-          data.starts.push(start.x,start.y);
-          data.ends.push(b.x,b.y);
-          data.dimensions.push(bottom,top,EXTRUSION_WIDTH_MM);
-          trackBounds(data.bounds,start,b,top,bottom,EXTRUSION_WIDTH_MM);
-          ok=true;
+      countSource++;
+      const p=point.vector, a=previous?.vector;
+      if(!p || !Number.isFinite(p.x) || !Number.isFinite(p.y) ||
+         !Number.isFinite(p.z)){previous=point;continue;}
+      if(a && Number.isFinite(a.x) && Number.isFinite(a.y) &&
+         Number.isFinite(a.z) &&
+         Math.hypot(p.x-a.x,p.y-a.y)>0.0001){
+        const print=point.type==="print",type=print?
+          (point.subtype||"OTHER").trim().toUpperCase():"TRAVEL";
+        const role=print?roleFor(type):ROLE.TRAVEL;
+        // The nozzle Z (not bead centre) is the absolute top of its layer.
+        const z=print?top:p.z;
+        path.push(a.x,a.y,z,role,p.x,p.y,z,role);
+        const width=print?physicalWidth(a,point,level.height,1.75):0;
+        widths.push(width);
+        if(print){
+          countPrinted++;
+          categories.add(type);types.push(type);layerValues.push(li);
+        }else{
+          countTravel++;categories.add("TRAVEL");
         }
       }
-      if(ok){
-        categories.add(type);capturedLayerSegment=true;displayed++;
-        if(type!=="TRAVEL"){solidSegments++;printAnchor=b;}
-      }
+      previous=point;
+      if(countSource%6000===0) await new Promise(resolve=>setTimeout(resolve,0));
     }
-    for(const [type,data] of byCategory){
-      if(type==="TRAVEL"?!data.indices.length:!data.starts.length)continue;
-      let material=materials.get(type);
-      if(!material){
-        material=type==="TRAVEL"?
-          new THREE.MeshBasicMaterial({
-            color:colorForToolpathType(type),side:THREE.DoubleSide,
-            transparent:true,opacity:0.45,depthWrite:false
-          }):createPrintMaterial(type);
-        materials.set(type,material);
-      }
-      let geometry;
-      if(type==="TRAVEL"){
-        geometry=new THREE.BufferGeometry();
-        geometry.setAttribute("position",
-          new THREE.Float32BufferAttribute(data.vertices,3));
-        geometry.setIndex(data.indices);
-        geometry.computeBoundingSphere();
-      }else{
-        geometry=createInstancedGeometry(data,layerIndex);
-        instanceBytes+=geometry.userData.ad4InstanceBytes;
-      }
-      const part=new THREE.Mesh(geometry,material);
-      part.userData.ad4Category=type;
-      layerGroup.add(part);
-    }
-    group.add(layerGroup);
-    layers.push(layerGroup);
+    layers.push({z:top,paths:new Float32Array(path),widths:new Float32Array(widths)});
   }
-  return {
-    mesh:group,layers,categories:[...categories].sort(),
-    segmentCount,displayed,solidSegments,solidPreview:true,
-    bevelPreview:true,bevelShade:BEVEL_SHADE/255,
-    gpuInstanced:true,instanceBytes,
-    layerHeights:stack.map(layer=>layer.height),
-    simplified:stride>1||Boolean(globalThis.AD4GcodeParserInfo?.simplified)
+  const data=buildSegmentData(layers,EXTRUSION_WIDTH_MM);
+  if(data.hasNaN)throw Error("Invalid non-finite print geometry");
+  if(data.nSeg!==types.length)throw Error("G-code category/segment synchronization failed");
+  const handle=makeToolpath(THREE,data);
+  // This is exactly the category array the shader instancing uses. A hidden
+  // type is represented by -1, which the vertex shader safely clips.
+  const packed=new Float32Array(data.nV*4);
+  const hidden=new Set();
+  const packedByType=new Map();
+  for(const type of categories)packedByType.set(type,rgbPacked(type));
+  function refreshColors(){
+    for(let i=0;i<types.length;i++){
+      const color=hidden.has(types[i])?-1:packedByType.get(types[i]);
+      packed[i*8]=color;packed[i*8+4]=color;
+    }
+    handle.setColors(packed);
+  }
+  refreshColors();
+  const root=new THREE.Group();
+  root.add(handle.mesh,handle.travLines);
+  const layerHeights=stack.map(x=>x.height);
+  const returned={
+    mesh:root,layers:Array.from({length:parsedData.length},()=>({visible:true})),
+    handle,hiddenTypes:hidden,categories:[...categories].sort(),
+    layerHeights,segmentCount:countSource,
+    displayed:data.nSeg+countTravel,solidSegments:data.nSeg,
+    solidPreview:true,gpuInstanced:true,threeSlicerViewer:true,
+    // ThreeSlicer: two 3D endpoint buffers + height/width/packed color,
+    // layer and packed miter-join angle. LOD buffer bytes are tracked too.
+    instanceBytes:Object.values(handle.mesh.geometry.attributes)
+      .reduce((sum,attribute)=>sum+(attribute.isInstancedBufferAttribute?
+        attribute.array.byteLength:0),0),
+    setRange(from,to){handle.setLayerRange(from,to);},
+    setTypeVisible(type,visible){
+      if(visible)hidden.delete(type);else hidden.add(type);
+      if(type==="TRAVEL")handle.setTravelVisible(visible);
+      else refreshColors();
+    },
+    updateLod(camera,viewportPixels){handle.updateLod(camera,viewportPixels);},
+    dispose(){handle.dispose();}
   };
+  root.userData.ad4Toolpath=returned;
+  return returned;
 }
-
 export function disposeGcodeLayers(mesh){
   if(!mesh)return;
-  const materials=new Set();
+  const disposed=new Set();
   mesh.traverse(part=>{
-    part.geometry?.dispose();
-    if(part.material)for(const material of
-      Array.isArray(part.material)?part.material:[part.material])materials.add(material);
+    if(part.userData?.ad4Toolpath && !disposed.has(part.userData.ad4Toolpath)){
+      disposed.add(part.userData.ad4Toolpath);
+      part.userData.ad4Toolpath.dispose();
+    }
   });
-  for(const material of materials)material.dispose();
 }
