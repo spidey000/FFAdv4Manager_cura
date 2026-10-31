@@ -469,7 +469,8 @@ async function upload(start){
 }
 el("ad4-upload").addEventListener("click",()=>upload(false));
 el("ad4-send-print").addEventListener("click",()=>upload(true));
-globalThis.AD4Printer={upload,refresh,api,post,task,confirmPrint,say,closeVideo};
+globalThis.AD4Printer={upload,refresh,api,post,task,confirmPrint,say,closeVideo,
+ setFileSearch:()=>{page=0;renderFiles()}};
 async function loadProfiles(){
  const [profiles,session]=await Promise.all([api("/profiles"),api("/session")]);
  const select=el("ad4-connection-profiles");select.replaceChildren();
