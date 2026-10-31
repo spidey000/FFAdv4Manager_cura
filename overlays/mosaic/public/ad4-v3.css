@@ -1020,3 +1020,9 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
  body[data-ad4-screen=sliced] #ad4-v3-layer-card{padding-inline:9px!important}
  #ad4-v3-layer-card .ad4-v3-estimates .ad4-v3-stat strong{font-size:12px}
 }
+
+/* Regression: exact 390px screenshot showed 4px internal overflow in type view.
+ * Leave 10px slack instead of relying on browser font metrics and borders. */
+#ad4-v3-layer-card .ad4-v3-mode-selector{min-height:30px!important;padding-bottom:2px!important}
+#ad4-v3-type-list .ad4-v3-type-row{height:31px!important;min-height:31px!important}
+#ad4-v3-layer-card .ad4-v3-type-pages{height:24px!important}
