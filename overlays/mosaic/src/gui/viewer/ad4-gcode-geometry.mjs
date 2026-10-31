@@ -14,6 +14,7 @@ import {ROLE} from "./ad4-three-slicer/core/toolpath_encoding.mjs";
 import {packColor,hexToRgb} from "./ad4-three-slicer/core/toolpath_palette.mjs";
 import {buildSegmentData} from "./ad4-three-slicer/core/toolpath_segments.mjs";
 import {makeToolpath} from "./ad4-three-slicer/scene/toolpath_mesh.mjs";
+import {computeColors} from "./ad4-three-slicer/core/toolpath_views.mjs";
 
 export const EXTRUSION_WIDTH_MM=0.42;
 export const PREVIEW_SEGMENT_BUDGET=320000;
@@ -109,14 +110,18 @@ export async function buildGcodeLayers(parsedData){
   // This is exactly the category array the shader instancing uses. A hidden
   // type is represented by -1, which the vertex shader safely clips.
   const packed=new Float32Array(data.nV*4);
+  let viewMode="feature";
   // ThreeSlicer hides non-extruding travel lines by default.
   // Keep the AD4 layer-type switch truthful about that initial state.
   const hidden=new Set(categories.has("TRAVEL")?["TRAVEL"]:[]);
   const packedByType=new Map();
   for(const type of categories)packedByType.set(type,rgbPacked(type));
   function refreshColors(){
+    const derived=viewMode==="feature"?null:
+      computeColors(data,viewMode,{toolColors:["#fa7329"]}).color;
     for(let i=0;i<types.length;i++){
-      const color=hidden.has(types[i])?-1:packedByType.get(types[i]);
+      const color=hidden.has(types[i])?-1:
+        derived?derived[i*8]:packedByType.get(types[i]);
       packed[i*8]=color;packed[i*8+4]=color;
     }
     handle.setColors(packed);
@@ -127,6 +132,12 @@ export async function buildGcodeLayers(parsedData){
   const layerHeights=stack.map(x=>x.height);
   const returned={
     mesh:root,layers:Array.from({length:parsedData.length},()=>({visible:true})),
+    get viewMode(){return viewMode;},
+    setViewMode(mode){
+      if(!["feature","filament","height","width"].includes(mode))
+        throw new RangeError("Unsupported ThreeSlicer color mode: "+mode);
+      viewMode=mode;refreshColors();
+    },
     handle,hiddenTypes:hidden,categories:[...categories].sort(),
     layerHeights,segmentCount:countSource,
     displayed:data.nSeg+countTravel,solidSegments:data.nSeg,
