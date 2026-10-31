@@ -143,9 +143,9 @@ export async function buildGcodeLayers(parsedData){
     nozzle.visible=Array.isArray(p)&&p.every(Number.isFinite);
     if(nozzle.visible)nozzle.position.set(p[0],p[1],p[2]+1.8);
   }
-  function showMove(at){
+  function showMove(at,selectedLayer=data.layerCount-1){
     if(at==null){handle.setMoveRange(null);nozzle.visible=false;return null}
-    const layer=topMoveLayer(data,0,data.layerCount-1);
+    const layer=topMoveLayer(data,0,Math.max(0,Math.min(data.layerCount-1,selectedLayer)));
     const total=data.movePrefix[layer+1]-data.movePrefix[layer];
     // Do not disable ThreeSlicer LOD for the last (complete) move.
     const cursor=at>=total?
