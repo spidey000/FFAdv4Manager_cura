@@ -11,31 +11,42 @@
  const route=(key,label,iconName)=>'<button type="button" data-printer-go="'+key+'" aria-pressed="false">'+icon(iconName)+'<span>'+label+'</span></button>';
  page.dataset.printerView="overview";
  page.innerHTML=
-  '<header class="ad4-printer-header">'+
-   '<div class="ad4-printer-ident">'+icon("printer")+
-    '<div><h2>Adventurer 4</h2><span id="ad4-v3-printer-page-state" role="status" aria-live="polite">Printer connection not checked</span></div></div>'+
-   '<div class="ad4-printer-header-actions"><span id="ad4-printer-updated">Not updated</span>'+
-   '<button type="button" id="ad4-printer-refresh" class="ad4-printer-icon-btn" aria-label="Refresh printer status" title="Refresh">'+icon("refresh")+'</button></div>'+
-  '</header>'+
-  '<details class="ad4-printer-connection-details"><summary>Connection details</summary><p id="ad4-printer-connection-note">Connection profile selects a network address, not another printer model.</p></details>'+
-  '<nav class="ad4-printer-nav" aria-label="Printer sections">'+
-   route("overview","Overview","layout-grid")+route("files","Files","file")+
-   route("media","Timelapses","camera")+route("diagnostics","Diagnostics","wrench")+
-  '</nav>'+
-  '<div class="ad4-printer-overview-content" data-printer-overview>'+
-   '<div class="ad4-printer-facts">'+
-    '<div class="ad4-printer-fact"><span>Machine</span><strong id="ad4-printer-machine">—</strong></div>'+
-    '<div class="ad4-printer-fact"><span>Nozzle / target</span><strong id="ad4-printer-nozzle">—</strong></div>'+
-    '<div class="ad4-printer-fact"><span>Bed / target</span><strong id="ad4-printer-bed">—</strong></div>'+
+  '<details class="ad4-printer-shell" id="ad4-printer-shell">'+
+   '<summary class="ad4-printer-header" aria-label="Printer status and navigation">'+
+    '<span class="ad4-printer-ident"><span class="ad4-printer-logo">'+icon("printer")+'</span>'+
+     '<span class="ad4-printer-header-copy"><span class="ad4-printer-eyebrow">Printer</span>'+
+      '<strong id="ad4-v3-printer-page-state" role="status" aria-live="polite">Checking connection…</strong></span>'+
+      '<span class="ad4-printer-connect-dot" aria-hidden="true"></span></span>'+
+    icon("chevron-right")+
+   '</summary>'+
+   '<div class="ad4-printer-shell-body">'+
+    '<div class="ad4-printer-shell-toolbar"><span id="ad4-printer-updated">Not updated</span>'+
+     '<button type="button" id="ad4-printer-refresh" aria-label="Refresh printer status" title="Refresh">'+icon("refresh")+'</button></div>'+
+    '<div class="ad4-printer-facts">'+
+     '<div class="ad4-printer-fact"><span>Machine</span><strong id="ad4-printer-machine">—</strong></div>'+
+     '<div class="ad4-printer-fact"><span>Nozzle / target</span><strong id="ad4-printer-nozzle">—</strong></div>'+
+     '<div class="ad4-printer-fact"><span>Bed / target</span><strong id="ad4-printer-bed">—</strong></div>'+
+    '</div>'+
+    '<p id="ad4-printer-connection-note">Connection profiles select a network address, not another printer model.</p>'+
+    '<nav class="ad4-printer-nav" aria-label="Printer sections">'+
+     route("overview","Overview","layout-grid")+route("files","Files","file")+
+     route("media","Timelapses","camera")+route("diagnostics","Diagnostics","wrench")+
+    '</nav>'+
    '</div>'+
+  '</details>'+
+  '<div class="ad4-printer-overview-content" data-printer-overview>'+
    '<section class="ad4-printer-current" aria-label="Current print summary">'+
-    '<div class="ad4-printer-section-title"><h3>Current print</h3><span id="ad4-printer-job-status" class="ad4-printer-status">Unavailable</span></div>'+
+    '<div class="ad4-printer-section-title"><div class="ad4-printer-current-title">'+icon("layers")+
+     '<h3>Current print</h3></div><span id="ad4-printer-job-status" class="ad4-printer-status">Unavailable</span></div>'+
     '<strong id="ad4-printer-job-name" title="Current job">No active job reported</strong>'+
-    '<div class="ad4-printer-progress-track" id="ad4-printer-progress-track" role="progressbar" aria-label="Print progress" aria-valuemin="0" aria-valuemax="100"><span id="ad4-printer-progress-fill"></span></div>'+
-    '<span id="ad4-printer-progress-text">Progress not reported</span>'+
+    '<div class="ad4-printer-progress-inline">'+
+     '<div class="ad4-printer-progress-track" id="ad4-printer-progress-track" role="progressbar" aria-label="Print progress" aria-valuemin="0" aria-valuemax="100"><span id="ad4-printer-progress-fill"></span></div>'+
+     '<strong id="ad4-printer-progress-text">—</strong></div>'+
     '<div class="ad4-printer-job-metrics">'+
-     '<div><span>Elapsed</span><strong id="ad4-printer-elapsed">—</strong></div>'+
-     '<div><span>Remaining</span><strong id="ad4-printer-remaining">—</strong></div>'+
+     '<div class="ad4-printer-print-time">'+icon("clock")+
+      '<div><span>Elapsed</span><strong id="ad4-printer-elapsed">—</strong></div></div>'+
+     '<div class="ad4-printer-print-time">'+icon("hourglass")+
+      '<div><span>Remaining</span><strong id="ad4-printer-remaining">—</strong></div></div>'+
     '</div>'+
    '</section>'+
    '<div class="ad4-printer-jump-grid">'+
@@ -45,6 +56,8 @@
    '</div>'+
   '</div>';
  page.append(manager);
+ const printerShell=$("ad4-printer-shell");
+ printerShell.querySelector(".ad4-printer-shell-body").append(page.querySelector(".ad4-printer-jump-grid"));
  const section=key=>manager.querySelector('[data-printer-feature="'+key+'"]');
  const views={};
  for(const key of ["overview","files","media","diagnostics"]){
@@ -78,7 +91,7 @@
   const printSummary=page.querySelector(".ad4-printer-current");
   if(printSummary)live.prepend(printSummary);
   const start=$("ad4-live-consult");if(start)start.textContent="Start toolpath";
-  const title=live.querySelector(".ad4-section-title h3");if(title)title.textContent="Monitoring";
+  // Preserve the Lucide Eye element supplied by the Monitoring header.
   const canvas=$("ad4-live-canvas");
   if(canvas){
    canvas.tabIndex=0;canvas.setAttribute("role","button");canvas.setAttribute("aria-label","Open live toolpath monitoring");
@@ -90,11 +103,24 @@
  }
  const control=section("controls");
  if(control){
+  const heading=control.querySelector("h3");
+  if(heading){heading.textContent=heading.textContent.replace("Print controls","Printer controls");const iconEl=document.createElement("span");iconEl.dataset.ad4Icon="play";iconEl.className="ad4-printer-heading-icon";heading.prepend(iconEl)}
+  // Network discovery and refresh remain available from the expanded header,
+  // while printer controls show only the three actions affecting the print.
+  const shellToolbar=printerShell.querySelector(".ad4-printer-shell-toolbar");
+  for(const id of ["ad4-refresh","ad4-discover"]){
+   const action=$(id);if(action)shellToolbar.append(action);
+  }
   const tools=control.querySelector(".ad4-tools");
   if(tools){
    for(const id of ["ad4-pause","ad4-resume","ad4-cancel"]){
     const b=$(id);if(!b)continue;
     b.classList.add("ad4-printer-command");
+    const symbolic={ "ad4-pause":"pause", "ad4-resume":"play", "ad4-cancel":"square" }[id];
+    if(!b.querySelector(".ad4-printer-action-glyph")){
+     const i=document.createElement("span");i.className="ad4-printer-action-glyph";
+     i.dataset.ad4Icon=symbolic;b.prepend(i);
+    }
     if(id==="ad4-cancel")b.classList.add("ad4-destructive");
    }
    const fanLabel=document.createElement("p");
@@ -147,7 +173,7 @@
  document.addEventListener("ad4:icons-ready",()=>globalThis.AD4Icons?.hydrate?.(monitorModal),{once:true});
  const modalContent=monitorModal.querySelector(".ad4-printer-modal-content");
  let expanded=null,parent=null,next=null,opener=null;
- function closeMonitor(){if(monitorModal.open)monitorModal.close()}
+ function closeMonitor(){if(monitorModal.open){monitorModal.close();restoreMonitor()}}
  function expandMonitor(kind){
   if(monitorModal.open)return;
   const node=kind==="toolpath"?$("ad4-live-canvas"):$("ad4-live-camera")?.closest(".ad4-live-camera-wrap");
@@ -159,14 +185,15 @@
   monitorModal.showModal();
   $("ad4-printer-modal-close").focus();
  }
- monitorModal.addEventListener("close",()=>{
+ function restoreMonitor(){
   if(!expanded||!parent)return;
   if(next?.parentNode===parent)parent.insertBefore(expanded,next);
   else parent.append(expanded);
   expanded=null;parent=null;next=null;
   if(opener?.isConnected&&document.body.dataset.ad4Screen==="printer")opener.focus();
   opener=null;
- });
+ }
+ monitorModal.addEventListener("close",()=>{if(!monitorModal.open)restoreMonitor()});
  $("ad4-printer-modal-close").addEventListener("click",closeMonitor);
  $("ad4-live-toolpath-expand")?.addEventListener("click",()=>expandMonitor("toolpath"));
  $("ad4-live-camera-expand")?.addEventListener("click",()=>expandMonitor("camera"));
@@ -175,6 +202,7 @@
  function navigate(view,{scroll=true}={}){
   if(!views[view])view="overview";
   closeMonitor();
+  if(view==="overview")printerShell.open=false;
   const previous=activeView();
   // No background MJPEG or 3D polling after leaving a monitoring view.
   if(previous==="overview"&&view!=="overview")$("ad4-live-stop")?.click();
@@ -224,7 +252,7 @@
    const raw=fmt(state?.machine_status);
    const active=connected&&/BUILDING|PRINTING|PAUSED/i.test(raw);
    const paused=connected&&/PAUSED/i.test(raw);
-   $("ad4-v3-printer-page-state").textContent=connected?raw:backend?"Disconnected":"Server unavailable";
+   $("ad4-v3-printer-page-state").textContent=connected?"Connected":backend?"Disconnected":"Server unavailable";
    page.dataset.printerConnection=connected?"connected":backend?"disconnected":"error";
    $("ad4-printer-machine").textContent=raw;
    $("ad4-printer-nozzle").textContent=connected?fmt(state.nozzle_current,"°")+" / "+fmt(state.nozzle_target,"°"):"—";
@@ -236,7 +264,7 @@
    badge.dataset.state=paused?"paused":active?"printing":connected?"idle":"offline";
    const percent=Number(state?.progress_percent),valid=active&&state?.progress_percent!=null&&state.progress_percent!==""&&Number.isFinite(percent)&&percent>=0&&percent<=100;
    $("ad4-printer-progress-fill").style.width=valid?percent+"%":"0%";
-   $("ad4-printer-progress-text").textContent=valid?Math.round(percent)+"% complete":"Progress not reported";
+   $("ad4-printer-progress-text").textContent=valid?Math.round(percent)+"%":"—";
    const track=$("ad4-printer-progress-track");
    if(valid)track.setAttribute("aria-valuenow",String(percent));else track.removeAttribute("aria-valuenow");
    // Only display elapsed/remaining if the bridge actually reports these.

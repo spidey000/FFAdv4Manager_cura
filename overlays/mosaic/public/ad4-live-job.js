@@ -5,11 +5,11 @@
  if(!manager||!P)return;
  const demo=globalThis.__AD4_STATIC_PREVIEW__===true;
  const section=document.createElement("section");section.className="ad4-section ad4-live-job";section.id="ad4-live-job";
- section.innerHTML=`<div class="ad4-section-title"><h3>Monitoring</h3><button id="ad4-live-consult" type="button">Start toolpath</button></div>
+ section.innerHTML=`<div class="ad4-section-title ad4-monitoring-heading"><h3><span data-ad4-icon="eye" aria-hidden="true"></span>Monitoring</h3><button id="ad4-live-consult" type="button">Start toolpath</button></div>
  <p id="ad4-live-status" role="status">Monitoring is off. Start the toolpath or enable live camera when needed.</p>
  <div class="ad4-live-pair">
-  <div class="ad4-live-visual"><button id="ad4-live-toolpath-expand" type="button" class="ad4-live-caption ad4-live-expand" aria-haspopup="dialog" aria-label="Expand Toolpath visualization">Toolpath <span data-ad4-icon="scale" aria-hidden="true"></span></button><div id="ad4-live-canvas" class="ad4-live-canvas"></div></div>
-  <div class="ad4-live-visual"><button id="ad4-live-camera-expand" type="button" class="ad4-live-caption ad4-live-expand" aria-haspopup="dialog" aria-label="Expand Live preview visualization">Live preview <span data-ad4-icon="scale" aria-hidden="true"></span></button><div class="ad4-live-camera-wrap"><img id="ad4-live-camera" alt="Physical print from the Adventurer 4 camera" hidden><span id="ad4-live-camera-state">Camera stopped</span></div></div>
+  <div class="ad4-live-visual"><div class="ad4-live-visual-head"><button id="ad4-live-toolpath-expand" type="button" class="ad4-live-caption ad4-live-expand" aria-haspopup="dialog" aria-label="Expand Toolpath visualization"><span data-ad4-icon="box" aria-hidden="true"></span><span>Toolpath view</span><span data-ad4-icon="chevron-right" aria-hidden="true"></span></button></div><div id="ad4-live-canvas" class="ad4-live-canvas"></div></div>
+  <div class="ad4-live-visual"><div class="ad4-live-visual-head"><button id="ad4-live-camera-expand" type="button" class="ad4-live-caption ad4-live-expand" aria-haspopup="dialog" aria-label="Expand Live preview visualization"><span data-ad4-icon="camera" aria-hidden="true"></span><span>Live camera</span><span data-ad4-icon="chevron-right" aria-hidden="true"></span></button><label class="ad4-live-visual-camera-switch" title="Enable live camera"><input id="ad4-live-camera-toggle" type="checkbox" role="switch" aria-label="Enable live camera"></label></div><div class="ad4-live-camera-wrap"><img id="ad4-live-camera" alt="Physical print from the Adventurer 4 camera" hidden><span id="ad4-live-camera-state">Camera stopped</span></div></div>
  </div>
  <div class="ad4-monitor-metrics" aria-label="Nozzle position and estimated print layer">
   <div><span>X</span><strong id="ad4-live-x">—</strong></div>
@@ -21,7 +21,6 @@
  <p id="ad4-live-source" class="ad4-help">G-code source not loaded</p>
  <div class="ad4-tools ad4-monitor-controls">
   <button id="ad4-live-right" type="button">Right wall view</button>
-  <label><span>Live camera</span><input id="ad4-live-camera-toggle" type="checkbox" role="switch" aria-label="Enable live camera"></label>
   <button id="ad4-live-stop" type="button">Stop viewing</button>
   <button id="ad4-live-fetch" type="button" disabled>Fetch printer file</button>
  </div>`;
