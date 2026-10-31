@@ -31,7 +31,7 @@ def build():
     (DEST/"third_party").symlink_to((UP/"third_party").resolve(),target_is_directory=True)
     shutil.copy2(OV/"src/gui/slicer.mjs",DEST/"src/gui/slicer.mjs")
     # Keep performant viewer code as tracked overlays, never edit generated frontend.
-    for name in ("ad4-plate-layout.mjs", "ad4-plate-operations.mjs", "renderer.mjs", "parser.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-bevel-profile.mjs", "ad4-gpu-seams.mjs", "ad4-stl-worker-client.mjs"):
+    for name in ("ad4-plate-layout.mjs", "ad4-plate-operations.mjs", "renderer.mjs", "parser.mjs", "ad4-gcode-geometry.mjs", "ad4-toolpath-colors.mjs", "ad4-layer-stack.mjs", "ad4-bevel-profile.mjs", "ad4-gpu-seams.mjs", "ad4-stl-worker-client.mjs"):
         shutil.copy2(OV/"src/gui/viewer"/name, DEST/"src/gui/viewer"/name)
     # MIT-licensed ThreeSlicer viewer only, never its AGPL slicer kernel.
     shutil.copytree(OV/"src/gui/viewer/ad4-three-slicer",
