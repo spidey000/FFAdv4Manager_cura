@@ -471,6 +471,27 @@ with sync_playwright() as p:
                     toolbar.locator("#ad4-v3-auto-arrange").click()
                     if not page.evaluate("app.gui.model_viewer.ad4_plate_status().valid"):
                         failures.append(f"{width}: Auto Arrange created unsafe geometry")
+                    # Attempt an illegal gizmo move/scale: native transform
+                    # events must restore the last committed mesh at release.
+                    rollback=page.evaluate("""()=>{
+                      const mv=app.gui.model_viewer;
+                      const id=Object.keys(mv.models)[0];
+                      mv.ad4_select_model(id);
+                      const mesh=mv.models[id].mesh,controls=mv.model_controls;
+                      const beforeX=mesh.position.x, beforeScale=mesh.scale.x;
+                      controls.dispatchEvent({type:"dragging-changed",value:true});
+                      mesh.position.x=900;
+                      controls.dispatchEvent({type:"dragging-changed",value:false});
+                      const moveRestored=Math.abs(mesh.position.x-beforeX)<1e-6;
+                      controls.dispatchEvent({type:"dragging-changed",value:true});
+                      mesh.scale.x=1000;
+                      controls.dispatchEvent({type:"dragging-changed",value:false});
+                      const scaleRestored=Math.abs(mesh.scale.x-beforeScale)<1e-6;
+                      return {moveRestored,scaleRestored,status:mv.ad4_plate_status()};
+                    }""")
+                    if not (rollback["moveRestored"] and rollback["scaleRestored"]
+                            and rollback["status"]["valid"]):
+                        failures.append(f"{width}: unsafe transform was not reverted: {rollback}")
                 dock_rect=page.locator("#ad4-v3-bottom").evaluate("""(el)=>{
                     const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,viewport:innerHeight};
                 }""")
