@@ -193,7 +193,7 @@
   if(opener?.isConnected&&document.body.dataset.ad4Screen==="printer")opener.focus();
   opener=null;
  }
- monitorModal.addEventListener("close",restoreMonitor);
+ monitorModal.addEventListener("close",()=>{if(!monitorModal.open)restoreMonitor()});
  $("ad4-printer-modal-close").addEventListener("click",closeMonitor);
  $("ad4-live-toolpath-expand")?.addEventListener("click",()=>expandMonitor("toolpath"));
  $("ad4-live-camera-expand")?.addEventListener("click",()=>expandMonitor("camera"));
