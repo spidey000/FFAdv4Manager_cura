@@ -104,11 +104,39 @@ with sync_playwright() as p:
     # Regression: the external Benchy uses Prusa-style ;TYPE: names, not
     # Cura's WALL-OUTER/FILL names. The GPU mesh and the mobile legend must
     # use the SAME colors rather than a monochrome OTHER fallback.
+    # The two panels must not change geometry or overflow the screen.
+    mobile_layout=page.evaluate("""() => {
+      const card=document.getElementById('ad4-v3-layer-card');
+      const range=card.getBoundingClientRect();
+      const stats=card.querySelector('.ad4-v3-estimates').getBoundingClientRect();
+      const move=card.querySelector('.ad4-v3-move-scrub').getBoundingClientRect();
+      const style=getComputedStyle(card);
+      return {height:range.height,scroll:card.scrollHeight,client:card.clientHeight,
+              overflow:style.overflowY,statsBottom:stats.bottom,moveBottom:move.bottom,
+              cardBottom:range.bottom};
+    }""")
+    assert mobile_layout["height"] <= 180, mobile_layout
+    assert mobile_layout["scroll"] <= mobile_layout["client"] + 2, mobile_layout
+    assert mobile_layout["statsBottom"] <= mobile_layout["cardBottom"], mobile_layout
+    assert mobile_layout["moveBottom"] <= mobile_layout["cardBottom"], mobile_layout
+    page.screenshot(path="/tmp/ad4-mobile-layer-range.png")
     page.locator("#ad4-v3-show-layers").click()
     page.wait_for_function(
         "() => document.querySelectorAll('#ad4-v3-type-list .ad4-v3-type-row').length >= 4",
         timeout=10000
     )
+    types_layout=page.evaluate("""() => {
+      const card=document.getElementById('ad4-v3-layer-card');
+      return {height:card.getBoundingClientRect().height,scroll:card.scrollHeight,
+        client:card.clientHeight,heading:!!card.querySelector('.ad4-v3-card-title'),
+        pages:!!document.getElementById('ad4-v3-types-next'),
+        visibleRows:card.querySelectorAll('.ad4-v3-type-row').length};
+    }""")
+    assert abs(types_layout["height"]-mobile_layout["height"])<1, types_layout
+    assert types_layout["scroll"]<=types_layout["client"]+2, types_layout
+    assert types_layout["visibleRows"]<=3, types_layout
+    assert not types_layout["heading"], types_layout
+    page.screenshot(path="/tmp/ad4-mobile-layer-types.png")
     palette = page.evaluate("""() => {
       const wanted=["PERIMETER","OVERHANG PERIMETER","INTERNAL INFILL","SOLID INFILL"];
       const rows=[...document.querySelectorAll("#ad4-v3-type-list .ad4-v3-type-row")];
