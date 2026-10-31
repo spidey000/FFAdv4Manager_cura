@@ -150,7 +150,7 @@
       console.error("Could not load example STL", error);
       byId("ad4-dock-state").textContent = "3DBenchy demo failed to load";
       document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
-        detail:{code:"MODEL_DEMO_FAILED",message:"3DBenchy demo failed: "+error.message}
+        detail:{code:/g.code|parser|toolpath/i.test(error.message)?"GCODE_DEMO_FAILED":"MODEL_DEMO_FAILED",message:"3DBenchy demo failed: "+error.message}
       }));
     } finally {
       demoPending = false;
