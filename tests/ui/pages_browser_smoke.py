@@ -250,14 +250,14 @@ with sync_playwright() as p:
                       const c=app.gui.model_viewer.model_controls;
                       return !c.object && !c.getHelper()?.parent && c.enabled===false;
                     }"""), "Native transform helpers still attached after deletion"
-                    move_button.click()
-                    assert move_button.get_attribute("aria-pressed")=="false", "Move trapped on empty selection"
                     models_button.click()
                     assert not menu.is_visible(), "Models button did not toggle menu closed"
                     models_button.click()
                     assert menu.is_visible()
                     page.locator('#ad4-v3-top [data-route="preview"]').click()
                     assert not menu.is_visible(), "Outside focus did not close the Models menu"
+                    move_button.click()
+                    assert move_button.get_attribute("aria-pressed")=="false", "Move trapped on empty selection"
                     print("MODEL LIST SELECTION / VISIBILITY / DELETE / OUTSIDE CLOSE PASSED",flush=True)
                     # An STL larger than the printer must still be registered and
                     # selected, so the user can resize it. The yellow warning is
