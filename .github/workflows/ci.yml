@@ -26,6 +26,9 @@ jobs:
           node --check overlays/mosaic/public/ad4-studio.js
           node --check overlays/mosaic/public/ad4-v3.js
           node --check overlays/mosaic/public/ad4-manager.js
+          node --check overlays/mosaic/src/gui/viewer/ad4-plate-layout.mjs
+          node --check overlays/mosaic/src/gui/viewer/ad4-plate-operations.mjs
+          node --check frontend/src/gui/viewer/model_viewer.mjs
           node --check overlays/mosaic/src/gui/viewer/renderer.mjs
           node --check overlays/mosaic/src/gui/viewer/parser.mjs
           node --check overlays/mosaic/src/gui/viewer/ad4-gcode-geometry.mjs
@@ -40,6 +43,7 @@ jobs:
           node --test tests/ui/gcode_bevel_profile.test.mjs
           node --test tests/ui/gcode_gpu_seams.test.mjs
           node --test tests/ui/print_time_format.test.mjs
+          node --test tests/ui/plate_layout.test.mjs
       - name: Benchmark external real 3DBenchy G-code fixture
         run: |
           curl -fsSL --retry 2 --max-time 90 \
