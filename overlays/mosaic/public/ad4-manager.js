@@ -166,7 +166,7 @@ function closeVideo(){
  const img=el("ad4-camera");img.removeAttribute("src");img.hidden=true;
  if(img.dataset.blob){URL.revokeObjectURL(img.dataset.blob);delete img.dataset.blob}
 }
-el("ad4-open-manager").addEventListener("click",()=>{
+function openManagerPanel(){
  if(!dialog.open)dialog.show();setHardwareAvailability(false);
  if(globalThis.__AD4_STATIC_PREVIEW__===true){
   // Pages has no server. Keep every control visible but prevent mutations
@@ -182,7 +182,9 @@ el("ad4-open-manager").addEventListener("click",()=>{
   refresh().catch(e=>say(e.message,true));
   loadGallery().catch(()=>{});
  },9000);
-});
+}
+el("ad4-open-manager").addEventListener("click",openManagerPanel);
+document.addEventListener("ad4:printer-enter",openManagerPanel);
 const close=()=>{clearInterval(poll);closeVideo();el("ad4-timelapse-preview").pause();dialog.close()};
 el("ad4-close-manager").addEventListener("click",close);
 dialog.addEventListener("close",()=>{clearInterval(poll);closeVideo();el("ad4-timelapse-preview").pause()});
