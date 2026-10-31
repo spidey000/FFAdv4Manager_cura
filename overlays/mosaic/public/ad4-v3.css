@@ -1240,3 +1240,216 @@ body[data-ad4-screen=sliced][data-ad4-layer-panel=types] #viewer{
 #ad4-viewer-transform .ad4-viewer-values:not([data-mode=scale]) .ad4-viewer-value-row{
   grid-template-columns:16px minmax(0,1fr) 21px
 }
+
+/* Printer workspace — share Cura's flat settings/accordion language instead
+ * of mixing the legacy modal's green cards with the Studio UI. */
+body[data-ad4-screen=printer] #ad4-v3-printer-page{
+ --ad4-printer-accent:var(--ad4-clean-green,var(--v3-green,#2dec79));
+ background:var(--ad4-clean-bg,#101314)!important;
+ scroll-behavior:auto;scrollbar-gutter:stable
+}
+#ad4-v3-printer-page .ad4-printer-overview h2{color:#eaf4ec;font-weight:750;letter-spacing:-.02em}
+#ad4-v3-printer-page .ad4-printer-overview p,
+#ad4-v3-printer-page .ad4-printer-note{color:var(--v3-muted,#a1afa7)!important}
+#ad4-v3-printer-page .ad4-printer-card{
+ background:var(--ad4-clean-field,#1b2420)!important;
+ border:1px solid var(--ad4-clean-divider,#2a322e)!important;
+ box-shadow:none!important;border-radius:11px!important
+}
+#ad4-v3-printer-page .ad4-printer-card h3{color:#e8f1ea!important;font-weight:650!important}
+#ad4-v3-printer-page .ad4-printer-card .ad4-printer-label,
+#ad4-v3-printer-page .ad4-printer-card .ad4-printer-detail{color:#aabbb0!important}
+#ad4-v3-printer-page .ad4-printer-card .ad4-printer-value{
+ color:var(--ad4-printer-accent)!important;font-variant-numeric:tabular-nums
+}
+#ad4-v3-printer-page .ad4-printer-card button,
+#ad4-v3-printer-page #ad4-printer-refresh{
+ display:inline-flex!important;align-items:center!important;justify-content:center!important;
+ text-align:center!important;gap:6px;box-shadow:none!important;
+ background:#26372c!important;color:#d8ecdc!important;
+ border:1px solid #3b5343!important;border-radius:8px!important;
+ font-weight:650!important;line-height:1.3
+}
+#ad4-v3-printer-page .ad4-printer-card button:hover:not(:disabled),
+#ad4-v3-printer-page #ad4-printer-refresh:hover:not(:disabled){
+ background:#31533c!important;border-color:#558363!important
+}
+#ad4-v3-printer-page .ad4-printer-card button:disabled{
+ background:#222b25!important;border-color:#313b34!important;
+ color:#84958a!important;opacity:.55!important
+}
+#ad4-v3-printer-page #ad4-manager{column-gap:18px!important;row-gap:8px!important}
+#ad4-v3-printer-page #ad4-manager>.ad4-section{
+ background:transparent!important;border:0!important;
+ border-bottom:1px solid var(--ad4-clean-divider,#2a322e)!important;
+ border-radius:0!important;box-shadow:none!important;
+ padding:10px 0 18px!important;scroll-margin-top:12px
+}
+#ad4-v3-printer-page #ad4-manager h3,
+#ad4-v3-printer-page #ad4-manager>details.ad4-section>summary{
+ font-size:13px!important;font-weight:650!important;line-height:1.5!important;
+ color:#e5eee7!important;margin:0 0 10px!important
+}
+#ad4-v3-printer-page #ad4-manager .ad4-section-title{justify-content:space-between}
+#ad4-v3-printer-page #ad4-manager .ad4-section-title h3{margin-bottom:0!important}
+#ad4-v3-printer-page #ad4-manager .ad4-section-title>button{
+ width:auto!important;min-width:96px!important
+}
+#ad4-v3-printer-page #ad4-manager .ad4-tools{
+ display:grid!important;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr))!important;
+ align-items:stretch!important;gap:8px!important;margin:10px 0!important
+}
+#ad4-v3-printer-page #ad4-manager button{
+ display:inline-flex!important;justify-content:center!important;align-items:center!important;
+ gap:6px!important;text-align:center!important;vertical-align:middle!important;
+ background:#26372c!important;color:#e1efe4!important;
+ border:1px solid #3a5342!important;border-radius:8px!important;
+ box-shadow:none!important;font-weight:650!important;
+ min-height:42px!important;cursor:pointer
+}
+#ad4-v3-printer-page #ad4-manager button:hover:not(:disabled){
+ background:#32513d!important;border-color:#548a60!important
+}
+#ad4-v3-printer-page #ad4-manager button:active:not(:disabled){
+ background:#1e5034!important
+}
+#ad4-v3-printer-page #ad4-manager button.ad4-primary{
+ background:var(--ad4-printer-accent)!important;
+ border-color:var(--ad4-printer-accent)!important;color:#0c2817!important;
+ font-weight:750!important
+}
+#ad4-v3-printer-page #ad4-manager button.ad4-primary:hover:not(:disabled){
+ background:#5bf399!important;border-color:#5bf399!important
+}
+#ad4-v3-printer-page #ad4-manager button.ad4-destructive{
+ background:#352726!important;color:#f5c7c0!important;border-color:#65413d!important
+}
+#ad4-v3-printer-page #ad4-manager button.ad4-destructive:hover:not(:disabled){
+ background:#51302d!important
+}
+#ad4-v3-printer-page #ad4-manager button:disabled,
+#ad4-v3-printer-page #ad4-manager button.ad4-primary:disabled{
+ background:#232c26!important;border-color:#354138!important;
+ color:#839589!important;opacity:.48!important;cursor:not-allowed!important
+}
+#ad4-v3-printer-page #ad4-manager button:focus-visible,
+#ad4-v3-printer-page #ad4-manager input:focus-visible,
+#ad4-v3-printer-page #ad4-manager select:focus-visible,
+#ad4-v3-printer-page #ad4-manager summary:focus-visible,
+#ad4-v3-printer-page .ad4-printer-card button:focus-visible,
+#ad4-v3-printer-page #ad4-printer-refresh:focus-visible{
+ outline:2px solid var(--ad4-printer-accent)!important;outline-offset:2px!important
+}
+#ad4-v3-printer-page #ad4-manager input:not([type=checkbox]),
+#ad4-v3-printer-page #ad4-manager select{
+ background:var(--ad4-clean-field,#1b2420)!important;
+ border:1px solid #3b4b41!important;border-radius:7px!important;
+ color:#e8f1e9!important
+}
+#ad4-v3-printer-page #ad4-manager .ad4-tools label,
+#ad4-v3-printer-page #ad4-manager .ad4-option{color:#c7d5cb!important}
+#ad4-v3-printer-page #ad4-manager .ad4-option:has(input[type=checkbox]),
+#ad4-v3-printer-page #ad4-manager .ad4-tools label:has(>input[role=switch]){
+ display:flex!important;align-items:center!important;justify-content:space-between!important;
+ gap:12px!important;flex-wrap:nowrap!important;
+ min-height:46px;padding:7px 2px!important;
+ border-bottom:1px solid var(--ad4-clean-divider,#2a322e);
+ cursor:pointer
+}
+#ad4-v3-printer-page #ad4-manager .ad4-tools label:has(>input[role=switch]){
+ flex-direction:row-reverse!important;grid-column:1/-1
+}
+#ad4-v3-printer-page #ad4-manager .ad4-option.ad4-printer-switch>span{
+ flex:1;min-width:0;line-height:1.4
+}
+#ad4-v3-printer-page #ad4-manager input[type=checkbox]{
+ appearance:none!important;-webkit-appearance:none!important;
+ display:inline-block!important;position:relative!important;
+ flex:0 0 43px!important;width:43px!important;min-width:43px!important;
+ max-width:43px!important;height:25px!important;min-height:25px!important;
+ max-height:25px!important;margin:0!important;padding:0!important;
+ border:0!important;border-radius:999px!important;
+ background:#48544c!important;box-shadow:none!important;
+ cursor:pointer!important;vertical-align:middle!important;transition:background .15s ease
+}
+#ad4-v3-printer-page #ad4-manager input[type=checkbox]:checked{
+ background:var(--ad4-printer-accent)!important
+}
+#ad4-v3-printer-page #ad4-manager input[type=checkbox]::after{
+ content:"";position:absolute;top:3px;left:3px;
+ width:19px;height:19px;border-radius:50%;background:#f2f6f3;
+ box-shadow:0 1px 2px #0004;transition:transform .15s ease
+}
+#ad4-v3-printer-page #ad4-manager input[type=checkbox]:checked::after{
+ transform:translateX(18px)
+}
+#ad4-v3-printer-page #ad4-manager input[type=checkbox]:disabled{
+ opacity:.4!important;cursor:not-allowed!important
+}
+/* Detail/summary panels use the same flat divider + compact chevron as Cura groups. */
+#ad4-v3-printer-page #ad4-manager details:not(.ad4-section){
+ background:transparent!important;border:0!important;
+ border-top:1px solid var(--ad4-clean-divider,#2a322e)!important;
+ border-radius:0!important;margin:10px 0 0!important;padding:0!important
+}
+#ad4-v3-printer-page #ad4-manager details>summary{
+ display:flex!important;align-items:center!important;justify-content:space-between!important;
+ gap:10px;list-style:none!important;cursor:pointer;
+ padding:12px 30px 12px 2px!important;position:relative;
+ background:transparent!important;color:#e4eee6!important;
+ font-size:13px!important;font-weight:650!important;line-height:1.4!important;
+ margin:0!important;min-height:44px;box-sizing:border-box
+}
+#ad4-v3-printer-page #ad4-manager details>summary::-webkit-details-marker{display:none}
+#ad4-v3-printer-page #ad4-manager details>summary::after{
+ content:"";position:absolute;right:10px;top:50%;
+ width:8px;height:8px;border-right:2px solid #96b7a0;
+ border-bottom:2px solid #96b7a0;transform:translateY(-65%) rotate(45deg);
+ transition:transform .16s ease,border-color .16s ease
+}
+#ad4-v3-printer-page #ad4-manager details[open]>summary{
+ color:var(--ad4-printer-accent)!important
+}
+#ad4-v3-printer-page #ad4-manager details[open]>summary::after{
+ border-color:var(--ad4-printer-accent);
+ transform:translateY(-35%) rotate(225deg)
+}
+#ad4-v3-printer-page #ad4-manager details>summary:hover{color:var(--ad4-printer-accent)!important}
+#ad4-v3-printer-page #ad4-manager details[open]>.ad4-tools{margin-top:8px!important}
+#ad4-v3-printer-page #ad4-manager .ad4-file-row{border-bottom-color:var(--ad4-clean-divider,#2a322e)!important}
+#ad4-v3-printer-page #ad4-manager-status{
+ background:var(--ad4-clean-field,#1b2420)!important;
+ border:0!important;border-left:3px solid #547d5d!important;
+ border-radius:5px!important;color:#b6cbbb!important
+}
+#ad4-v3-printer-page #ad4-manager-status[data-error=true]{
+ background:#332521!important;border-left-color:#d67a5e!important;color:#ffd1c5!important
+}
+/* The preflight is part of the printer workflow and uses the same toggle. */
+.ad4-print-confirm .ad4-preflight-switch{flex-direction:row-reverse;justify-content:space-between;gap:12px}
+.ad4-print-confirm .ad4-preflight-switch input[type=checkbox]{
+ appearance:none;-webkit-appearance:none;flex:0 0 43px;
+ position:relative;width:43px;height:25px;min-width:43px;min-height:25px;
+ border:0;border-radius:999px;background:#48544c;cursor:pointer;margin:0
+}
+.ad4-print-confirm .ad4-preflight-switch input[type=checkbox]:checked{
+ background:var(--v3-green,#2dec79)
+}
+.ad4-print-confirm .ad4-preflight-switch input[type=checkbox]::after{
+ content:"";position:absolute;top:3px;left:3px;width:19px;height:19px;
+ border-radius:50%;background:#f2f6f3;transition:transform .15s ease
+}
+.ad4-print-confirm .ad4-preflight-switch input[type=checkbox]:checked::after{
+ transform:translateX(18px)
+}
+.ad4-print-confirm .ad4-preflight-switch input[type=checkbox]:focus-visible{
+ outline:2px solid var(--v3-green,#2dec79);outline-offset:3px
+}
+@media(max-width:679px){
+ #ad4-v3-printer-page #ad4-manager{gap:5px!important}
+ #ad4-v3-printer-page #ad4-manager>.ad4-section{padding:9px 0 14px!important}
+ #ad4-v3-printer-page #ad4-manager .ad4-tools{
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr))!important
+ }
+}

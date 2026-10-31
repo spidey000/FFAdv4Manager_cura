@@ -670,7 +670,7 @@ export function ad4_delete_model(uuid) {
       <button id="ad4-upload">Upload sliced GX only</button>
       <button id="ad4-send-print" class="ad4-primary">Upload &amp; print</button>
     </div>
-    <label class="ad4-option"><input id="ad4-auto-timelapse" type="checkbox">Record timelapse when printing</label>
+    <label class="ad4-option ad4-printer-switch"><span>Record timelapse when printing</span><input id="ad4-auto-timelapse" type="checkbox" role="switch" aria-label="Record timelapse when printing"></label>
     <label class="ad4-option">Capture mode <select id="ad4-capture-mode"><option value="interval">Every 10 seconds</option><option value="layer">Estimated layer (M114, experimental)</option></select></label>
   </section>
   <section class="ad4-section">

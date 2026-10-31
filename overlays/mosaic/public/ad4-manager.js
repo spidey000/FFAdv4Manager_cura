@@ -295,7 +295,7 @@ async function confirmPrint({
  const timelapse=document.createElement("fieldset");timelapse.className="ad4-preflight-timelapse";
  const legend=document.createElement("legend");legend.textContent="Timelapse";
  const intro=document.createElement("label");intro.className="ad4-preflight-switch";
- const enabled=document.createElement("input");enabled.type="checkbox";
+ const enabled=document.createElement("input");enabled.type="checkbox";enabled.setAttribute("role","switch");enabled.setAttribute("aria-label","Automatically record timelapse");
  enabled.checked=start&&Boolean(el("ad4-auto-timelapse")?.checked);
  enabled.disabled=!start;
  const copy=document.createElement("span");copy.textContent="Automatically capture when the print starts";
