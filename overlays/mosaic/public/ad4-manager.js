@@ -73,7 +73,7 @@ function updateState(s){
 }
 function sortedFiles(){
  const sort=el("ad4-file-sort").value;
- const search=(el("ad4-file-search")?.value||"").trim().toLocaleLowerCase();
+ const search=(document.getElementById("ad4-file-search")?.value||"").trim().toLocaleLowerCase();
  return files.filter(file=>!search||String(file.name).toLocaleLowerCase().includes(search)).sort((a,b)=>{
   if(sort==="duration")return (a.estimated_seconds??Infinity)-(b.estimated_seconds??Infinity)||a.name.localeCompare(b.name);
   if(sort==="date")return (b.uploaded_at||"").localeCompare(a.uploaded_at||"")||a.name.localeCompare(b.name);
@@ -223,7 +223,6 @@ dialog.addEventListener("close",()=>{clearInterval(poll);closeVideo();el("ad4-ti
 el("ad4-refresh").addEventListener("click",()=>refresh().then(()=>say("Updated")).catch(e=>say(e.message,true)));
 el("ad4-refresh-files").addEventListener("click",()=>refresh().catch(e=>say(e.message,true)));
 for(const id of ["ad4-file-sort","ad4-page-size"])el(id).addEventListener("change",()=>{page=0;renderFiles()});
-el("ad4-file-search")?.addEventListener("input",()=>{page=0;renderFiles()});
 el("ad4-files-prev").addEventListener("click",()=>{page--;renderFiles()});
 el("ad4-files-next").addEventListener("click",()=>{page++;renderFiles()});
 for(const action of ["pause","resume","cancel","fan_on","fan_off"]){
