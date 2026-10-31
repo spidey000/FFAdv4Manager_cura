@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.1.1";
+const VERSION_UI = "0.1.2";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -406,7 +406,7 @@ function estimateTypeTimes(gcode){
  }
  return totals;
 }
-function formatDuration(seconds){if(!Number.isFinite(seconds))return "—";const mins=Math.round(seconds/60);return mins>=60?Math.floor(mins/60)+"h "+String(mins%60).padStart(2,"0")+"m":mins+" min"}
+function formatDuration(seconds){return formatPrintClock(seconds)}
 function refreshTypes(){
  const api=globalThis.AD4GCodePreview,gcode=globalThis.app?.gui?.slicer?.exported_gcode;
  if(!api?.count||!gcode||!showTypes)return;
@@ -1035,9 +1035,14 @@ function formatWeightGrams(grams){
 }
 function formatPrintClock(seconds){
  if(!Number.isFinite(seconds)||seconds<0)return "—";
- const wholeMinutes=Math.ceil(seconds/60),days=Math.floor(wholeMinutes/1440);
- const hours=Math.floor(wholeMinutes%1440/60),minutes=wholeMinutes%60;
- return [days,hours,minutes].map(x=>String(x).padStart(2,"0")).join(" ").replace(/^(\d{2}) (\d{2}) (\d{2})$/, "$1 $2:$3");
+ // Round upwards once; omit all zero units.
+ const totalMinutes=Math.ceil(seconds/60);
+ const days=Math.floor(totalMinutes/1440);
+ const hours=Math.floor((totalMinutes%1440)/60);
+ const minutes=totalMinutes%60;
+ // Examples: 1h45m, 2d 44m, 2d 3h5m, 44m, 2d, 0m.
+ const clock=(hours?hours+"h":"")+(minutes?minutes+"m":"");
+ return (days?days+"d"+(clock?" ":""):"")+(clock||(!days?"0m":""));
 }
 function parsePrintTime(raw){
  const value=String(raw||"").trim().toLowerCase().replace(/,/g,".");
@@ -1047,7 +1052,7 @@ function parsePrintTime(raw){
  const clock=value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
  if(clock)return +clock[1]*3600+(+clock[2])*60+(+clock[3]||0);
  let seconds=0,found=false;
- for(const m of value.matchAll(/(\d+(?:\.\d+)?)\s*(days?|d\b|hours?|hrs?|hr\b|h\b|minutes?|mins?|min\b|m\b|seconds?|secs?|sec\b|s\b)/g)){
+ for(const m of value.matchAll(/(\d+(?:\.\d+)?)\s*(days?|d|hours?|hrs?|hr|h|minutes?|mins?|min|m|seconds?|secs?|sec|s)(?=\s*(?:\d|$))/g)){
   const n=Number(m[1]),unit=m[2];
   seconds+=n*(/^d/.test(unit)?86400:/^h/.test(unit)?3600:/^m/.test(unit)?60:1);
   found=true;
@@ -1089,7 +1094,7 @@ function updatePrintStats(){
  }else{
   time.textContent=formatPrintClock(parsePrintTime($("gcode-time-estimate")?.textContent));
   weight.textContent=formatWeightGrams(parseFilamentGrams($("material-estimate")?.textContent));
-  time.parentElement.title="CuraEngine estimated print time (days hours:minutes)";
+  time.parentElement.title="CuraEngine estimated print time (compact days, hours and minutes)";
   weight.parentElement.title="Approximate PLA mass (1.75 mm filament, 1.24 g/cm³)";
  }
  time.parentElement.setAttribute("aria-label","Print time "+time.textContent);
