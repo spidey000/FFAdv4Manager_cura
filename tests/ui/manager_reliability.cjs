@@ -3,7 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm');
 function controller(machine,recording){
  const nodes=new Map();let mode='ready';
  function el(id){if(!nodes.has(id))nodes.set(id,{id,disabled:false,open:false,dataset:{},value:'10',handlers:{},textContent:'',
-  addEventListener(n,f){(this.handlers[n]??=[]).push(f)},setAttribute(){},removeAttribute(){},pause(){},load(){},replaceChildren(){},append(){},showModal(){this.open=true},
+  addEventListener(n,f){(this.handlers[n]??=[]).push(f)},setAttribute(){},removeAttribute(){},pause(){},load(){},replaceChildren(){},append(){},show(){this.open=true},showModal(){this.open=true},
   click(){if(!this.disabled)for(const f of this.handlers.click??[])f({})}});return nodes.get(id)}
  const context={document:{getElementById:el,createElement:()=>el('generated'),addEventListener(){}},URL,URLSearchParams,encodeURIComponent,
   setInterval:()=>1,clearInterval(){},confirm:()=>true,fetch:async url=>{
