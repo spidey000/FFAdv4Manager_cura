@@ -145,7 +145,7 @@ viewerError.innerHTML='<strong id="ad4-viewer-error-heading">Cannot slice</stron
  '<p id="ad4-viewer-error-message"></p>';
 $("viewer")?.append(viewerError);
 const viewerErrors=new Map();
-const priorities={plate:100,model:80,slicer:70,layers:60,engine:50,operation:40};
+const priorities={plate:100,model:80,slicer:70,transfer:65,layers:60,engine:50,operation:40};
 let plateErrorSignature="";
 function renderViewerError(){
  const candidates=[...viewerErrors.entries()]
@@ -185,12 +185,14 @@ document.addEventListener("ad4:plate-rejected",event=>{
 document.addEventListener("ad4:plate-valid",()=>{clearViewerError("operation");updatePlateError()});
 document.addEventListener("ad4:viewer-error",event=>{
  const info=event.detail||{},code=String(info.code||"EDITOR_ERROR");
- const channel=/GCODE|LAYER|PREVIEW/.test(code)?"layers":
-  /MODEL|FILE/.test(code)?"model":/ENGINE/.test(code)?"engine":"slicer";
+ const channel=/GCODE|LAYER|PREVIEW|WEBGL/.test(code)?"layers":
+  /MODEL|FILE/.test(code)?"model":/PRINT_TRANSFER/.test(code)?"transfer":
+  /ENGINE/.test(code)?"engine":"slicer";
  showViewerError(channel,code,info.message||"The operation could not be completed",
   channel==="layers"?"Layer preview error":
   channel==="model"?"Model loading error":
-  channel==="engine"?"CuraEngine unavailable":"Slicing error");
+  channel==="engine"?"CuraEngine unavailable":
+  channel==="transfer"?"Printer transfer error":"Slicing error");
 });
 document.addEventListener("ad4:slice-progress",event=>{
  const info=event.detail||{};
@@ -205,8 +207,17 @@ document.addEventListener("ad4:viewer-recovered",event=>{
  if(code.startsWith("GCODE")||code.startsWith("LAYER"))clearViewerError("layers");
  if(code.startsWith("MODEL")||code.startsWith("FILE"))clearViewerError("model");
  if(code.startsWith("ENGINE"))clearViewerError("engine");
+ if(code.startsWith("PRINT_TRANSFER"))clearViewerError("transfer");
 });
 document.addEventListener("ad4:models-changed",()=>{clearViewerError("model");updatePlateError()});
+const sceneCanvas=$("stl-viewer");
+sceneCanvas?.addEventListener("webglcontextlost",event=>{
+ event.preventDefault();
+ showViewerError("layers","WEBGL_CONTEXT_LOST",
+   "The 3D graphics context was lost. Try another browser tab or reload if it does not recover.",
+   "3D renderer unavailable");
+});
+sceneCanvas?.addEventListener("webglcontextrestored",()=>clearViewerError("layers"));
 function notify(message){
  $("ad4-v3-toast-message").textContent=message;note.hidden=false;clearTimeout(noteHandle);
  noteHandle=setTimeout(()=>note.hidden=true,4200);
