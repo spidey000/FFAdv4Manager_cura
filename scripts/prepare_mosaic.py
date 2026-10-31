@@ -165,8 +165,7 @@ main().catch(error => {
     model_file=DEST/"src/gui/viewer/model_viewer.mjs"
     model_code=model_file.read_text()
     model_code=model_code.replace(
-      "const model_material = new THREE.MeshPhysicalMaterial({\\n  color: 0x1a5f5a,",
-      "const model_material = new THREE.MeshPhysicalMaterial({\\n  color: 0x20e37c,"
+      "  color: 0x1a5f5a,","  color: 0x20e37c,",1
     ).replace(
       "  emissive: 0x1a5f5a,","  emissive: 0x20e37c,"
     )
