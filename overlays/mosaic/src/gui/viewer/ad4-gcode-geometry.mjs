@@ -8,11 +8,12 @@
 import * as THREE from "three";
 import {colorForToolpathType} from "./ad4-toolpath-colors.mjs";
 import {getLayerStack} from "./ad4-layer-stack.mjs";
+import {appendChamferedBead, BEVEL_SHADE} from "./ad4-bevel-profile.mjs";
 
 // Indexed solid prisms require more GPU memory than the previous flat ribbon.
 // Keep the scene responsive on Android even for a full-resolution 3DBenchy.
-export const PREVIEW_SEGMENT_BUDGET = 220000;
-export const MOBILE_SEGMENT_BUDGET = 140000;
+export const PREVIEW_SEGMENT_BUDGET = 150000;
+export const MOBILE_SEGMENT_BUDGET = 105000;
 export const EXTRUSION_WIDTH_MM = 0.42;
 
 function addTravelLine(out, a, b) {
@@ -31,33 +32,25 @@ function addTravelLine(out, a, b) {
   return true;
 }
 
-function addSolidBead(out, a, b, top, bottom, width=EXTRUSION_WIDTH_MM) {
-  const dx=b.x-a.x,dy=b.y-a.y;
-  const distance=Math.hypot(dx,dy);
-  if(!Number.isFinite(distance) || distance<0.0001 ||
-     !Number.isFinite(top) || !Number.isFinite(bottom) ||
-     top<=bottom || !Number.isFinite(width) || width<=0) return false;
-  const ox=-dy/distance*width/2,oy=dx/distance*width/2;
-  const n=out.vertices.length/3;
-  // Eight prism corners: A-left/right, B-left/right, bottom then top.
-  // Coordinate Z becomes world vertical Y after the existing -90° X rotation.
-  out.vertices.push(
-    a.x-ox,a.y-oy,bottom, a.x+ox,a.y+oy,bottom,
-    b.x-ox,b.y-oy,bottom, b.x+ox,b.y+oy,bottom,
-    a.x-ox,a.y-oy,top,    a.x+ox,a.y+oy,top,
-    b.x-ox,b.y-oy,top,    b.x+ox,b.y+oy,top
-  );
-  // Closed shell: upper/lower faces, two side walls and two end caps.
-  // Shared corners + indexed triangles minimize GPU allocations.
-  out.indices.push(
-    n+4,n+5,n+6, n+5,n+7,n+6,  // top
-    n+0,n+2,n+1, n+1,n+2,n+3,  // bottom
-    n+0,n+4,n+2, n+2,n+4,n+6,  // left wall
-    n+1,n+3,n+5, n+3,n+7,n+5,  // right wall
-    n+0,n+1,n+4, n+1,n+5,n+4,  // start end cap
-    n+2,n+6,n+3, n+3,n+6,n+7   // finish end cap
-  );
-  return true;
+/* One ultra-cheap vertex-shade scalar, stored as a normalized byte.
+ * Standard MeshBasicMaterial stays unlit and all facets are part of the
+ * SAME draw call; no shadows, light calculations, or extra material passes.
+ * Flat faces are 1.0, bevels are 230/255 (~0.90).
+ */
+function enableBevelShading(material) {
+  material.onBeforeCompile = shader => {
+    shader.vertexShader=shader.vertexShader
+      .replace("#include <common>",
+        "#include <common>\nattribute float ad4Shade;\nvarying float vAd4Shade;")
+      .replace("#include <begin_vertex>",
+        "#include <begin_vertex>\nvAd4Shade = ad4Shade;");
+    shader.fragmentShader=shader.fragmentShader
+      .replace("#include <common>",
+        "#include <common>\nvarying float vAd4Shade;")
+      .replace("#include <color_fragment>",
+        "#include <color_fragment>\ndiffuseColor.rgb *= vAd4Shade;");
+  };
+  material.customProgramCacheKey = () => "ad4-chamfer-10-percent-v1";
 }
 
 function previewBudget() {
@@ -105,10 +98,10 @@ export async function buildGcodeLayers(parsedData) {
       if(!shouldDraw) continue;
 
       let out=byCategory.get(type);
-      if(!out){out={vertices:[],indices:[]};byCategory.set(type,out);}
+      if(!out){out={vertices:[],indices:[],shades:[]};byCategory.set(type,out);}
       const ok=type==="TRAVEL"
         ? addTravelLine(out,a,b)
-        : addSolidBead(out,printAnchor||a,b,top,bottom);
+        : appendChamferedBead(out,printAnchor||a,b,top,bottom,EXTRUSION_WIDTH_MM);
       if(ok){
         capturedLayerSegment=true;
         displayed++;
@@ -117,7 +110,7 @@ export async function buildGcodeLayers(parsedData) {
       }
     }
 
-    for(const [type,{vertices,indices}] of byCategory){
+    for(const [type,{vertices,indices,shades}] of byCategory){
       if(!indices.length) continue;
       let material=materials.get(type);
       if(!material){
@@ -128,12 +121,17 @@ export async function buildGcodeLayers(parsedData) {
           opacity:type==="TRAVEL"?0.45:1,
           depthWrite:type!=="TRAVEL"
         });
+        if(type!=="TRAVEL")enableBevelShading(material);
         materials.set(type,material);
       }
       const geometry=new THREE.BufferGeometry();
       geometry.setAttribute("position",
         new THREE.Float32BufferAttribute(vertices,3));
       geometry.setIndex(indices);
+      if(type!=="TRAVEL"){
+        geometry.setAttribute("ad4Shade",
+          new THREE.Uint8BufferAttribute(shades,1,true));
+      }
       geometry.computeBoundingSphere();
       const part=new THREE.Mesh(geometry,material);
       part.userData.ad4Category=type;
@@ -146,6 +144,8 @@ export async function buildGcodeLayers(parsedData) {
     mesh:group,layers,categories:[...categories].sort(),
     segmentCount,displayed,solidSegments,
     solidPreview:true,
+    bevelPreview:true,
+    bevelShade:BEVEL_SHADE/255,
     layerHeights:stack.map(layer=>layer.height),
     simplified:stride>1||Boolean(globalThis.AD4GcodeParserInfo?.simplified)
   };
