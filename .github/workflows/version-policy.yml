@@ -1,0 +1,26 @@
+name: PR version policy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  version-bump:
+    name: version-bump
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test version policy logic
+        run: python3 -m unittest discover -s tests/ci -p 'test_*.py'
+      - name: Require version increments relative to base
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/check_pr_version.py --base "$BASE_SHA"
