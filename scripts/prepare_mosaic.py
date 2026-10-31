@@ -424,14 +424,12 @@ layer_slider.addEventListener("input",()=>{
     patch("src/gui/viewer/model_viewer.mjs",
           "    let mesh = models[model].mesh.clone();",
           "    let mesh = models[model].mesh.clone();\n    mesh.visible = true;")
-    # Every import, clone, transform and STL export must pass the same
-    # authoritative geometry test. Reject invalid initial placement before it
-    # ever enters the scene/registry.
+    # Always register a loaded STL/3MF, even outside the bed or overlapping.
+    # Validation only prevents Slice and STL export, never further editing.
     patch("src/gui/viewer/model_viewer.mjs",
           "  scene.add(mesh);\n\n  mesh.name =",
-          "  if (!ad4Plate.acceptNewModel(mesh, file_name)) {\n"
-          "    mesh.geometry.dispose();\n    mesh.material.dispose();\n"
-          "    return null;\n  }\n  scene.add(mesh);\n\n  mesh.name =")
+          "  ad4Plate.acceptNewModel(mesh, file_name);\n"
+          "  scene.add(mesh);\n\n  mesh.name =")
     patch("src/gui/viewer/model_viewer.mjs",
           "export function export_stl() {\n",
           "export function export_stl() {\n"
