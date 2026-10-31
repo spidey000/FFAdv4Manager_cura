@@ -2297,3 +2297,20 @@ body[data-ad4-screen=printer] #ad4-v3-printer-page{
   display:none!important
  }
 }
+
+
+/* At 320–375px, put the live switch over the viewer edge, keeping its
+   44px touch target and the full camera title. */
+@media(max-width:375px){
+ #ad4-v3-printer-page #ad4-manager #ad4-live-job .ad4-live-visual-head{
+  position:relative
+ }
+ #ad4-v3-printer-page #ad4-manager #ad4-live-job #ad4-live-camera-expand>span:first-child{
+  display:inline-flex!important
+ }
+ #ad4-v3-printer-page #ad4-manager #ad4-live-job .ad4-live-visual-camera-switch{
+  position:absolute!important;top:49px;right:3px;z-index:5;
+  display:flex!important;min-width:44px!important;min-height:44px!important;
+  border-radius:10px;background:var(--v3-card)!important
+ }
+}
