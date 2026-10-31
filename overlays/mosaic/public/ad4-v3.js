@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.9";
+const VERSION_UI = "0.2.10";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -579,6 +579,7 @@ transform.innerHTML='<button type="button" class="ad4-v3-sheet-handle" id="ad4-v
 '<div class="ad4-v3-camera-toolbar" aria-label="3D camera views"><button id="ad4-v3-view-fit" type="button">Fit model</button><button id="ad4-v3-view-top" type="button">Top view</button><button id="ad4-v3-view-iso" type="button">Isometric</button></div>'+
 '<div class="ad4-v3-snap"><label><input id="ad4-v3-snap" type="checkbox" checked> Snap 5 mm / 5°</label></div>'+
  '<div class="ad4-v3-axis-list"></div>'+
+'<label class="ad4-v3-snap ad4-v3-lock-proportions" id="ad4-v3-scale-lock-row" hidden><input id="ad4-v3-scale-lock-all" type="checkbox"><span>Lock proportions</span></label>'+
 '<div class="ad4-v3-transform-actions"><button type="button" id="ad4-v3-rotate90">Rotate Z +45°</button><button type="button" id="ad4-v3-transform-reset">Reset selected axis</button><button type="button" id="ad4-v3-transform-apply">Apply</button></div>';
 root.append(transform);
 const axisList=transform.querySelector(".ad4-v3-axis-list");
@@ -693,6 +694,14 @@ for(const axis of ["x","y","z"]){
    const compact=compactValues?.querySelector('[data-axis="'+axis+'"] input');
    if(compact)compact.disabled=locked;
   }
+  const allLocked=mode==="scale"&&Boolean(selected)&&["x","y","z"].every(axis=>isAxisLocked(axis,selected));
+  for(const id of ["ad4-v3-scale-lock-all","ad4-viewer-scale-lock-all"]){
+   const checkbox=$(id);
+   if(!checkbox)continue;
+   checkbox.checked=Boolean(allLocked);
+   checkbox.disabled=mode!=="scale"||!selected;
+   checkbox.setAttribute("aria-label","Lock all X, Y and Z dimensions");
+  }
  }
  function toggleAxisLock(axis){
   if(mode!=="scale")return;
@@ -702,6 +711,14 @@ for(const axis of ["x","y","z"]){
   if(set.has(axis))set.delete(axis);else set.add(axis);
   captureScaleBaseline();syncAxisLocks();
  }
+ // The bulk switch edits the same per-model X/Y/Z locks as the padlocks.
+ function setAllAxisLocks(locked){
+  if(mode!=="scale")return;
+  const mesh=selectedMesh();if(!mesh)return;
+  axisLocks.set(mesh,new Set(locked?["x","y","z"]:[]));
+  captureScaleBaseline();syncAxisLocks();
+ }
+ $("ad4-v3-scale-lock-all").addEventListener("change",e=>setAllAxisLocks(e.target.checked));
  function sourceAxis(axis){
  const prefix=mode==="rotate"?"rotation":mode==="translate"?"movement":"scale";
  return $(prefix+"-"+axis+"-value");
@@ -902,6 +919,11 @@ for(const axis of ["x","y","z"]){
 }
 const editorBox=make("div","ad4-viewer-editor-box");editorBox.hidden=true;
 editorBox.append(compactValues);
+const proportionsLabel=make("label","ad4-viewer-snap ad4-viewer-lock-proportions");
+proportionsLabel.hidden=true;
+proportionsLabel.innerHTML='<input id="ad4-viewer-scale-lock-all" type="checkbox"><span>Lock proportions</span>';
+proportionsLabel.querySelector("input").addEventListener("change",e=>setAllAxisLocks(e.target.checked));
+editorBox.append(proportionsLabel);
 const snapLabel=make("label","ad4-viewer-snap");
 snapLabel.innerHTML='<input id="ad4-viewer-snap" type="checkbox" checked><span>Snap 5</span>';
 editorBox.append(snapLabel);
@@ -935,14 +957,21 @@ function setTransform(next){
  editorBox.hidden=next===null;
  compactValues.hidden=next===null;
  snapLabel.hidden=next===null;
+ proportionsLabel.hidden=next!=="scale";
+ $("ad4-v3-scale-lock-row").hidden=next!=="scale";
  if(next===null){for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed","false");
   globalThis.app?.gui?.model_viewer?.model_controls?.detach?.();return;}
  mode=next;
  if(next==="scale"){ensureScaleLock();captureScaleBaseline();}
  for(const b of viewerTransform.querySelectorAll("[data-viewer-mode]"))b.setAttribute("aria-pressed",String(b.dataset.viewerMode===next));
  for(const b of transform.querySelectorAll("[data-mode]"))b.setAttribute("aria-pressed",String(b.dataset.mode===next));
- const focused=globalThis.app?.gui?.model_viewer?.focused,controls=globalThis.app?.gui?.model_viewer?.model_controls;
- if(focused&&controls?.mode!==next){
+ const viewer=globalThis.app?.gui?.model_viewer;
+ const focused=viewer?.focused,controls=viewer?.model_controls;
+ const mesh=focused?viewer?.models?.[focused]?.mesh:null;
+ // TransformControls can start in translate while detached or disabled.
+ // The first Move click must attach its native arrows to the selected mesh.
+ if(mesh&&(controls?.mode!==next||controls?.object!==mesh||
+           controls?.enabled!==true||!controls?.getHelper?.()?.parent)){
   const btn=$(next==="translate"?"movement-button":next==="rotate"?"rotate-button":"scale-button");
   btn?.firstElementChild?.click();
  }
