@@ -36,7 +36,7 @@
 
 | Área | Funciones |
 | --- | --- |
-| **Editor 3D** | Importación STL/3MF, varios modelos, selección, ocultar/mostrar, mover, girar, escalar proporcionalmente, controles táctiles y vistas de cámara. |
+| **Editor 3D** | Importación STL/3MF, varios modelos, selección, ocultar/mostrar, mover y girar, ajustar X/Y/Z en milímetros con candados independientes y escalado proporcional de los ejes libres, controles táctiles y vistas de cámara. |
 | **Ajustes de Cura** | Catálogo de parámetros de Mosaic/Cura, filtros All/Basic/Advanced/Expert, categorías Quality/Strength/Speed/Support/Material, búsqueda, presets locales y restauración de valores. Ayuda contextual de [SettingsGuide](https://github.com/Ghostkeeper/SettingsGuide). |
 | **Slicing real** | Exportación de geometría y ajustes resueltos al servidor; CuraEngine nativo genera G-code. Vista previa de trayectorias por capas, rangos de capas, tiempo y material estimados. |
 | **Archivos y envío** | Inspección de G-code/GX, conversión a GX con miniatura y metadatos, subida a almacenamiento de la impresora o envío con inicio de impresión tras confirmación. |
