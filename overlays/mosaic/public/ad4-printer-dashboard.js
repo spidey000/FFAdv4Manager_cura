@@ -91,7 +91,7 @@
   const printSummary=page.querySelector(".ad4-printer-current");
   if(printSummary)live.prepend(printSummary);
   const start=$("ad4-live-consult");if(start)start.textContent="Start toolpath";
-  const title=live.querySelector(".ad4-section-title h3");if(title)title.textContent="Monitoring";
+  // Preserve the Lucide Eye element supplied by the Monitoring header.
   const canvas=$("ad4-live-canvas");
   if(canvas){
    canvas.tabIndex=0;canvas.setAttribute("role","button");canvas.setAttribute("aria-label","Open live toolpath monitoring");
