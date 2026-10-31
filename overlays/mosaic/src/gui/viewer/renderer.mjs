@@ -10,6 +10,7 @@ export let view_height = Math.max(1, viewport.clientHeight);
 export let scene_name = "model";
 
 let current_scene;
+let lastRenderError = null;
 let scheduled = false;
 let started = false;
 let lastRatio = 0;
@@ -56,7 +57,21 @@ function frame() {
   // ThreeSlicer chooses genuine geometric LOD using camera projection;
   // in a cut-layer view full detail is retained.
   if(scene_name==="gcode")globalThis.AD4GCodePreview?.updateLod(camera,view_height);
-  if (current_scene) renderer.render(current_scene, camera);
+  if (current_scene) {
+    try {
+      renderer.render(current_scene, camera);
+      lastRenderError = null;
+    } catch(error) {
+      const message=error?.message || String(error);
+      if(message!==lastRenderError) {
+        lastRenderError=message;
+        document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+          detail:{code:scene_name==="gcode"?"LAYER_RENDER_FAILED":"MODEL_RENDER_FAILED",
+            message:"3D scene could not be drawn: "+message}
+        }));
+      }
+    }
+  }
 }
 
 export function invalidate() {
