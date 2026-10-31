@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.1.2";
+const VERSION_UI = "0.2.0";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -204,6 +204,14 @@ function activate(name){
   else $("preview-tab-button")?.click();
  }
  if(name==="app"||name==="printer"||name==="slice-info")closeSheet();
+ // Entering Printer opens the existing controller as an inline non-modal panel.
+ // Leaving closes it and stops video and printer polling.
+ const embeddedManager=$("ad4-manager");
+ if(name==="printer"){
+  if(embeddedManager&&!embeddedManager.open)$("ad4-open-manager")?.click();
+ }else if(embeddedManager?.open){
+  embeddedManager.close();
+ }
  if(name==="transform")setTransform("rotate");
  topActive();renderTools();refreshState();
  if(pose)requestAnimationFrame(()=>{
@@ -219,10 +227,8 @@ for(const [symbol,label,route] of TOP){
  const b=navButton(symbol,label,()=>activate(route));b.dataset.route=route;top.append(b);
 }
 const printerPage=make("section","ad4-v3-info-page");printerPage.id="ad4-v3-printer-page";
-printerPage.innerHTML='<h2>Adventurer 4</h2><p id="ad4-v3-printer-page-state">Printer management uses your authenticated private Linux server.</p><div class="ad4-v3-info-card"><strong>Camera and printer controls</strong><p>Connect to the private server through Cloudflare Access to see the live camera, printer files, diagnostics and print controls. GitHub Pages is preview-only.</p><button type="button" id="ad4-v3-open-controls">Open printer controls</button></div>';
+printerPage.innerHTML='<h2>Adventurer 4</h2><p id="ad4-v3-printer-page-state">Checking printer connection…</p>';
 root.append(printerPage);
-$("ad4-v3-open-controls").disabled=staticPreview;
-$("ad4-v3-open-controls").addEventListener("click",()=>openPrinter("control"));
 const sliceInfo=make("section","ad4-v3-info-page");sliceInfo.id="ad4-v3-slice-info";
 sliceInfo.innerHTML='<h2>Server-side slicing</h2><div class="ad4-v3-info-card"><strong>CuraEngine is not available on GitHub Pages</strong><p>The 3D model and Cura settings work in the public preview. To generate G-code or GX, open this application on your authenticated Linux server.</p><button type="button" id="ad4-v3-return-preview">Return to model</button></div>';
 root.append(sliceInfo);
@@ -787,7 +793,6 @@ const app=make("section","ad4-v3-app");app.id="ad4-v3-app";
 app.innerHTML='<h2>App settings</h2><p>AD4 Studio · FlashForge Adventurer 4</p>'+
 '<div class="ad4-v3-app-card"><strong>Slicing engine</strong><span>CuraEngine · Linux server only</span><small>GitHub Pages is a visual-only preview. Real slice, print and camera require your authenticated server.</small></div>'+
 '<div class="ad4-v3-app-card"><strong>Saved profiles</strong><span>Browser-local process and Artillery PLA settings</span><div class="ad4-v3-app-actions"><button id="ad4-v3-export-profiles">'+svg("upload")+' Export profiles</button><button id="ad4-v3-import-profiles">'+svg("file")+' Import profiles</button></div><input id="ad4-v3-profile-file" type="file" accept=".json,application/json" hidden></div>'+
-'<div class="ad4-v3-app-card"><strong>Printer connection</strong><span>Protected API and LAN bridge</span><button id="ad4-v3-open-printer">Open printer manager</button></div>'+
 '<div class="ad4-v3-app-card"><strong>Project</strong><a href="https://github.com/spidey000/FFAdv4Manager_cura" target="_blank" rel="noopener noreferrer">FFAdv4Manager_cura on GitHub</a></div>';
 root.append(app);
 const PRESET_KEY="ffadv4-mosaic-custom-presets-v1";
@@ -820,35 +825,31 @@ $("ad4-v3-profile-file").addEventListener("change",async e=>{
   notify("Profiles imported. Reload the app to use them.");
  }catch(error){notify("Profile import failed: "+error.message)}finally{e.target.value=""}
 });
-$("ad4-v3-open-printer").addEventListener("click",()=>openPrinter("control"));
+/* Reuse the live printer controller directly in the Printer workspace.
+ * No duplicate controls or modal: every card targets its real backend API.
+ */
 const manager=$("ad4-manager");
-const manageTab=make("nav","ad4-v3-manager-tabs");manageTab.id="ad4-v3-manager-tabs";
-const sectionMap={control:["Print controls","Printer connections and diagnostics"],files:["Printer files"],camera:["Camera"],timelapse:["Timelapses"]};
 if(manager){
- const head=manager.querySelector(".ad4-head");
- head?.after(manageTab);
- for(const [key,title] of [["live","Live print"],["camera","Camera"],["timelapse","Timelapse"],["files","Files"],["control","Control"]]){
-  const b=make("button",null,title);b.type="button";b.dataset.pane=key;b.addEventListener("click",()=>setManagerPane(key));manageTab.append(b);
+ const names={
+  "Print controls":"controls","Printer files":"files","Camera":"camera",
+  "Timelapses":"timelapse","Printer connections and diagnostics":"connection",
+  "Files and diagnostics":"tools"
+ };
+ for(const section of manager.querySelectorAll(":scope > .ad4-section")){
+  const title=section.querySelector("h3,summary")?.textContent?.trim();
+  if(names[title])section.dataset.printerFeature=names[title];
  }
  manager.querySelector("details.ad4-section")?.setAttribute("open","");
 }
-function setManagerPane(pane){
- managerPane=pane;
- for(const b of manageTab.querySelectorAll("button"))b.setAttribute("aria-pressed",String(b.dataset.pane===pane));
- // Tabs are jump links: no information sections may disappear offline.
- for(const section of manager.querySelectorAll(".ad4-section"))section.hidden=false;
- const label={live:"Current print",camera:"Camera",timelapse:"Timelapses",files:"Printer files",control:"Print controls"}[pane];
- if(manager.open&&label){
-  const target=[...manager.querySelectorAll(".ad4-section")].find(section=>
-   (section.querySelector("h3")?.textContent||"").includes(label));
-  target?.scrollIntoView({block:"start",behavior:"instant"});
- }
-}
-function openPrinter(pane){
- if(staticPreview){activate("printer");return}
- closeSheet();setManagerPane(pane);
- if(!manager.open)$("ad4-open-manager")?.click();
- setManagerPane(pane);
+function openPrinter(pane="controls"){
+ if(current!=="printer")activate("printer");
+ const key={live:"controls",control:"controls",files:"files",camera:"camera",
+  timelapse:"timelapse",connection:"connection",diagnostics:"connection",tools:"tools"}[pane]||"controls";
+ requestAnimationFrame(()=>{
+  const target=manager?.querySelector('[data-printer-feature="'+key+'"]');
+  if(target?.tagName==="DETAILS")target.open=true;
+  target?.scrollIntoView({block:"start",behavior:"smooth"});
+ });
 }
 
 function toolBtn(symbol,label,fn,id){
