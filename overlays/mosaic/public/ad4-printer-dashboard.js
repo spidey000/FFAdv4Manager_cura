@@ -20,7 +20,7 @@
   '<details class="ad4-printer-connection-details"><summary>Connection details</summary><p id="ad4-printer-connection-note">Connection profile selects a network address, not another printer model.</p></details>'+
   '<nav class="ad4-printer-nav" aria-label="Printer sections">'+
    route("overview","Overview","layout-grid")+route("files","Files","file")+
-   route("media","Camera & Timelapses","camera")+route("diagnostics","Diagnostics","wrench")+
+   route("media","Timelapses","camera")+route("diagnostics","Diagnostics","wrench")+
   '</nav>'+
   '<div class="ad4-printer-overview-content" data-printer-overview>'+
    '<div class="ad4-printer-facts">'+
@@ -36,12 +36,11 @@
     '<div class="ad4-printer-job-metrics">'+
      '<div><span>Elapsed</span><strong id="ad4-printer-elapsed">—</strong></div>'+
      '<div><span>Remaining</span><strong id="ad4-printer-remaining">—</strong></div>'+
-     '<div><span>Layer</span><strong id="ad4-printer-layer">—</strong></div>'+
     '</div>'+
    '</section>'+
    '<div class="ad4-printer-jump-grid">'+
     '<button type="button" data-printer-go="files">'+icon("file")+'<span>Printer files</span><strong id="ad4-printer-file-count">—</strong></button>'+
-    '<button type="button" data-printer-go="media">'+icon("camera")+'<span>Camera & timelapses</span><strong id="ad4-printer-record-summary">On demand</strong></button>'+
+    '<button type="button" data-printer-go="media">'+icon("camera")+'<span>Timelapses</span><strong id="ad4-printer-record-summary">On demand</strong></button>'+
     '<button type="button" data-printer-go="diagnostics">'+icon("gear")+'<span>Connections & diagnostics</span><strong id="ad4-printer-profile-summary">—</strong></button>'+
    '</div>'+
   '</div>';
@@ -60,7 +59,6 @@
  add("files",section("files"));
  const tools=section("tools");
  add("files",tools);
- add("media",section("camera"));
  add("media",section("timelapse"));
  const connections=section("connection");
  if(connections){connections.open=false;add("diagnostics",connections)}
@@ -77,7 +75,9 @@
  }
  const live=section("live");
  if(live){
-  const start=$("ad4-live-consult");if(start)start.textContent="Toolpath";
+  const printSummary=page.querySelector(".ad4-printer-current");
+  if(printSummary)live.prepend(printSummary);
+  const start=$("ad4-live-consult");if(start)start.textContent="Start toolpath";
   const title=live.querySelector(".ad4-section-title h3");if(title)title.textContent="Monitoring";
   const canvas=$("ad4-live-canvas");
   if(canvas){
@@ -118,52 +118,64 @@
   const pagination=fileSection.querySelector(".ad4-pagination");
   if(pagination){pagination.classList.add("ad4-printer-pagination");}
  }
+
+ // Keep legacy camera controls in the DOM for their existing backend listeners,
+ // but never render a second camera preview/stream in the media view.
  const cameraSection=section("camera");
  if(cameraSection){
-  const action=cameraSection.querySelector(".ad4-tools");
-  const img=$("ad4-camera");
-  if(action&&img){
-   const area=document.createElement("div");area.className="ad4-printer-camera-stage";
-   area.innerHTML='<span id="ad4-printer-camera-empty">Camera off · Start live video or take a snapshot</span>';
-   area.prepend(img);action.before(area);
-   const toggle=document.createElement("label");toggle.className="ad4-printer-camera-switch";
-   toggle.innerHTML='<span>Live camera</span><input type="checkbox" role="switch" id="ad4-printer-camera-switch" aria-label="Live camera">';
-   action.prepend(toggle);
-   const legacy=$("ad4-live-toggle");legacy.classList.add("ad4-printer-legacy-camera");
-   const input=$("ad4-printer-camera-switch");
-   input.addEventListener("change",()=>{
-    if(demo||legacy.disabled){input.checked=false;return}
-    if(input.checked!==(legacy.getAttribute("aria-pressed")==="true"))legacy.click();
-   });
-   const sync=()=>{
-    const streaming=legacy.getAttribute("aria-pressed")==="true";
-    input.checked=streaming;input.disabled=demo||legacy.disabled;
-    const empty=$("ad4-printer-camera-empty");
-    empty.textContent=streaming?"Connecting to live camera…":"Camera off · Start live video or take a snapshot";
-    empty.hidden=!img.hidden;
-   };
-   new MutationObserver(sync).observe(legacy,{attributes:true,attributeFilter:["aria-pressed","disabled"]});
-   new MutationObserver(sync).observe(img,{attributes:true,attributeFilter:["src","hidden"]});
-   sync();
-   const enlarge=document.createElement("button");enlarge.type="button";
-   enlarge.className="ad4-printer-icon-btn";enlarge.title="Expand camera";
-   enlarge.setAttribute("aria-label","Expand camera");enlarge.innerHTML=icon("scale");
-   enlarge.disabled=demo;
-   enlarge.addEventListener("click",async()=>{
-    if(!img.hidden && area.requestFullscreen){
-     try{await area.requestFullscreen()}catch(error){globalThis.AD4Printer?.say?.(error.message,true)}
-    }
-   });action.append(enlarge);
-  }
+  cameraSection.hidden=true;cameraSection.style.display="none";
+  const snap=$("ad4-snapshot");
+  live?.querySelector(".ad4-monitor-controls")?.append(snap);
+  const oldImage=$("ad4-camera");
+  oldImage?.addEventListener("load",()=>{
+   if(!oldImage.dataset.blob)return;
+   const img=$("ad4-live-camera");
+   if(img){img.src=oldImage.src;img.hidden=false;$("ad4-live-camera-state").textContent="Snapshot";}
+  });
  }
+ // Use the app's native modal language, not fullscreen navigation or extra
+ // renderers: move the SAME Three.js canvas / MJPEG view into the dialog.
+ const monitorModal=document.createElement("dialog");
+ monitorModal.id="ad4-printer-monitor-modal";
+ monitorModal.className="ad4-printer-monitor-modal";
+ monitorModal.setAttribute("aria-label","Expanded print monitoring");
+ monitorModal.innerHTML='<header class="ad4-printer-modal-head"><h3 id="ad4-printer-modal-title">Monitoring</h3>'+
+  '<button type="button" id="ad4-printer-modal-close" aria-label="Close expanded monitoring">'+icon("x")+'</button></header>'+
+  '<div class="ad4-printer-modal-content"></div>';
+ document.body.append(monitorModal);
+ const modalContent=monitorModal.querySelector(".ad4-printer-modal-content");
+ let expanded=null,parent=null,next=null,opener=null;
+ function closeMonitor(){if(monitorModal.open)monitorModal.close()}
+ function expandMonitor(kind){
+  if(monitorModal.open)return;
+  const node=kind==="toolpath"?$("ad4-live-canvas"):$("ad4-live-camera")?.closest(".ad4-live-camera-wrap");
+  if(!node)return;
+  opener=kind==="toolpath"?$("ad4-live-toolpath-expand"):$("ad4-live-camera-expand");
+  expanded=node;parent=node.parentNode;next=node.nextSibling;
+  modalContent.append(node);
+  $("ad4-printer-modal-title").textContent=kind==="toolpath"?"Toolpath":"Live preview";
+  monitorModal.showModal();
+  $("ad4-printer-modal-close").focus();
+ }
+ monitorModal.addEventListener("close",()=>{
+  if(!expanded||!parent)return;
+  if(next?.parentNode===parent)parent.insertBefore(expanded,next);
+  else parent.append(expanded);
+  expanded=null;parent=null;next=null;
+  if(opener?.isConnected&&document.body.dataset.ad4Screen==="printer")opener.focus();
+  opener=null;
+ });
+ $("ad4-printer-modal-close").addEventListener("click",closeMonitor);
+ $("ad4-live-toolpath-expand")?.addEventListener("click",()=>expandMonitor("toolpath"));
+ $("ad4-live-camera-expand")?.addEventListener("click",()=>expandMonitor("camera"));
+ manager.addEventListener("close",closeMonitor);
  const activeView=()=>page.dataset.printerView||"overview";
  function navigate(view,{scroll=true}={}){
   if(!views[view])view="overview";
+  closeMonitor();
   const previous=activeView();
   // No background MJPEG or 3D polling after leaving a monitoring view.
   if(previous==="overview"&&view!=="overview")$("ad4-live-stop")?.click();
-  if(previous==="media"&&view!=="media"&&$("ad4-printer-camera-switch")?.checked)
-   $("ad4-printer-camera-switch").click();
   page.dataset.printerView=view;
   for(const [key,node] of Object.entries(views))node.hidden=key!==view;
   for(const link of page.querySelectorAll("[data-printer-go]")){
@@ -228,11 +240,6 @@
    // Only display elapsed/remaining if the bridge actually reports these.
    $("ad4-printer-elapsed").textContent=active?seconds(state.elapsed_seconds):"—";
    $("ad4-printer-remaining").textContent=active?seconds(state.remaining_seconds):"—";
-   const estimate=globalThis.AD4LayerEstimate;
-   const estimated=active&&state.layer_current==null&&estimate&&estimate.file===state.current_file&&Date.now()-estimate.stamp<10000;
-   const layer=estimated?estimate.layer:state?.layer_current;
-   const total=estimated?estimate.total:state?.layer_total;
-   $("ad4-printer-layer").textContent=active&&layer!=null?fmt(layer)+(total!=null?" / "+total:"")+(estimated?" · est.":""):"—";
    if(responses[1].status==="fulfilled"&&connected){
     const files=responses[1].value;
     $("ad4-printer-file-count").textContent=Array.isArray(files)?files.length+" files":"—";
