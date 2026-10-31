@@ -3,16 +3,9 @@
  * Three.js Mesh / Material / Vector allocations. Source remains unmodified.
  */
 import * as THREE from "three";
+import {colorForToolpathType} from "./ad4-toolpath-colors.mjs";
 
 export const PREVIEW_SEGMENT_BUDGET = 400000;
-const COLORS = Object.freeze({
-  "WALL-OUTER":0xff443d, "WALL-INNER":0x37cf74,
-  "SKIN":0xffdc46, "FILL":0xffa526, "SUPPORT":0x8c80ff,
-  "SUPPORT-INTERFACE":0xbd88ff, "SKIRT":0x00c6bb,
-  "BRIM":0x38cbad, "RAFT":0x64ba9f,
-  "TRAVEL":0x13dbe9, "OTHER":0x98a6a1
-});
-
 function addRibbon(vertices, a, b, radius) {
   const dx = b.x - a.x, dy = b.y - a.y;
   const distance = Math.hypot(dx, dy);
@@ -68,7 +61,7 @@ export async function buildGcodeLayers(parsedData) {
       let material = materials.get(type);
       if (!material) {
         material = new THREE.MeshBasicMaterial({
-          color: COLORS[type] ?? COLORS.OTHER, side: THREE.DoubleSide,
+          color: colorForToolpathType(type), side: THREE.DoubleSide,
           transparent: type === "TRAVEL", opacity: type === "TRAVEL" ? 0.6 : 1,
           depthWrite: type !== "TRAVEL"
         });
