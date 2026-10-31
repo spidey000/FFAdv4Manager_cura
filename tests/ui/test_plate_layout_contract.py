@@ -23,7 +23,7 @@ def test_clone_is_fully_registered_and_rejected_when_full():
     assert "models[mesh.uuid]={mesh,data:source.data,name:mesh.name}" in OPS
     assert "interactions.scene_objects[mesh.uuid]=sceneobj" in OPS
     assert "focusModel(mesh.uuid)" in OPS
-    assert "new CustomEvent(\"ad4:models-changed\"" in OPS
+    assert 'emit("models-changed",{count:Object.keys(models).length})' in OPS
 
 
 def test_invalid_drag_and_compound_numeric_edits_are_reversible():
