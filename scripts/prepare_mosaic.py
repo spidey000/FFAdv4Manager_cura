@@ -443,6 +443,55 @@ layer_slider.addEventListener("input",()=>{
           "    if (!Object.values(models).some(m => m.mesh !== models[focused].mesh &&\n"
           "        m.mesh.geometry === models[focused].mesh.geometry))\n"
           "      models[focused].mesh.geometry.dispose();")
+    # Validate import parameters before creating expensive geometry. FileReader
+    # and worker exceptions are announced to the same viewport error surface.
+    patch("src/gui/file.mjs",
+          "export function load_file(file) {\n",
+          '''export function load_file(file) {
+  if (!file || !/\\.(stl|3mf)$/i.test(file.name || "")) {
+    document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+      detail:{code:"FILE_UNSUPPORTED",message:"Select an STL or 3MF file."}
+    }));
+    return;
+  }
+  if (file.size > 250 * 1024 * 1024) {
+    document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+      detail:{code:"FILE_TOO_LARGE",message:"Model exceeds the 250 MB import limit."}
+    }));
+    return;
+  }
+''')
+    patch("src/gui/file.mjs",
+          "  reader.readAsArrayBuffer(file);",
+          '''  reader.onerror = () => document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+    detail:{code:"FILE_READ_FAILED",message:"Cannot read “"+file.name+"” from device storage."}
+  }));
+  reader.readAsArrayBuffer(file);''')
+    # Report toolpath failures in the SAME warning spot as model errors; never
+    # silently leave an empty layer scene following a failed parser promise.
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          "  let parsed_data = await gcode.parse(exported_gcode);",
+          '''  let parsed_data;
+  try {
+    parsed_data = await gcode.parse(exported_gcode);
+    if (!Array.isArray(parsed_data) || !parsed_data.length)
+      throw Error("The toolpath contains no printable layers");
+    document.dispatchEvent(new CustomEvent("ad4:viewer-recovered",{
+      detail:{code:"GCODE_PARSE_FAILED"}
+    }));
+  } catch (error) {
+    document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+      detail:{code:"GCODE_PARSE_FAILED",
+        message:"Cannot display G-code layers: "+(error?.message || String(error))}
+    }));
+    return;
+  }''')
+    patch("src/gui/viewer/gcode_viewer.mjs",
+          '    notify("No G-Code to show", "Slice a model to generate G-Code");',
+          '''    notify("No G-Code to show", "Slice a model to generate G-Code");
+    document.dispatchEvent(new CustomEvent("ad4:viewer-error",{
+      detail:{code:"GCODE_MISSING",message:"There is no G-code yet. Slice a model first."}
+    }));''')
     model_source = DEST / "src/gui/viewer/model_viewer.mjs"
     model_source.write_text(model_source.read_text() + """
 // Install plate rules in Mosaic's real model registry, not in the visual shell.
@@ -504,6 +553,9 @@ export function ad4_delete_model(uuid) {
         '  } catch (error) {\n'
         '    clear_slice_state();\n'
         '    notify("Server-side CuraEngine unavailable", error?.message || String(error));\n'
+        '    document.dispatchEvent(new CustomEvent("ad4:viewer-error",{\n'
+        '      detail:{code:"SLICE_FAILED",message:error?.message || String(error)}\n'
+        '    }));\n'
         '  }\n'
         '});', 1)
     # The percentage must come from CuraEngine, not a simulated timer.
