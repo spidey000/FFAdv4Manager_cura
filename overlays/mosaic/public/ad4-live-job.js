@@ -5,7 +5,7 @@
  if(!manager||!P)return;
  const demo=globalThis.__AD4_STATIC_PREVIEW__===true;
  const section=document.createElement("section");section.className="ad4-section ad4-live-job";section.id="ad4-live-job";
- section.innerHTML=\`<div class="ad4-section-title"><h3>Monitoring</h3><button id="ad4-live-consult" type="button">Start toolpath</button></div>
+ section.innerHTML=`<div class="ad4-section-title"><h3>Monitoring</h3><button id="ad4-live-consult" type="button">Start toolpath</button></div>
  <p id="ad4-live-status" role="status">Monitoring is off. Start the toolpath or enable live camera when needed.</p>
  <div class="ad4-live-pair">
   <div class="ad4-live-visual"><button id="ad4-live-toolpath-expand" type="button" class="ad4-live-caption ad4-live-expand" aria-haspopup="dialog" aria-label="Expand Toolpath visualization">Toolpath <span data-ad4-icon="scale" aria-hidden="true"></span></button><div id="ad4-live-canvas" class="ad4-live-canvas"></div></div>
@@ -24,7 +24,7 @@
   <label><span>Live camera</span><input id="ad4-live-camera-toggle" type="checkbox" role="switch" aria-label="Enable live camera"></label>
   <button id="ad4-live-stop" type="button">Stop viewing</button>
   <button id="ad4-live-fetch" type="button" disabled>Fetch printer file</button>
- </div>\`;
+ </div>`;
  manager.querySelector(".ad4-grid").after(section);
  let viewing=false,inFlight=false,timer=null,renderer=null,token=null,snapshot=null,attemptedFile=null,controller=null;
  function text(id,value){$(id).textContent=value}
