@@ -20,7 +20,7 @@ assert ui_match, "Missing semantic UI version"
 ui_version=ui_match.group(1)
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path=os.environ.get("CHROME_BIN") or None,args=["--no-sandbox","--disable-dev-shm-usage","--use-gl=angle","--use-angle=swiftshader"])
-    for width,height in [(320,568),(390,844),(1280,800)]:
+    for width,height in [(320,568),(360,780),(390,844),(430,932),(1280,800)]:
         page=browser.new_page(viewport={"width":width,"height":height},device_scale_factor=1)
         errors=[]
         page.on("pageerror",lambda e: errors.append("PAGE ERROR: "+str(e)+"\n"+str(getattr(e,"stack",""))))
