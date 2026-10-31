@@ -168,6 +168,19 @@ with sync_playwright() as p:
                     })
                     page.wait_for_function("() => Object.keys(app.gui.model_viewer.models).length>=2",timeout=8000)
                     print("USER FILE UPLOAD LOADED AS 3D MODEL",flush=True)
+                    # Importing a second model at the same origin is allowed
+                    # even if it overlaps the Benchy. No slicer export until
+                    # a deliberate Auto Arrange fixes the collision.
+                    import_status=page.evaluate("app.gui.model_viewer.ad4_plate_status()")
+                    if not import_status["valid"]:
+                        blocked=page.evaluate("""()=>{
+                          try{app.gui.model_viewer.export_stl();return false}
+                          catch(e){return /Cannot slice/.test(e.message)}
+                        }""")
+                        assert blocked,import_status
+                        assert page.evaluate("app.gui.model_viewer.ad4_auto_arrange()"),import_status
+                        assert page.evaluate("app.gui.model_viewer.ad4_plate_status().valid")
+                        print("SECOND STL COLLISION / MANUAL AUTO ARRANGE PASSED",flush=True)
                     # File tab must not expose layer controls; loaded models get
                     # their own dock tab, connected to the real Three.js registry.
                     assert page.locator('#ad4-v3-show-layers:visible').count()==0, "Layer action leaked into File"
