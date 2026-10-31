@@ -69,3 +69,22 @@ test("non-finite transforms and degenerate footprints are rejected",()=>{
  assert.deepEqual(convexHull([[NaN,1],[2,3]]),[]);
  assert.equal(arrangeFootprints([{id:"flat",outline:[[0,0]],lowY:0,highY:5}]),null);
 });
+
+
+test("specific errors identify the model, the exceeded edge and millimetres",()=>{
+ const outside={...placed("id",rect(30,20),102,0),name:"part.stl"};
+ const edge=validatePlate([outside]);
+ assert.equal(edge.code,"BED_X_MAX");
+ assert.match(edge.reason,/part\.stl/);
+ assert.match(edge.reason,/right X edge/);
+ assert.match(edge.reason,/7 mm/);
+ const high={...placed("id",rect(20,20)),name:"tower.3mf",highY:255};
+ assert.equal(validatePlate([high]).code,"HEIGHT_OVERFLOW");
+ assert.match(validatePlate([high]).reason,/5 mm/);
+ const a={...placed("one",rect(15,15)),name:"left.stl"};
+ const b={...placed("two",rect(15,15),1,1),name:"right.stl"};
+ const bad=validatePlate([a,b]);
+ assert.equal(bad.code,"MODEL_COLLISION");
+ assert.match(bad.reason,/left\.stl/);
+ assert.match(bad.reason,/right\.stl/);
+});
