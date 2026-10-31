@@ -86,11 +86,12 @@ with sync_playwright() as p:
     assert page.evaluate("""() => {
       const h=AD4GCodePreview.handle.handle;
       const color=h.mesh.geometry.getAttribute('iColor');
-      const before=color.array[0];
+      const before=color.array.slice();
       AD4GCodePreview.setTypeVisible('PERIMETER',false);
-      const after=color.array[0];
+      let hidden=0;
+      for(let i=0;i<before.length;i++)if(before[i]>=0&&color.array[i]===-1)hidden++;
       AD4GCodePreview.setTypeVisible('PERIMETER',true);
-      return before>=0 && after===-1 && color.array[0]===before;
+      return hidden>10&&color.array.every((x,i)=>x===before[i]);
     }"""), "GPU per-feature visibility must update the actual color attribute"
     assert page.evaluate("""() => {
       const count=AD4GCodePreview.count;
