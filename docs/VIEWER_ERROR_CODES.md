@@ -7,8 +7,11 @@ and red text communicate a blocking or actionable error, not normal status.
 The panel uses **textContent** (never HTML) for imported filenames and server
 responses. Source priorities: invalid plate > import errors > slicing failure >
 printer transfer > G-code preview failure > backend availability > rejected
-action. Safety errors stay visible until resolved. The user may not Slice
-unless the authoritative Three.js model-viewer passes validation.
+action. Safety errors stay visible until resolved. **Imports, cloning and transformations
+are always editable**, including models outside the bed or colliding with each
+other. Only **Slice and STL export** are disabled until the authoritative
+Three.js model-viewer passes validation. This lets users correct oversized
+models instead of losing their work.
 
 ## Code inventory
 
@@ -21,7 +24,7 @@ unless the authoritative Three.js model-viewer passes validation.
 | `INVALID_GEOMETRY` | Invalid mesh, coordinates or degenerate bounds | Repair or replace model. |
 | `PLATE_CHECK_FAILED`, `PLATE_CHECK_UNAVAILABLE` | Model geometry cannot be validated or viewer bridge missing | Blocking, fail closed; refresh/check browser logs. |
 | `EMPTY_PLATE` | No 3D models loaded | Add an STL/3MF; Slice disabled, no noisy warning on initial empty preview. |
-| `INVALID_TRANSFORM`, `INVALID_TRANSFORM_VALUE` | Rejected manipulation or non-finite parameter | Last valid mesh transform restored; correct the input. |
+| `INVALID_TRANSFORM_VALUE` | Non-finite, nonpositive or unreasonably large numeric parameter | Correct the numeric value. A finite out-of-bed move or oversize dimension is allowed. |
 | `FILE_UNSUPPORTED`, `FILE_TOO_LARGE`, `FILE_READ_FAILED` | STL/3MF file selection or browser FileReader | Choose supported file below 250 MB with readable data. |
 | `MODEL_LOAD_FAILED`, `MODEL_DEMO_FAILED` | STL/3MF parser, worker or sample load | Re-upload or repair geometry. |
 | `GCODE_MISSING`, `GCODE_PARSE_FAILED`, `GCODE_DEMO_FAILED` | Layer viewer or sample toolpath load | Re-slice or load a valid demo. |
@@ -44,11 +47,13 @@ printer telemetry or profile configuration remain in their respective manager
 cards. Their normal status is not elevated into the **3D model/layer viewport**.
 A failed upload or send initiated from the layer viewport *is* elevated.
 
-The geometry checker conservatively rejects any overlap of the full projected
+The geometry checker conservatively **marks as not sliceable** any overlap of the full projected
 3D bounding volumes, not only a top/bottom surface intersection. As a result
-it may reject some mathematically non-intersecting, nested objects; it must
-never claim those are safe without an exact collision solver. Auto Arrange adds
-2 mm separation between convex footprints. This is **not** a slicer setting:
+it may mark some mathematically non-intersecting, nested objects as unsafe for
+slicing; users can still edit the models freely. Auto Arrange adds
+2 mm separation between convex footprints when a safe arrangement is found.
+If it cannot fit the plate, it leaves existing positions unchanged. Clone still
+creates the new model and allows manual resizing or movement. This is **not** a slicer setting:
 brim/skirt clearances and other print-process constraints remain CuraEngine's
 responsibility.
 

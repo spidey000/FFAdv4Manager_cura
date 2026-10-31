@@ -424,14 +424,12 @@ layer_slider.addEventListener("input",()=>{
     patch("src/gui/viewer/model_viewer.mjs",
           "    let mesh = models[model].mesh.clone();",
           "    let mesh = models[model].mesh.clone();\n    mesh.visible = true;")
-    # Every import, clone, transform and STL export must pass the same
-    # authoritative geometry test. Reject invalid initial placement before it
-    # ever enters the scene/registry.
+    # Always register a loaded STL/3MF, even outside the bed or overlapping.
+    # Validation only prevents Slice and STL export, never further editing.
     patch("src/gui/viewer/model_viewer.mjs",
           "  scene.add(mesh);\n\n  mesh.name =",
-          "  if (!ad4Plate.acceptNewModel(mesh, file_name)) {\n"
-          "    mesh.geometry.dispose();\n    mesh.material.dispose();\n"
-          "    return null;\n  }\n  scene.add(mesh);\n\n  mesh.name =")
+          "  ad4Plate.acceptNewModel(mesh, file_name);\n"
+          "  scene.add(mesh);\n\n  mesh.name =")
     patch("src/gui/viewer/model_viewer.mjs",
           "export function export_stl() {\n",
           "export function export_stl() {\n"
@@ -443,6 +441,26 @@ layer_slider.addEventListener("input",()=>{
           "    if (!Object.values(models).some(m => m.mesh !== models[focused].mesh &&\n"
           "        m.mesh.geometry === models[focused].mesh.geometry))\n"
           "      models[focused].mesh.geometry.dispose();")
+    # Mosaic's native Move inputs assign HTML input.value (a STRING) to
+    # Three.Vector3 coordinates. Coerce to numbers, especially important when
+    # an intentionally out-of-bounds STL is edited back into the bed.
+    patch("src/gui/viewer/transform_menu.mjs",
+          "models[focused].mesh.position.x = movement_x_value.value;",
+          "models[focused].mesh.position.x = Number(movement_x_value.value);")
+    patch("src/gui/viewer/transform_menu.mjs",
+          "models[focused].mesh.position.z = movement_y_value.value;",
+          "models[focused].mesh.position.z = Number(movement_y_value.value);")
+    patch("src/gui/viewer/transform_menu.mjs",
+          "get_half_height(models[focused].mesh) + parseInt(movement_z_value.value);",
+          "get_half_height(models[focused].mesh) + Number(movement_z_value.value);")
+    patch("src/gui/viewer/transform_menu.mjs",
+          "models[focused].mesh.position.y = movement_z_value.value + get_half_height(models[focused].mesh);",
+          "models[focused].mesh.position.y = Number(movement_z_value.value) + get_half_height(models[focused].mesh);")
+    # Numeric Z editing must not invoke an undefined drop_model() or
+    # automatically reject movement below the bed; that is a Slice warning.
+    patch("src/gui/viewer/transform_menu.mjs",
+          "  drop_model();\n  movement_z_value.value",
+          "  movement_z_value.value")
     # Validate import parameters before creating expensive geometry. FileReader
     # and worker exceptions are announced to the same viewport error surface.
     patch("src/gui/file.mjs",

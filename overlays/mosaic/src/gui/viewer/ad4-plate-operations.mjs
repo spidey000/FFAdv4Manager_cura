@@ -61,14 +61,14 @@ export function installPlateOperations({
   };
   const isValid=()=>status().valid;
 
-  function arrange(meshes=activeMeshes()) {
-    if(!meshes.length)return fail("Load at least one model before arranging");
+  function arrange(meshes=activeMeshes(),{quiet=false}={}) {
+    if(!meshes.length)return quiet?false:fail("Load at least one model before arranging");
     const pieces=meshes.map(mesh=>{
       const p=entry(mesh);
       return {...p,outline:p.outline.map(([x,z])=>[x-mesh.position.x,z-mesh.position.z])};
     });
     const placements=arrangeFootprints(pieces,AD4_BED,2);
-    if (!placements) return fail("These models cannot all fit on the Adventurer 4 build plate");
+    if (!placements) return quiet?false:fail("These models cannot all fit on the Adventurer 4 build plate");
     const byId=new Map(meshes.map(m=>[m.uuid,m]));
     for (const place of placements) {
       const mesh=byId.get(place.id);
@@ -80,7 +80,7 @@ export function installPlateOperations({
     const result=check(meshes);
     if (!result.valid) {
       for (const mesh of meshes) restore(mesh);
-      return fail(result.reason);
+      return quiet?false:fail(result.reason);
     }
     for (const mesh of meshes) remember(mesh);
     clearSliceState();
@@ -90,18 +90,14 @@ export function installPlateOperations({
     emit("plate-valid");
     return true;
   }
+  // Imports are ALWAYS editable. A too-large or overlapping STL must remain
+  // in the scene so the user can resize, rotate or move it until it fits.
+  // Safety belongs to the Slice/export boundary, not the model loader.
   function acceptNewModel(mesh,fileName="") {
     if(fileName)mesh.name=fileName;
-    const current=activeMeshes();
-    for (const existing of current) if (!saved.has(existing)) remember(existing);
     remember(mesh);
-    const individual=check([mesh]);
-    if(!individual.valid)return fail(individual.reason);
-    if (check([...current,mesh]).valid) {
-      clearSliceState();
-      return true;
-    }
-    return arrange([...current,mesh]);
+    clearSliceState();
+    return true;
   }
   function cloneSelected() {
     const source=models[getFocused()];
@@ -111,11 +107,10 @@ export function installPlateOperations({
     const ordinal=Object.values(models).filter(m=>m.name?.startsWith(source.name+" (copy")).length+1;
     mesh.name=source.name+" (copy "+ordinal+")";
     remember(mesh);
-    // Do not register until ALL existing models plus this clone can be packed.
-    if (!arrange([...activeMeshes(),mesh])) {
-      mesh.material.dispose(); // shared geometry is owned by the existing mesh
-      return false;
-    }
+    // Try packing first. If there is not enough room (or the original is
+    // oversized), keep the clone anyway and let the user fix its size/pose.
+    // Quiet mode avoids saying nothing changed when a clone was created.
+    arrange([...activeMeshes(),mesh],{quiet:true});
     scene.add(mesh);
     models[mesh.uuid]={mesh,data:source.data,name:mesh.name};
     const sceneobj=Object.create(interactions.SceneObject);
@@ -126,30 +121,25 @@ export function installPlateOperations({
     clearSliceState();
     renderer.invalidate();
     emit("models-changed",{count:Object.keys(models).length});
-    emit("plate-valid");
+    emit("plate-status",status());
     return true;
   }
   // Native focus is an ES module live binding, so obtain it at call time.
   let focusedGetter=()=>null;
   function getFocused(){return focusedGetter();}
   function setFocusedGetter(callback){focusedGetter=callback;}
+  // Transform completion must NEVER roll back an out-of-bounds or colliding
+  // model: it is a valid EDIT, but not a valid PRINT. Keep the exact user pose,
+  // clear stale sliced output and publish diagnostic status to the viewport.
   function validateSelected() {
-    if (transaction) return true;
-    const result=check(activeMeshes());
-    if (result.valid) {
-      clearSliceState();
-      for (const mesh of activeMeshes()) remember(mesh);
-      renderer.invalidate();
-      emit("plate-valid");
-      return true;
-    }
-    const selected=models[getFocused()]?.mesh || controls.object;
-    if (selected) restore(selected);
-    // A failure should never be left on the bed, even if the selected
-    // transform was initiated outside our UI.
-    const after=check(activeMeshes());
-    if (!after.valid) for (const mesh of activeMeshes()) restore(mesh);
-    return fail(result.reason);
+    if(transaction)return true;
+    clearSliceState();
+    for(const mesh of activeMeshes())remember(mesh);
+    renderer.invalidate();
+    const result=status();
+    emit("plate-status",result);
+    if(result.valid)emit("plate-valid");
+    return true;
   }
   function beginTransform() {
     if (transaction++===0) {
@@ -167,8 +157,8 @@ export function installPlateOperations({
   });
   controls.addEventListener("mouseUp",()=>{if(transaction>0)commitTransform();});
   // Mosaic's native numeric controls are also used by our mobile rulers.
-  // Validate AFTER upstream applies an input; compound changes use a
-  // transaction and are validated together at the end.
+  // Re-evaluate Slice eligibility after native numeric edits; never reject
+  // their placement. Compound edits publish one final status.
   document.addEventListener("input",event=>{
     const id=event.target?.id || "";
     if (/^(movement|rotation|scale)-[xyz]-value$/.test(id) && !transaction)

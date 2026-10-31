@@ -168,6 +168,19 @@ with sync_playwright() as p:
                     })
                     page.wait_for_function("() => Object.keys(app.gui.model_viewer.models).length>=2",timeout=8000)
                     print("USER FILE UPLOAD LOADED AS 3D MODEL",flush=True)
+                    # Importing a second model at the same origin is allowed
+                    # even if it overlaps the Benchy. No slicer export until
+                    # a deliberate Auto Arrange fixes the collision.
+                    import_status=page.evaluate("app.gui.model_viewer.ad4_plate_status()")
+                    if not import_status["valid"]:
+                        blocked=page.evaluate("""()=>{
+                          try{app.gui.model_viewer.export_stl();return false}
+                          catch(e){return /Cannot slice/.test(e.message)}
+                        }""")
+                        assert blocked,import_status
+                        assert page.evaluate("app.gui.model_viewer.ad4_auto_arrange()"),import_status
+                        assert page.evaluate("app.gui.model_viewer.ad4_plate_status().valid")
+                        print("SECOND STL COLLISION / MANUAL AUTO ARRANGE PASSED",flush=True)
                     # File tab must not expose layer controls; loaded models get
                     # their own dock tab, connected to the real Three.js registry.
                     assert page.locator('#ad4-v3-show-layers:visible').count()==0, "Layer action leaked into File"
@@ -203,6 +216,78 @@ with sync_playwright() as p:
                     page.locator('#ad4-v3-top [data-route="preview"]').click()
                     assert not menu.is_visible(), "Outside focus did not close the Models menu"
                     print("MODEL LIST SELECTION / VISIBILITY / DELETE / OUTSIDE CLOSE PASSED",flush=True)
+                    # An STL larger than the printer must still be registered and
+                    # selected, so the user can resize it. The yellow warning is
+                    # the ONLY safety consequence until a real Slice is attempted.
+                    oversized = (b"Oversize edit fixture".ljust(80,b" ") + struct.pack("<I",2)
+                                 + struct.pack("<12fH",0,0,1,0,0,0,400,0,0,0,20,0,0)
+                                 + struct.pack("<12fH",0,0,1,0,0,10,400,0,10,0,20,10,0))
+                    before_count=page.evaluate("Object.keys(app.gui.model_viewer.models).length")
+                    page.locator("#stl-file").set_input_files({
+                        "name":"oversized-editable.stl","mimeType":"model/stl","buffer":oversized
+                    })
+                    page.wait_for_function(
+                        "(n)=>Object.keys(app.gui.model_viewer.models).length===n+1",
+                        arg=before_count,timeout=10000)
+                    page.wait_for_function("()=>!app.gui.model_viewer.ad4_plate_status().valid")
+                    page.wait_for_function("()=>!document.getElementById('ad4-viewer-error').hidden")
+                    unsafe=page.evaluate("""()=>{
+                      const mv=app.gui.model_viewer;
+                      const model=Object.values(mv.models).find(m=>m.name==="oversized-editable.stl");
+                      return {uuid:model?.mesh.uuid,focused:mv.focused,
+                        code:mv.ad4_plate_status().code,
+                        warning:document.getElementById("ad4-viewer-error-message").textContent};
+                    }""")
+                    assert unsafe["uuid"] and unsafe["focused"]==unsafe["uuid"],unsafe
+                    assert unsafe["code"] in ("BED_X_MIN","BED_X_MAX"),unsafe
+                    assert "oversized-editable.stl" in unsafe["warning"],unsafe
+                    assert page.evaluate("app.gui.model_viewer.ad4_plate_valid()===false")
+                    # Clone is also non-destructive: if both models cannot
+                    # fit, the clone still exists and is selectable for repair.
+                    clone_ok=page.evaluate("""()=>{
+                      const mv=app.gui.model_viewer;
+                      const count=Object.keys(mv.models).length;
+                      const created=mv.ad4_clone_selected();
+                      const cloneId=mv.focused;
+                      return {created,count:Object.keys(mv.models).length,
+                        expected:count+1,cloneId,status:mv.ad4_plate_status()};
+                    }""")
+                    assert clone_ok["created"] and clone_ok["count"]==clone_ok["expected"],clone_ok
+                    assert not clone_ok["status"]["valid"],clone_ok
+                    assert page.evaluate("(uuid)=>app.gui.model_viewer.ad4_delete_model(uuid)",
+                                         clone_ok["cloneId"])
+                    assert page.evaluate("(uuid)=>app.gui.model_viewer.ad4_select_model(uuid)",
+                                         unsafe["uuid"])
+                    # Fix it through the same visible mm editor users operate:
+                    # scale the X extent from 400 to 40 mm, then move it off
+                    # the existing Benchy. An intermediate collision is valid
+                    # editing but still forbids slicing.
+                    page.locator('#ad4-viewer-transform [data-viewer-mode="scale"]').click()
+                    size_field=page.locator('#ad4-viewer-values [data-axis="x"] input')
+                    size_field.fill("40")
+                    size_field.press("Tab")
+                    page.wait_for_function("""(uuid)=>{
+                      const mv=app.gui.model_viewer;
+                      return Math.abs(mv.models[uuid].mesh.scale.x-0.1)<0.001;
+                    }""",arg=unsafe["uuid"],timeout=5000)
+                    assert not page.evaluate("app.gui.model_viewer.ad4_plate_status().valid")
+                    assert not page.locator("#ad4-viewer-error").is_hidden()
+                    page.locator('#ad4-viewer-transform [data-viewer-mode="translate"]').click()
+                    x_field=page.locator('#ad4-viewer-values [data-axis="x"] input')
+                    x_field.fill("75")
+                    x_field.press("Tab")
+                    page.wait_for_function("()=>app.gui.model_viewer.ad4_plate_status().valid")
+                    fix=page.evaluate("""(uuid)=>{
+                      const mv=app.gui.model_viewer,mesh=mv.models[uuid].mesh;
+                      return {sizeX:mesh.scale.x,positionX:mesh.position.x,
+                        status:mv.ad4_plate_status()};
+                    }""",unsafe["uuid"])
+                    assert abs(fix["sizeX"]-0.1)<0.001 and abs(fix["positionX"]-75)<0.01,fix
+                    assert fix["status"]["valid"],fix
+                    page.wait_for_function("()=>document.getElementById('ad4-viewer-error').hidden")
+                    assert page.evaluate("(uuid)=>app.gui.model_viewer.ad4_delete_model(uuid)",unsafe["uuid"])
+                    assert page.evaluate("Object.keys(app.gui.model_viewer.models).length")==before_count
+                    print("OVERSIZED STL IMPORT / WARNING / EDIT / RECOVERY PASSED",flush=True)
 
             except Exception as error:
                 failures.append(f"{width}: STL preview/upload: {error}")
@@ -527,27 +612,39 @@ with sync_playwright() as p:
                     toolbar.locator("#ad4-v3-auto-arrange").click()
                     if not page.evaluate("app.gui.model_viewer.ad4_plate_status().valid"):
                         failures.append(f"{width}: Auto Arrange created unsafe geometry")
-                    # Attempt an illegal gizmo move/scale: native transform
-                    # events must restore the last committed mesh at release.
-                    rollback=page.evaluate("""()=>{
+                    # Editing outside the bed must be permitted. The exact
+                    # requested pose survives release, while Slice/export is
+                    # blocked until the geometry is repaired.
+                    outcome=page.evaluate("""()=>{
                       const mv=app.gui.model_viewer;
                       const id=Object.keys(mv.models)[0];
                       mv.ad4_select_model(id);
                       const mesh=mv.models[id].mesh,controls=mv.model_controls;
-                      const beforeX=mesh.position.x, beforeScale=mesh.scale.x;
+                      const original={x:mesh.position.x,scaleX:mesh.scale.x};
                       controls.dispatchEvent({type:"dragging-changed",value:true});
                       mesh.position.x=900;
                       controls.dispatchEvent({type:"dragging-changed",value:false});
-                      const moveRestored=Math.abs(mesh.position.x-beforeX)<1e-6;
+                      const moved=Math.abs(mesh.position.x-900)<1e-6;
+                      const badMove=mv.ad4_plate_status();
+                      let exportBlocked=false;
+                      try{mv.export_stl()}catch(e){exportBlocked=true}
                       controls.dispatchEvent({type:"dragging-changed",value:true});
                       mesh.scale.x=1000;
                       controls.dispatchEvent({type:"dragging-changed",value:false});
-                      const scaleRestored=Math.abs(mesh.scale.x-beforeScale)<1e-6;
-                      return {moveRestored,scaleRestored,status:mv.ad4_plate_status()};
+                      const scaled=Math.abs(mesh.scale.x-1000)<1e-6;
+                      const badScale=mv.ad4_plate_status();
+                      controls.dispatchEvent({type:"dragging-changed",value:true});
+                      mesh.position.x=original.x;
+                      mesh.scale.x=original.scaleX;
+                      controls.dispatchEvent({type:"dragging-changed",value:false});
+                      return {moved,scaled,badMove,badScale,
+                        exportBlocked,repaired:mv.ad4_plate_status()};
                     }""")
-                    if not (rollback["moveRestored"] and rollback["scaleRestored"]
-                            and rollback["status"]["valid"]):
-                        failures.append(f"{width}: unsafe transform was not reverted: {rollback}")
+                    if not (outcome["moved"] and outcome["scaled"] and
+                            not outcome["badMove"]["valid"] and
+                            not outcome["badScale"]["valid"] and
+                            outcome["exportBlocked"] and outcome["repaired"]["valid"]):
+                        failures.append(f"{width}: invalid transforms were rolled back or slice not blocked: {outcome}")
                 dock_rect=page.locator("#ad4-v3-bottom").evaluate("""(el)=>{
                     const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,viewport:innerHeight};
                 }""")

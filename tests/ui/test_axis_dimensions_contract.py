@@ -29,10 +29,13 @@ def test_independent_axis_locks_share_state_across_both_editors():
     assert "ad4-viewer-lock" not in JS
 
 
-def test_invalid_sizes_do_not_silently_clamp_or_bypass_plate_guard():
+def test_oversize_dimensions_are_editable_but_slice_guard_remains_authoritative():
     assert 'return rounded>=low&&rounded<=high?rounded:null' in JS
     assert 'scaleBed={x:220,y:200,z:250}' in JS
-    assert 'dimension<0.01||dimension>scaleBed[key]' in JS
+    assert 'dimension<0.01||dimension>MAX_EDIT_MM' in JS
+    assert 'const MAX_EDIT_MM=100000;' in JS
+    assert 'if(mode==="scale")return rounded>=0.01&&rounded<=MAX_EDIT_MM?rounded:null;' in JS
+    assert 'if(mode==="translate")return Math.abs(rounded)<=MAX_EDIT_MM?rounded:null;' in JS
     assert "plate?.ad4_begin_transform?.()" in JS
     assert "plate?.ad4_commit_transform?.()" in JS
     assert 'if(mismatch||accepted===false)' in JS
