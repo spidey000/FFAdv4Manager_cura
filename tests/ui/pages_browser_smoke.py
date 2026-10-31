@@ -220,8 +220,8 @@ with sync_playwright() as p:
                     # selected, so the user can resize it. The yellow warning is
                     # the ONLY safety consequence until a real Slice is attempted.
                     oversized = (b"Oversize edit fixture".ljust(80,b" ") + struct.pack("<I",2)
-                                 + struct.pack("<12fH",0,0,1,0,0,0,400,0,0,0,20,0)
-                                 + struct.pack("<12fH",0,0,1,0,0,10,400,0,10,0,20,10))
+                                 + struct.pack("<12fH",0,0,1,0,0,0,400,0,0,0,20,0,0)
+                                 + struct.pack("<12fH",0,0,1,0,0,10,400,0,10,0,20,10,0))
                     before_count=page.evaluate("Object.keys(app.gui.model_viewer.models).length")
                     page.locator("#stl-file").set_input_files({
                         "name":"oversized-editable.stl","mimeType":"model/stl","buffer":oversized
