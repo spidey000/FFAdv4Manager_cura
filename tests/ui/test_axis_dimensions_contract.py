@@ -14,7 +14,6 @@ def test_scale_edits_use_real_mesh_dimensions_not_visible_percentages():
     assert "percent:before[key]*ratio*100" in JS  # native Mosaic only
     assert "if(mode===\"scale\")return modelDimension(axis,mesh)" in JS
     assert 'scale:"%"' not in JS
-    assert "Lock proportions" not in JS
 
 
 def test_independent_axis_locks_share_state_across_both_editors():
@@ -27,6 +26,28 @@ def test_independent_axis_locks_share_state_across_both_editors():
     assert "ad4-axis-locked" in JS + CSS
     assert "ad4-v3-resize-lock" not in JS
     assert "ad4-viewer-lock" not in JS
+
+
+def test_bulk_proportions_switch_controls_all_individual_padlocks():
+    assert 'id="ad4-v3-scale-lock-all"' in JS
+    assert 'id="ad4-viewer-scale-lock-all"' in JS
+    assert "Lock proportions" in JS
+    assert 'axisLocks.set(mesh,new Set(locked?["x","y","z"]:[]));' in JS
+    assert 'checkbox.checked=Boolean(allLocked)' in JS
+    assert 'setAllAxisLocks(e.target.checked)' in JS
+    assert '#ad4-v3-scale-lock-row[hidden]' in CSS
+
+
+def test_first_move_attaches_native_gizmo_even_when_mode_is_translate():
+    assert "controls?.object!==mesh" in JS
+    assert "controls?.enabled!==true" in JS
+    assert "!controls?.getHelper?.()?.parent" in JS
+
+
+def test_nav_focus_no_longer_paints_rectangle():
+    assert "#ad4-v3-top > .ad4-v3-icon-button:focus-visible" in CSS
+    assert "outline:none!important" in CSS
+    assert "text-decoration:underline" in CSS
 
 
 def test_oversize_dimensions_are_editable_but_slice_guard_remains_authoritative():
