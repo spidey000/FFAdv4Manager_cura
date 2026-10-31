@@ -4,6 +4,7 @@ import {readFileSync, existsSync} from "node:fs";
 import {resolve} from "node:path";
 import {performance} from "node:perf_hooks";
 import {parse} from "../../overlays/mosaic/src/gui/viewer/parser.mjs";
+import {getLayerStack} from "../../overlays/mosaic/src/gui/viewer/ad4-layer-stack.mjs";
 import {TOOLPATH_COLORS, colorForToolpathType} from "../../overlays/mosaic/src/gui/viewer/ad4-toolpath-colors.mjs";
 
 test("original Benchy feature names each have an explicit, distinct visible color", () => {
@@ -29,6 +30,49 @@ test("unknown slicer feature names get deterministic, non-grey colors", () => {
   assert.notEqual(a, TOOLPATH_COLORS.OTHER);
   assert.notEqual(a, b);
   assert.equal(a, colorForToolpathType("a custom feature"));
+});
+
+test("3D filament beads occupy the real Z interval between consecutive layers", async () => {
+  const gcode=[
+    "G90","M82","G92 E0",
+    ";LAYER:0",";TYPE:WALL-OUTER",
+    "G0 X0 Y0 Z0.30","G1 X10 Y0 E0.5",
+    ";LAYER:1",
+    "G0 X0 Y0 Z0.48","G1 X10 Y0 E1.0",
+    ";LAYER:2",
+    "G0 X0 Y0 Z0.72","G1 X10 Y0 E1.5"
+  ].join("\n");
+  const stack=getLayerStack(await parse(gcode));
+  assert.equal(stack.length,3);
+  assert.ok(Math.abs(stack[0].bottom)<1e-8,"First printed layer must rest on the bed");
+  assert.ok(Math.abs(stack[0].height-0.30)<1e-8);
+  assert.ok(Math.abs(stack[1].bottom-stack[0].top)<1e-8,
+    "Layer two must touch the top of layer one");
+  assert.ok(Math.abs(stack[2].bottom-stack[1].top)<1e-8,
+    "Layer three must touch the top of layer two");
+  assert.ok(Math.abs(stack[1].height-0.18)<1e-8);
+  assert.ok(Math.abs(stack[2].height-0.24)<1e-8);
+});
+
+test("extrusion Z planes ignore nonprinted Z-hops and G-code travel", async () => {
+  const gcode=[
+    "G90","M82","G92 E0",
+    ";LAYER:0","G0 X0 Y0 Z0.20","G1 X5 Y0 E0.5",
+    "G0 Z0.8", // firmware Z-hop: NOT a new printed layer
+    ";LAYER:1","G0 Z0.4","G1 X7 Y0 E1.0"
+  ].join("\n");
+  const stack=getLayerStack(await parse(gcode));
+  assert.equal(stack.length,2);
+  assert.ok(Math.abs(stack[1].bottom-0.2)<1e-8);
+  assert.ok(Math.abs(stack[1].top-0.4)<1e-8);
+});
+
+test("an empty layer and an unrealistic Z jump do not create giant walls", () => {
+  const print=z=>[{type:"print",vector:{x:0,y:0,z}}];
+  const stack=getLayerStack([print(0.20),[],print(0.40),print(11)]);
+  assert.equal(stack[1].top,null);
+  assert.ok(Math.abs(stack[2].bottom-0.2)<1e-8);
+  assert.ok(stack[3].height<0.81,"Z hop must not become a multi-millimeter extrusion");
 });
 
 // Built-in real Cura-shaped fixture from the public project, not G-code to print.
