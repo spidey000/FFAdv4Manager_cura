@@ -3,7 +3,7 @@ const root="./api/printer";
 const el=id=>document.getElementById(id);
 const dialog=el("ad4-manager"), status=el("ad4-manager-status");
 let files=[], page=0, poll=null, isLive=false, gallery=[], playing=null, busy=false;
-let hardwareConnected=false, activeJob=false, recordingState=null, refreshPromise=null;
+let hardwareConnected=false, printerReady=false, activeJob=false, recordingState=null, refreshPromise=null;
 const encode=encodeURIComponent;
 function say(msg,isError=false){
  status.textContent=msg;status.dataset.error=String(isError);
@@ -39,13 +39,16 @@ async function task(label,fn){
  finally{busy=false;setHardwareAvailability(hardwareConnected);renderFiles()}
 }
 const isPrinting=s=>/BUILDING|PRINTING|PAUSED/i.test(s||"");
-const printerIsAvailable=s=>Boolean(s?.machine_status&&!/OFFLINE|DISCONNECT|UNAVAILABLE|ERROR|UNKNOWN|NOT CONNECTED/i.test(String(s.machine_status)));
+const printerIsAvailable=s=>Boolean(s?.status_available!==false&&s?.machine_status&&!/OFFLINE|DISCONNECT|UNAVAILABLE|ERROR|UNKNOWN|NOT CONNECTED/i.test(String(s.machine_status)));
+const printerCanStart=s=>printerIsAvailable(s)&&s?.ready_to_print!==false&&/^(READY|IDLE)$/i.test(String(s.machine_status));
+const printerStateLabel=s=>s?.connection_status==="partial"?"Partial response · status unavailable":
+ s?.status_available===false||!s?.machine_status?"Printer status unavailable":String(s.machine_status);
 function setHardwareAvailability(available){
  hardwareConnected=available;
  for(const id of ["ad4-fan_on","ad4-fan_off","ad4-snapshot","ad4-live-toggle"]){
   const button=el(id);if(button)button.disabled=!available;
  }
- for(const id of ["ad4-upload","ad4-send-print"]){el(id).disabled=!available||activeJob||busy}
+ for(const id of ["ad4-upload","ad4-send-print"]){el(id).disabled=!available||!printerReady||activeJob||busy}
  el("ad4-timelapse-start").disabled=!available||!recordingState||recordingState.running||recordingState.encoding;
  el("ad4-timelapse-stop").disabled=!recordingState?.running||recordingState?.encoding;
  if(!available){
@@ -97,7 +100,7 @@ function renderFiles(){
   const small=document.createElement("small");
   small.textContent=[duration(file.estimated_seconds),file.hotend!=null?file.hotend+"°C / "+fmt(file.bed,"°C"):"",date(file.uploaded_at)].filter(x=>x&&x!=="—").join(" · ")||"Stored on printer";
   meta.append(title,small);
-  const start=document.createElement("button");start.textContent="Print";start.disabled=busy||!hardwareConnected||activeJob;
+  const start=document.createElement("button");start.textContent="Print";start.disabled=busy||!hardwareConnected||!printerReady||activeJob;
   const reason=busy?"Another printer action is running":!hardwareConnected?"Printer disconnected":activeJob?"A print is already running":"Review and start this stored file";
   start.title=reason;start.setAttribute("aria-label","Print "+file.name+" — "+reason);
   start.addEventListener("click",async()=>{
@@ -169,7 +172,7 @@ function renderGallery(){
   actions.append(remove);menu.append(summary,actions);
   line.append(art,meta,menu);holder.append(line);
  }
- if(!gallery.length)holder.textContent=hardwareConnected?"No timelapses recorded":"Gallery unavailable · Printer disconnected";
+ if(!gallery.length)holder.textContent=hardwareConnected?"No timelapses recorded":"Gallery unavailable · Printer status unavailable";
  globalThis.AD4Icons?.hydrate?.(holder);
 }
 async function loadGallery(){gallery=await api("/timelapses");renderGallery()}
@@ -183,6 +186,7 @@ async function refreshNow(){
  const [state,remote,recording]=responses;
  const available=state.status==="fulfilled"&&printerIsAvailable(state.value);
  activeJob=available&&isPrinting(state.value.machine_status);
+ printerReady=state.status==="fulfilled"&&printerCanStart(state.value);
  if(available)updateState(state.value);
  setHardwareAvailability(available);
  if(remote.status==="fulfilled"&&available)files=Array.isArray(remote.value)?remote.value:[];
@@ -198,7 +202,8 @@ async function refreshNow(){
   el("ad4-timelapse-stop").disabled=!r.running;
  }else recordingState=null;
  setHardwareAvailability(available);
- if(!available&&!recordingState?.running&&!recordingState?.encoding)el("ad4-timelapse-status").textContent="Printer disconnected";
+ if(state.status==="fulfilled"&&!available)el("ad4-machine").textContent=printerStateLabel(state.value);
+ if(!available&&!recordingState?.running&&!recordingState?.encoding)el("ad4-timelapse-status").textContent="Printer status unavailable";
  if(responses.every(x=>x.status==="rejected"))throw state.reason;
 }
 function closeVideo(){
@@ -393,7 +398,7 @@ async function confirmPrint({
  function ready(){
   const activeRecording=enabled.checked&&start;
   if(!stillSliced())issue.textContent="G-code changed or settings invalidated the slice. Re-slice before sending.";
-  else if(!printerOk)issue.textContent="Printer offline, printing or status cannot be verified. Sending is blocked.";
+  else if(!printerOk)issue.textContent="Printer not ready or status cannot be verified. Sending is blocked.";
   else if(activeRecording&&!recordingOk)issue.textContent="A timelapse is already recording or encoding, or recording status is unavailable.";
   else issue.textContent="";
   accept.disabled=checking||Boolean(issue.textContent);
@@ -403,9 +408,9 @@ async function confirmPrint({
   checking=true;ready();
   const [printer,session]=await Promise.allSettled([api("/status"),api("/timelapse")]);
   if(done)return false;
-  printerOk=printer.status==="fulfilled"&&printerIsAvailable(printer.value)&&!isPrinting(printer.value.machine_status);
+  printerOk=printer.status==="fulfilled"&&printerCanStart(printer.value);
   recordingOk=session.status==="fulfilled"&&!session.value.running&&!session.value.encoding&&!session.value.id;
-  live.textContent=printer.status==="fulfilled"?value(printer.value.machine_status)+(printerOk?" · ready":" · not available"):"Unavailable · server unreachable";
+  live.textContent=printer.status==="fulfilled"?printerStateLabel(printer.value)+(printerOk?" · ready":" · not available"):"Unavailable · server unreachable";
   const temp=(state,current,target)=>state.status==="fulfilled"?value(state.value[current])+" °C / "+value(state.value[target])+" °C":"Unavailable";
   actualNozzle.textContent=temp(printer,"nozzle_current","nozzle_target");
   actualBed.textContent=temp(printer,"bed_current","bed_target");
@@ -446,7 +451,7 @@ async function confirmPrint({
 }
 async function upload(start){
  try{await refresh()}catch(e){return say(e.message,true)}
- if(!hardwareConnected||activeJob)return say(activeJob?"A print is already active (including paused jobs)":"Printer unavailable",true);
+ if(!hardwareConnected||!printerReady||activeJob)return say(activeJob?"A print is already active (including paused jobs)":"Printer status unavailable or not ready",true);
  const gcode=globalThis.app?.gui?.slicer?.exported_gcode;
  if(typeof gcode!=="string"||!gcode.trim())return say("Slice a model on the server first",true);
  const model=globalThis.app?.gui?.file?.stl_file_name||"MosaicSlicer.stl";

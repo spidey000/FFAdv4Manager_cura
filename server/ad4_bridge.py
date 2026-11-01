@@ -55,6 +55,58 @@ DATA_DIR = Path(os.environ.get('AD4_DATA_DIR', Path(os.environ.get('XDG_DATA_HOM
 TIMELAPSE_ROOT = DATA_DIR / 'timelapses'
 FILE_METADATA_PATH = DATA_DIR / 'uploaded-files.json'
 TIMELAPSES = TimelapseService(TIMELAPSE_ROOT)
+STATUS_CACHE_LOCK = threading.RLock()
+STATUS_CACHE = {}
+STATUS_CACHE_TTL = 1.0
+
+
+class PrinterCommandError(RuntimeError):
+    def __init__(self, message, transaction=None):
+        super().__init__(message)
+        self.transaction = transaction or {}
+
+
+def invalidate_status_cache():
+    with STATUS_CACHE_LOCK:
+        STATUS_CACHE.clear()
+
+
+def cached_status(argv=None, reader=None):
+    """Coalesce simultaneous polls, including current-job and timelapse readers.
+
+    This short-lived display cache is never used to authorize an upload/start:
+    the CLI performs fresh preflight under its process-shared control lock.
+    """
+    argv = list(cli_argv() if argv is None else argv)
+    key = tuple(argv)
+    with STATUS_CACHE_LOCK:
+        now = time.monotonic()
+        cached = STATUS_CACHE.get(key)
+        if cached and now - cached[0] < STATUS_CACHE_TTL:
+            return {**cached[1], 'cached_for_ms': round((now - cached[0]) * 1000)}
+        try:
+            value = reader() if reader else json.loads(command('status', '--json', _argv=argv))
+            if not isinstance(value, dict):
+                raise ValueError('Invalid printer status response')
+            machine = str(value.get('machine_status') or '').upper()
+            available = bool(machine and machine not in {
+                'UNKNOWN', 'OFFLINE', 'DISCONNECTED', 'UNAVAILABLE', 'ERROR', 'NOT CONNECTED'})
+            value = {**value, 'status_available': available,
+                     'ready_to_print': available and machine in ('READY', 'IDLE'),
+                     'connection_status': value.get('connection_status') or ('online' if available else 'unavailable')}
+        except (OSError, RuntimeError, ValueError, TypeError, subprocess.TimeoutExpired) as error:
+            # A lock timeout, transport failure or malformed response cannot prove
+            # that the physical printer is disconnected. Never reuse old READY.
+            value = {'machine_status': None, 'status_available': False,
+                     'ready_to_print': False, 'connection_status': 'unavailable',
+                     'status_errors': {'query': str(error)}}
+        value.update(observed_at=datetime.now(timezone.utc).isoformat(), cached_for_ms=0)
+        if len(STATUS_CACHE) >= 8:
+            STATUS_CACHE.clear()
+        STATUS_CACHE[key] = (time.monotonic(), value)
+        trace_event(DATA_DIR, 'printer.status.observed', **value)
+        return dict(value)
+
 
 
 def private_ip(value):
@@ -79,8 +131,10 @@ def cli_argv(*args, selected=True):
     return argv
 
 
-def command(*args, timeout=30, selected=True, accepted_codes=(0,)):
-    argv = cli_argv(*args, selected=selected)
+def command(*args, timeout=30, selected=True, accepted_codes=(0,), _argv=None):
+    argv = [*_argv, *args] if _argv is not None else cli_argv(*args, selected=selected)
+    if args and args[0] in ('upload', 'print', 'pause', 'resume', 'cancel'):
+        invalidate_status_cache()
     started = time.monotonic()
     trace_event(DATA_DIR, 'printer.command.started', command=list(args), timeout_seconds=timeout)
     try:
@@ -95,8 +149,15 @@ def command(*args, timeout=30, selected=True, accepted_codes=(0,)):
                 duration_ms=round((time.monotonic() - started) * 1000, 1),
                 stdout=result.stdout[-2000:], stderr=result.stderr[-1000:])
     if result.returncode not in accepted_codes:
-        raise RuntimeError((result.stderr or result.stdout).strip()[:1000]
-                           or 'CLI exit ' + str(result.returncode))
+        transaction = {}
+        for line in result.stderr.splitlines():
+            if line.startswith('AD4_TRANSACTION_ERROR '):
+                try:
+                    transaction = json.loads(line[len('AD4_TRANSACTION_ERROR '):])
+                except ValueError:
+                    pass
+        raise PrinterCommandError((result.stderr or result.stdout).strip()[:1000]
+                                  or 'CLI exit ' + str(result.returncode), transaction)
     return result.stdout
 
 
@@ -130,16 +191,7 @@ def timelapse_state():
 def selected_status_reader(argv):
     """Pin a session to its initial printer, even if the UI selection changes."""
     def get_status():
-        started = time.monotonic()
-        result = subprocess.run([*argv, 'status', '--json'], capture_output=True, text=True,
-                                timeout=15, check=False)
-        trace_event(DATA_DIR, 'printer.command.completed', command=['status', '--json'],
-                    return_code=result.returncode,
-                    duration_ms=round((time.monotonic() - started) * 1000, 1),
-                    stdout=result.stdout[-2000:], stderr=result.stderr[-1000:])
-        if result.returncode:
-            raise RuntimeError('Printer status unavailable')
-        return json.loads(result.stdout)
+        return cached_status(argv)
     return get_status
 
 
@@ -497,7 +549,7 @@ class Handler(SimpleHTTPRequestHandler):
                     selection = dict(SELECTED)
                 return self.json(200, {**selection, 'notifying': worker_running('notifications')})
             if path == '/api/printer/status':
-                return self.json(200, json.loads(command('status', '--json')))
+                return self.json(200, cached_status())
             if path == '/api/printer/discover':
                 devices = json.loads(command('discover', '--json', timeout=12, selected=False))
                 if not isinstance(devices, list):
@@ -590,8 +642,8 @@ class Handler(SimpleHTTPRequestHandler):
                 body = self.data()
             except (ValueError, TypeError) as error:
                 return self.json(422, {'error': str(error)})
-            # Urgent job controls use their own TCP command connection. They must
-            # remain responsive during uploads, source downloads and MP4 encoding.
+            # Bypass only the server bookkeeping lock. The core control-port lock
+            # still prevents overlapping TCP sessions and fails busy within 2 s.
             if isinstance(body, dict) and body.get('action') in ('pause', 'resume', 'cancel'):
                 return self.printer_post(path, url, body)
         # Pin the connection and serialize writes through the whole transaction.
@@ -608,6 +660,7 @@ class Handler(SimpleHTTPRequestHandler):
         trace_event(DATA_DIR, 'printer.transaction.started', operation=operation,
                     action=body.get('action') if isinstance(body, dict) else None,
                     filename=filename)
+        transaction_stage = 'preflight'
         try:
             if path in ('/api/printer/jobs', '/api/printer/upload'):
                 size = int(self.headers.get('Content-Length', '0'))
@@ -660,6 +713,7 @@ class Handler(SimpleHTTPRequestHandler):
                 with tempfile.TemporaryDirectory() as directory:
                     filename = Path(directory) / name
                     filename.write_bytes(data)
+                    transaction_stage = 'upload_and_verify'
                     output = command('upload', str(filename), *(['--start'] if start else []), timeout=3600)
                     metadata = inspect_upload_metadata(filename)
                 # The CLI chooses the printer filename using GX header metadata;
@@ -725,6 +779,7 @@ class Handler(SimpleHTTPRequestHandler):
                     listed = json.loads(command('files', '--json'))
                     if not isinstance(filename, str) or filename not in listed:
                         raise ValueError('El archivo no está en el listado actual')
+                    transaction_stage = 'print_start'
                     output = command('print', filename, timeout=50)
                     trace_event(DATA_DIR, 'printer.print.start_acknowledged', filename=filename,
                                 verification='command_acknowledged_only')
@@ -817,10 +872,18 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json(200, {'running': worker_running('notifications')})
         except (OSError, RuntimeError, ValueError, TypeError, subprocess.TimeoutExpired,
                 json.JSONDecodeError) as error:
+            transaction = getattr(error, 'transaction', {})
+            stage = transaction.get('stage', transaction_stage)
+            uncertain = (is_upload or (isinstance(body, dict) and body.get('action') == 'print')) and stage != 'preflight'
+            detail = {'error': str(error), 'stage': stage,
+                      'outcome': 'unknown' if uncertain else 'not_started',
+                      'retry_safe': not uncertain}
+            if uncertain:
+                detail['error'] += ' · Transfer/start outcome unknown. Check the printer before retrying.'
             trace_event(DATA_DIR, 'printer.transaction.failed', operation=operation,
                         action=body.get('action') if isinstance(body, dict) else None,
-                        error=str(error))
-            return self.json(502, {'error': str(error)})
+                        **detail)
+            return self.json(502, detail)
 
 
 def serve(*, require_access=False):

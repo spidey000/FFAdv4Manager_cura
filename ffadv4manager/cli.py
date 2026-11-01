@@ -7,6 +7,8 @@ import math
 from pathlib import Path
 import shutil
 import subprocess
+from contextlib import nullcontext
+from .core.control import ControlBusy, control_session
 import sys
 import time
 import urllib.request
@@ -398,97 +400,112 @@ def main(argv: list[str] | None = None) -> int:
     host, port, timeout = _resolve_connection(args, parser)
     client = FlashForgeClient(host, port, timeout=timeout)
 
+    transaction_stage = 'preflight'
     try:
-        if args.command == "status":
-            status = client.status()
-            if args.json:
-                print(json.dumps(_status_json(status), sort_keys=True))
-            else:
-                _print_status(status)
-        elif args.command == "watch":
-            _watch(client, args.interval, jsonl=args.jsonl, count=args.count)
-        elif args.command == "files":
-            if args.files_action == "preview":
-                bmp = client.preview_bmp(args.remote_name)
-                Path(args.output).write_bytes(bmp)
-                print(args.output)
-            else:
-                files = client.files()
+        # Keep preflight, transfer, verification, selection and start atomic even
+        # against separate monitor/timelapse CLI processes. Never retry writes.
+        with control_session(host, port) if args.command in ("upload", "print") else nullcontext():
+            if args.command == "status":
+                status = client.status()
                 if args.json:
-                    print(json.dumps(files, ensure_ascii=False))
+                    print(json.dumps(_status_json(status), sort_keys=True))
                 else:
-                    for file in files:
-                        print(file)
-        elif args.command == "files-raw":
-            print(client.files_raw())
-        elif args.command == "info":
-            info = client.info()
-            print(json.dumps(info, ensure_ascii=False, sort_keys=True) if args.json else "\n".join(f"{k}: {v}" for k, v in info.items()))
-        elif args.command == "position":
-            position = client.position()
-            print(json.dumps(position, sort_keys=True) if args.json else "\n".join(f"{axis}: {value:g}" for axis, value in position.items()))
-        elif args.command == "wait":
-            return _wait_for_condition(client, args.state, args.bed_below, args.interval, args.wait_timeout)
-        elif args.command == "monitor":
-            return _monitor(client, args, host)
-        elif args.command == "notify":
-            return _notify(client, args)
-        elif args.command == "printer":
-            response = client.rename(args.name)
-            info = client.info()
-            if info.get("Machine Name") != args.name:
-                raise RuntimeError("M610 acknowledged but M115 did not report the requested printer name")
-            print(response.rstrip())
-        elif args.command == "fan":
-            print((client.set_fan(255) if args.fan_action == "on" else client.fan_off()).rstrip())
-        elif args.command == "upload":
-            status = client.status()
-            if status.has_active_job and not args.force:
-                print(
-                    "Printer appears to be printing. Use --force to upload anyway.",
-                    file=sys.stderr,
-                )
-                return 2
-            response_callback = _response_logger(args.log_file) if args.log_file else _print_response
-            with gx_upload_file(
-                args.file, no_convert=args.no_convert
-            ) as (upload_path, converted_name):
-                remote_name = args.remote_name
-                if remote_name and converted_name:
-                    # Explicit CLI override remains authoritative, but a converted
-                    # upload must retain its GX suffix.
-                    remote_name = str(Path(remote_name).with_suffix(".gx"))
-                elif not remote_name and is_gx(upload_path):
-                    remote_name = gx_remote_filename(upload_path, Path(args.file).name)
-                elif not remote_name and converted_name:
-                    remote_name = converted_name
-                remote = client.upload_and_confirm_listed(
-                    upload_path, remote_name, progress=_progress,
-                    response_callback=response_callback,
-                )
-            print(f"\nUploaded and listed: {remote}")
-            if args.start:
-                print(client.print_file(remote, response_callback=response_callback))
-        elif args.command == "print":
-            status = client.status()
-            if status.has_active_job and not args.force:
-                print(
-                    "Printer appears to be printing. Use --force to start another job anyway.",
-                    file=sys.stderr,
-                )
-                return 2
-            print(client.print_file(args.remote_name))
-        elif args.command == "pause":
-            print(client.pause())
-        elif args.command == "resume":
-            print(client.resume())
-        elif args.command == "cancel":
-            print(client.cancel())
-        elif args.command == "camera":
-            return _capture_timelapse(client, args, host)
+                    _print_status(status)
+            elif args.command == "watch":
+                _watch(client, args.interval, jsonl=args.jsonl, count=args.count)
+            elif args.command == "files":
+                if args.files_action == "preview":
+                    bmp = client.preview_bmp(args.remote_name)
+                    Path(args.output).write_bytes(bmp)
+                    print(args.output)
+                else:
+                    files = client.files()
+                    if args.json:
+                        print(json.dumps(files, ensure_ascii=False))
+                    else:
+                        for file in files:
+                            print(file)
+            elif args.command == "files-raw":
+                print(client.files_raw())
+            elif args.command == "info":
+                info = client.info()
+                print(json.dumps(info, ensure_ascii=False, sort_keys=True) if args.json else "\n".join(f"{k}: {v}" for k, v in info.items()))
+            elif args.command == "position":
+                position = client.position()
+                print(json.dumps(position, sort_keys=True) if args.json else "\n".join(f"{axis}: {value:g}" for axis, value in position.items()))
+            elif args.command == "wait":
+                return _wait_for_condition(client, args.state, args.bed_below, args.interval, args.wait_timeout)
+            elif args.command == "monitor":
+                return _monitor(client, args, host)
+            elif args.command == "notify":
+                return _notify(client, args)
+            elif args.command == "printer":
+                response = client.rename(args.name)
+                info = client.info()
+                if info.get("Machine Name") != args.name:
+                    raise RuntimeError("M610 acknowledged but M115 did not report the requested printer name")
+                print(response.rstrip())
+            elif args.command == "fan":
+                print((client.set_fan(255) if args.fan_action == "on" else client.fan_off()).rstrip())
+            elif args.command == "upload":
+                status = client.status()
+                if status.has_active_job and not args.force:
+                    print(
+                        "Printer appears to be printing. Use --force to upload anyway.",
+                        file=sys.stderr,
+                    )
+                    print('AD4_TRANSACTION_ERROR {"stage":"preflight"}', file=sys.stderr)
+                    return 2
+                if not status.status_available or (not args.force and not status.ready_to_print):
+                    raise RuntimeError("Printer state unavailable or not ready; upload blocked before transfer")
+                response_callback = _response_logger(args.log_file) if args.log_file else _print_response
+                with gx_upload_file(
+                    args.file, no_convert=args.no_convert
+                ) as (upload_path, converted_name):
+                    remote_name = args.remote_name
+                    if remote_name and converted_name:
+                        # Explicit CLI override remains authoritative, but a converted
+                        # upload must retain its GX suffix.
+                        remote_name = str(Path(remote_name).with_suffix(".gx"))
+                    elif not remote_name and is_gx(upload_path):
+                        remote_name = gx_remote_filename(upload_path, Path(args.file).name)
+                    elif not remote_name and converted_name:
+                        remote_name = converted_name
+                    transaction_stage = 'upload_and_verify'
+                    remote = client.upload_and_confirm_listed(
+                        upload_path, remote_name, progress=_progress,
+                        response_callback=response_callback,
+                    )
+                print(f"\nUploaded and listed: {remote}")
+                if args.start:
+                    transaction_stage = 'print_start'
+                    print(client.print_file(remote, response_callback=response_callback))
+            elif args.command == "print":
+                status = client.status()
+                if status.has_active_job and not args.force:
+                    print(
+                        "Printer appears to be printing. Use --force to start another job anyway.",
+                        file=sys.stderr,
+                    )
+                    print('AD4_TRANSACTION_ERROR {"stage":"preflight"}', file=sys.stderr)
+                    return 2
+                if not status.status_available or (not args.force and not status.ready_to_print):
+                    raise RuntimeError("Printer state unavailable or not ready; print blocked before M23/M24")
+                transaction_stage = 'print_start'
+                print(client.print_file(args.remote_name))
+            elif args.command == "pause":
+                print(client.pause())
+            elif args.command == "resume":
+                print(client.resume())
+            elif args.command == "cancel":
+                print(client.cancel())
+            elif args.command == "camera":
+                return _capture_timelapse(client, args, host)
     except KeyboardInterrupt:
         return 130
     except Exception as exc:  # noqa: BLE001 - CLI should show clear errors
+        if args.command in ("upload", "print"):
+            print("AD4_TRANSACTION_ERROR " + json.dumps({"stage": transaction_stage}), file=sys.stderr)
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     return 0
@@ -738,6 +755,10 @@ def _print_status(status) -> None:
 
 def _status_json(status) -> dict[str, object]:
     return {
+        "connection_status": status.connection_status,
+        "status_available": status.status_available,
+        "ready_to_print": status.ready_to_print,
+        "status_errors": status.status_errors,
         "machine_status": status.machine_status,
         "move_mode": status.move_mode,
         "current_file": status.current_file,
@@ -827,7 +848,12 @@ def _handle_doctor(args) -> int:
     started = time.monotonic()
     try:
         status = FlashForgeClient(str(host), port, timeout).status()
-        result["checks"].append({"name": "printer_status", "ok": True, "status": status.machine_status})
+        if not status.status_available:
+            failures += 1
+        result["checks"].append({"name": "printer_status", "ok": status.status_available,
+                                 "status": status.machine_status,
+                                 "connection_status": status.connection_status,
+                                 "status_errors": status.status_errors})
     except Exception as exc:
         failures += 1
         result["checks"].append({"name": "printer_status", "ok": False, "error": str(exc)})
@@ -903,9 +929,10 @@ def _monitor(client, args, host: str) -> int:
         stamp = _utc_now()
         try:
             status = client.status()
-            state = status.machine_status or "UNKNOWN"
+            state = status.machine_status or ("OFFLINE" if status.connection_status == "unavailable" else "UNKNOWN")
             changed = state != previous
-            record: dict[str, object] = {"timestamp": stamp, "event": "status" if not changed else "state_change", **_status_json(status)}
+            event = ("offline" if changed else "poll_error") if state == "OFFLINE" else ("state_change" if changed else "status")
+            record: dict[str, object] = {"timestamp": stamp, "event": event, **_status_json(status)}
             if changed and snapshots and camera_url:
                 image = snapshots / f"event-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}-{samples:06d}.jpg"
                 try:
@@ -914,6 +941,9 @@ def _monitor(client, args, host: str) -> int:
                 except Exception as exc:
                     record["snapshot_error"] = str(exc)
             previous = state
+        except ControlBusy as exc:
+            state = previous = "UNKNOWN"
+            record = {"timestamp": stamp, "event": "status_unavailable", "error": str(exc)}
         except Exception as exc:
             state = "OFFLINE"
             changed = state != previous
@@ -941,7 +971,14 @@ def _notify(client, args) -> int:
         try:
             status = client.status()
             raw_state = (status.machine_status or "unknown").casefold()
-            state = "paused" if raw_state == "paused" else "printing" if status.is_printing else "ready" if raw_state == "ready" else raw_state
+            if status.connection_status == "unavailable":
+                state = "offline"  # Complete communication loss, not a partial response.
+            elif not status.status_available:
+                state = "unknown"
+            else:
+                state = "paused" if raw_state == "paused" else "printing" if status.is_printing else "ready" if status.ready_to_print else raw_state
+        except ControlBusy:
+            state = "unknown"  # An ongoing transfer is not a disconnect notification.
         except Exception:
             state = "offline"
         if state != previous and state in wanted:

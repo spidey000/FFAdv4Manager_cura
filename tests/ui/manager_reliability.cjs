@@ -25,6 +25,12 @@ function controller(machine,recording){
  assert.equal(offline.el('ad4-timelapse-stop').disabled,false,'server recording can stop while printer is offline');
  const paused=controller({machine_status:'PAUSED'},{running:false,encoding:false});await paused.refresh();
  assert.equal(paused.el('ad4-send-print').disabled,true);
+ const partial=controller({machine_status:null,connection_status:'partial',status_available:false,ready_to_print:false,progress_percent:98},{running:false,encoding:false});await partial.refresh();
+ assert.equal(partial.el('ad4-send-print').disabled,true);
+ assert.match(partial.el('ad4-machine').textContent,/Partial response/);
+ const heating=controller({machine_status:'HEATING',ready_to_print:false},{running:false,encoding:false});await heating.refresh();
+ assert.equal(heating.el('ad4-send-print').disabled,true);
+ assert.equal(idle.el('ad4-send-print').disabled,false);
  idle.el('ad4-open-manager').click();
  assert.equal(idle.el('ad4-upload').disabled,true);
  await idle.context.AD4Printer.upload(false);

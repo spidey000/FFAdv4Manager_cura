@@ -160,9 +160,9 @@ selection, but M601 S1's firmware-side effect is not authoritatively documented;
 supervise the printer until separately verified. The `print` command selects
 and starts an uploaded file. Explicit `--start` opts into that print action after
 M661 confirms the name is listed. The CLI checks
-printer status before upload and refuses when status reports an active print,
-unless `--force` is supplied. `--force` bypasses that busy-status check; it is
-not a general safety guarantee. A local file must exist and must not be empty:
+printer status before upload and requires an explicit READY/IDLE state.
+`--force` can override a known busy state, but never an unknown/unavailable
+state. It is not a general safety guarantee. A local file must exist and must not be empty:
 empty files are rejected locally before any upload connection/data transfer.
 
 Supported G-code inputs (`.gcode`, `.gco`, `.g`) are automatically wrapped as GX
@@ -206,8 +206,9 @@ compatibility), not a nested path.
 
 Select and start a file that is already stored on the printer. Supply its
 printer-side name, with or without the `/data/` prefix; the upload namespace
-`0:/user/NAME` is also accepted. It checks status and
-refuses when the printer reports printing unless `--force` is given.
+`0:/user/NAME` is also accepted. It checks status under the shared control-port
+lock and requires READY/IDLE unless `--force` overrides a known busy state.
+Unknown/unavailable state always blocks M23/M24.
 
 ```sh
 ffadv4manager print model.gcode
@@ -252,6 +253,12 @@ ffadv4manager config unset host camera_port
 
 `status --json` prints one JSON object with parsed values and `null` for
 unavailable fields; the raw protocol transcript is intentionally omitted.
+It also exposes `connection_status` (`online`, `partial`, `unavailable`),
+`status_available`, `ready_to_print` and per-command `status_errors`. An M27-only
+response is partial and never permits upload/start. Each of the three status
+commands uses a two-second read budget (or the configured timeout if shorter).
+All managed processes running as the same Unix user and using the same
+host/port share bounded control-port exclusion; camera HTTP remains independent.
 `files --json` prints a JSON array of remote paths. `watch --jsonl` prints one
 status object per line and may be bounded with `--count`.
 

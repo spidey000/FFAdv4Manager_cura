@@ -5,8 +5,10 @@ import re
 import socket
 import time
 from pathlib import Path
+from dataclasses import replace
 from typing import Callable
 
+from .control import serialized
 from .models import PrinterStatus
 from .parser import parse_file_list, parse_info, parse_position, parse_status
 
@@ -40,17 +42,30 @@ class FlashForgeClient:
         self.port = port
         self.timeout = timeout
 
+    @serialized
     def command(self, gcode: str, read_timeout: float | None = None) -> str:
         with self._connect(timeout=read_timeout or self.timeout) as sock:
             self._send_command(sock, gcode)
             return self._read_response(sock, read_timeout or self.timeout)
 
+    @serialized
     def status(self) -> PrinterStatus:
-        return parse_status(
-            self.command("M119"),
-            self.command("M105"),
-            self.command("M27"),
-        )
+        responses, errors = [], {}
+        for code in ("M119", "M105", "M27"):
+            try:
+                response = self.command(code, read_timeout=min(self.timeout, 2.0))
+                if not response.strip():
+                    errors[code] = "No response"
+                elif _is_rejection(response):
+                    errors[code] = _response_detail(response)
+                    response = ""
+                responses.append(response)
+            except OSError as exc:
+                errors[code] = str(exc)
+        status = parse_status(*responses)
+        if not status.machine_status:
+            errors.setdefault("M119", "MachineStatus missing")
+        return replace(status, status_errors=errors)
 
     def info(self) -> dict[str, str]:
         """Return key/value fields reported by M115; firmware fields vary by model."""
@@ -59,6 +74,7 @@ class FlashForgeClient:
     def position(self) -> dict[str, float]:
         return parse_position(self.command("M114"))
 
+    @serialized
     def preview_bmp(self, remote_name: str) -> bytes:
         """Fetch the M662 BMP preview, requiring its ACK and complete BMP payload.
 
@@ -93,6 +109,7 @@ class FlashForgeClient:
         _require_ack("M107 fan control", response, "M107")
         return response
 
+    @serialized
     def files_raw(self) -> str:
         with self._connect(timeout=M661_TIMEOUT) as sock:
             self._send_command(sock, "M661")
@@ -106,6 +123,7 @@ class FlashForgeClient:
     def files(self) -> list[str]:
         return parse_file_list(self.files_raw())
 
+    @serialized
     def upload(
         self,
         local_file: str | os.PathLike[str],
@@ -165,6 +183,7 @@ class FlashForgeClient:
                 _report_response(response_callback, gcode.split()[0], response)
                 _require_exact_ok(f"{gcode} preamble", response)
 
+    @serialized
     def upload_and_confirm_listed(
         self,
         local_file: str | os.PathLike[str],
@@ -195,6 +214,7 @@ class FlashForgeClient:
             )
         return remote_path
 
+    @serialized
     def print_file(
         self, remote_name: str, response_callback: ResponseCallback | None = None
     ) -> str:
@@ -236,8 +256,9 @@ class FlashForgeClient:
     def _read_response(sock: socket.socket, timeout: float) -> str:
         sock.settimeout(timeout)
         chunks: list[bytes] = []
-        end = time.time() + timeout
-        while time.time() < end:
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            sock.settimeout(max(0.001, end - time.monotonic()))
             try:
                 data = sock.recv(8192)
             except socket.timeout:

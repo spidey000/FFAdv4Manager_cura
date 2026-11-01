@@ -133,7 +133,7 @@ def test_upload_start_is_not_invoked_when_verification_fails(monkeypatch, tmp_pa
             self.started = False
 
         def status(self):
-            return type("Status", (), {"is_printing": False, "has_active_job": False})()
+            return PrinterStatus(raw="", machine_status="READY")
 
         def upload_and_confirm_listed(self, *_args, **_kwargs):
             raise RuntimeError("uploaded file not listed")
@@ -160,7 +160,7 @@ def test_successful_upload_without_start_never_calls_print_file(monkeypatch, tmp
 
         def status(self):
             self.calls.append("status")
-            return type("Status", (), {"is_printing": False, "has_active_job": False})()
+            return PrinterStatus(raw="", machine_status="READY")
 
         def upload_and_confirm_listed(self, *_args, **_kwargs):
             self.calls.append("upload_and_confirm_listed")
@@ -188,7 +188,7 @@ def test_explicit_start_calls_print_only_after_upload_verification(monkeypatch, 
 
         def status(self):
             self.calls.append("status")
-            return type("Status", (), {"is_printing": False, "has_active_job": False})()
+            return PrinterStatus(raw="", machine_status="READY")
 
         def upload_and_confirm_listed(self, *_args, **_kwargs):
             self.calls.append("upload_and_confirm_listed")

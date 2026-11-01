@@ -101,11 +101,12 @@ def download_command():
     return argv
 
 
-def snapshot(bridge):
+def snapshot(bridge, *, fresh=False):
     with bridge.PRINTER_WRITE_LOCK:
         argv = bridge.cli_argv()
         scope, values = connection(bridge)
-        status = _read(bridge, argv, 'status', '--json')
+        status = (_read(bridge, argv, 'status', '--json') if fresh else
+                  bridge.cached_status(argv, reader=lambda: _read(bridge, argv, 'status', '--json')))
         try:
             position = _read(bridge, argv, 'position', '--json')
         except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired):
@@ -175,7 +176,7 @@ def get(handler, path, url, bridge):
 
 def post(handler, path, url, bridge):
     with bridge.PRINTER_WRITE_LOCK:
-        before = snapshot(bridge)
+        before = snapshot(bridge, fresh=True)
         remote = before['status'].get('current_file')
         if not remote or not before['active']:
             raise ValueError('No active printer job is reported')

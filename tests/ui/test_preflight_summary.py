@@ -21,7 +21,7 @@ def test_preflight_has_real_job_values_and_rechecks_before_sending():
         assert field in manager
     assert 'api("/status")' in manager
     assert 'api("/timelapse")' in manager
-    assert "printerIsAvailable(printer.value)" in manager
+    assert "printerCanStart(printer.value)" in manager
     assert "el(\"slice-export-container\")?.dataset.active" in manager
     assert "if(!allowed)return" in manager
 
