@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import threading
+import time
 from urllib.parse import parse_qs
 
 from ffadv4manager import config, profiles
@@ -74,7 +75,12 @@ def remember(bridge, scope, remote, payload, name, kind='server_upload'):
 
 
 def _read(bridge, argv, *args):
+    started = time.monotonic()
     result = subprocess.run([*argv, *args], capture_output=True, text=True, timeout=20, check=False)
+    bridge.trace_event(bridge.DATA_DIR, 'printer.command.completed', command=list(args),
+                       return_code=result.returncode,
+                       duration_ms=round((time.monotonic() - started) * 1000, 1),
+                       stdout=result.stdout[-2000:], stderr=result.stderr[-1000:])
     if result.returncode:
         raise RuntimeError((result.stderr or result.stdout or 'Printer query failed')[-1000:])
     return json.loads(result.stdout)

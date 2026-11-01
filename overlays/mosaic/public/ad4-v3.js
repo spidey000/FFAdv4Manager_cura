@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.11";
+const VERSION_UI = "0.2.12";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -333,6 +333,7 @@ function activate(name){
  }
  if(name==="transform")setTransform("rotate");
  topActive();renderTools();refreshState();
+ if(name==="app")document.dispatchEvent(new Event("ad4:observability-open"));
  if(pose)requestAnimationFrame(()=>{
    cam.position.copy(pose.position);
    cam.quaternion.copy(pose.quaternion);
@@ -1173,8 +1174,66 @@ const app=make("section","ad4-v3-app");app.id="ad4-v3-app";
 app.innerHTML='<h2>App settings</h2><p>AD4 Studio · FlashForge Adventurer 4</p>'+
 '<div class="ad4-v3-app-card"><strong>Slicing engine</strong><span>CuraEngine · Linux server only</span><small>GitHub Pages is a visual-only preview. Real slice, print and camera require your authenticated server.</small></div>'+
 '<div class="ad4-v3-app-card"><strong>Saved profiles</strong><span>Browser-local process and Artillery PLA settings</span><div class="ad4-v3-app-actions"><button id="ad4-v3-export-profiles">'+svg("upload")+' Export profiles</button><button id="ad4-v3-import-profiles">'+svg("file")+' Import profiles</button></div><input id="ad4-v3-profile-file" type="file" accept=".json,application/json" hidden></div>'+
+'<div class="ad4-v3-app-card ad4-observability" id="ad4-observability"><div class="ad4-obs-heading"><div><strong>Server activity</strong><small>Logs, errors and printer transactions</small></div><button type="button" id="ad4-obs-refresh">Refresh</button></div><p id="ad4-obs-status" role="status">Open this panel on the connected server.</p><div class="ad4-obs-metrics" id="ad4-obs-metrics"></div><div class="ad4-obs-chart" id="ad4-obs-chart" aria-label="Hourly activity"></div><div class="ad4-obs-filters"><label>Period<select id="ad4-obs-hours"><option value="1">1 hour</option><option value="24" selected>24 hours</option><option value="168">7 days</option><option value="720">30 days</option></select></label><label>Severity<select id="ad4-obs-level"><option value="">All</option><option value="error">Errors</option><option value="warning">Warnings</option><option value="info">Info</option></select></label><label>Event<input id="ad4-obs-event" placeholder="slice, upload, command…" maxlength="120"></label><label>Trace ID<input id="ad4-obs-trace" placeholder="Filter one operation" maxlength="120"></label><label class="ad4-obs-search">Search<input id="ad4-obs-query" type="search" placeholder="Filename, response, error…" maxlength="120"></label></div><div class="ad4-obs-list-head"><span id="ad4-obs-count">No events loaded</span><button type="button" id="ad4-obs-export">Export page</button></div><div id="ad4-obs-events" class="ad4-obs-events"></div><div class="ad4-obs-pages"><button type="button" id="ad4-obs-prev">Previous</button><span id="ad4-obs-page"></span><button type="button" id="ad4-obs-next">Next</button></div></div>'+
 '<div class="ad4-v3-app-card"><strong>Project</strong><a href="https://github.com/spidey000/FFAdv4Manager_cura" target="_blank" rel="noopener noreferrer">FFAdv4Manager_cura on GitHub</a></div>';
 root.append(app);
+let obsOffset=0,obsTotal=0,obsPage=[],obsRequest=0,obsTimer;
+const obs=id=>$("ad4-obs-"+id);
+function obsMetric(label,value){const box=make("div","ad4-obs-metric");const title=make("small"),number=make("b");title.textContent=label;number.textContent=value;box.append(title,number);return box}
+function renderObservability(summary,result){
+ obs("metrics").replaceChildren(
+  obsMetric("Events",summary.events_total),obsMetric("Errors",summary.levels.error||0),
+  obsMetric("Slices",summary.slices.completed+" / "+summary.slices.failed+" failed"),
+  obsMetric("Uploads",summary.uploads.confirmed),
+  obsMetric("Printer command failures",summary.printer_command_failures),
+  obsMetric("API p95",summary.http_latency_ms.p95==null?"—":summary.http_latency_ms.p95+" ms"),
+  obsMetric("Server uptime",Math.floor(summary.uptime_seconds/3600)+"h "+Math.floor(summary.uptime_seconds%3600/60)+"m"),
+  obsMetric("Server memory",summary.server.memory_rss_bytes==null?"—":Math.round(summary.server.memory_rss_bytes/1048576)+" MiB"),
+  obsMetric("Disk free",summary.server.disk_free_bytes==null?"—":(summary.server.disk_free_bytes/1073741824).toFixed(1)+" GiB"),
+  obsMetric("System load",summary.server.load_average?.[0]??"—"));
+ const chart=obs("chart"),hours=summary.hourly,maximum=Math.max(1,...hours.map(item=>item.count));chart.replaceChildren();
+ for(const item of hours){const bar=make("span","ad4-obs-bar");bar.style.height=Math.max(3,item.count/maximum*100)+"%";bar.title=item.hour+" · "+item.count+" events";chart.append(bar)}
+ obsPage=result.events;obsTotal=result.total;
+ obs("count").textContent=result.total+" matching events · "+Math.round(summary.log_bytes/1024)+" KiB stored";
+ obs("page").textContent=result.total?`${result.offset+1}–${Math.min(result.offset+result.limit,result.total)} of ${result.total}`:"0 results";
+ obs("prev").disabled=obsOffset===0;obs("next").disabled=obsOffset+result.limit>=result.total;
+ const list=obs("events");list.replaceChildren();
+ if(!obsPage.length){const empty=make("p");empty.textContent="No events match these filters.";list.append(empty)}
+ for(const entry of obsPage){
+  const row=make("details","ad4-obs-event");row.dataset.level=entry.level;
+  const head=make("summary"),when=make("time"),kind=make("strong"),trace=make("span");
+  when.textContent=new Date(entry.timestamp).toLocaleString();kind.textContent=entry.event;
+  trace.textContent=entry.trace_id?entry.trace_id.slice(0,12):"";
+  head.append(when,kind,trace);const pre=make("pre");pre.textContent=JSON.stringify(entry,null,2);
+  row.append(head,pre);list.append(row);
+ }
+ obs("status").textContent="Updated "+new Date(summary.observed_at).toLocaleTimeString()+
+  (summary.printer?.machine_status?" · Printer: "+summary.printer.machine_status:" · No recent printer status");
+}
+async function loadObservability(){
+ if(staticPreview){obs("status").textContent="Server logs are available in the installed application.";return}
+ const sequence=++obsRequest;obs("status").textContent="Loading server activity…";
+ const params=new URLSearchParams({hours:obs("hours").value,limit:"100",offset:String(obsOffset),
+  level:obs("level").value,event:obs("event").value.trim(),trace_id:obs("trace").value.trim(),q:obs("query").value.trim()});
+ try{
+  const [summaryResponse,eventsResponse]=await Promise.all([
+   fetch("./api/observability/summary?hours="+obs("hours").value,{cache:"no-store"}),
+   fetch("./api/observability/events?"+params,{cache:"no-store"})]);
+  const [summary,result]=await Promise.all([summaryResponse.json(),eventsResponse.json()]);
+  if(!summaryResponse.ok||!eventsResponse.ok)throw Error(result.error||summary.error||"Server request failed");
+  if(sequence===obsRequest)renderObservability(summary,result);
+ }catch(error){if(sequence===obsRequest)obs("status").textContent="Could not load server activity: "+error.message}
+}
+document.addEventListener("ad4:observability-open",loadObservability);
+obs("refresh").addEventListener("click",loadObservability);
+for(const key of ["hours","level"]){obs(key).addEventListener("change",()=>{obsOffset=0;loadObservability()})}
+for(const key of ["event","trace","query"]){obs(key).addEventListener("input",()=>{clearTimeout(obsTimer);obsTimer=setTimeout(()=>{obsOffset=0;loadObservability()},350)})}
+obs("prev").addEventListener("click",()=>{obsOffset=Math.max(0,obsOffset-100);loadObservability()});
+obs("next").addEventListener("click",()=>{if(obsOffset+100<obsTotal){obsOffset+=100;loadObservability()}});
+obs("export").addEventListener("click",()=>{
+ const url=URL.createObjectURL(new Blob([JSON.stringify(obsPage,null,2)],{type:"application/json"}));
+ const link=make("a");link.href=url;link.download="ad4-server-events.json";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
 const PRESET_KEY="ffadv4-mosaic-custom-presets-v1";
 $("ad4-v3-export-profiles").addEventListener("click",()=>{
  const json=localStorage.getItem(PRESET_KEY)||'{"process":[],"material":[]}';

@@ -14,6 +14,25 @@ La interfaz se sirve desde **`server/cura_bridge.py`** y reutiliza las rutas del
 
 El servidor valida tamaño, tipos, settings, geometría de máquina y límites. El catálogo completo de Cura se admite hasta **1024 ajustes por grupo** y 512 KiB de ajustes JSON. No enviar peticiones arbitrarias de G-code ni usar CuraEngine WASM en el navegador.
 
+### Logs y trazas de slicing e impresión
+
+El servidor guarda eventos JSON Lines en `~/.local/share/ffadv4manager-cura/logs/operations.jsonl` (o en `$AD4_DATA_DIR/logs/operations.jsonl`; si no se define, respeta `$XDG_DATA_HOME`). Conserva hasta cinco archivos de 5 MiB y restringe los permisos del directorio/archivo al usuario del servicio. La misma secuencia aparece en la salida estándar del proceso.
+
+Cada petición de API recibe un `trace_id` en el log y en la cabecera de respuesta `X-Trace-ID`. La interfaz conserva el ID de un slice y lo envía con la posterior subida, de modo que se pueden correlacionar laminado, envío y arranque. Los eventos registran inicio y resultado, duración, código de salida y respuesta resumida de los comandos del gestor, así como tamaño y SHA-256 del modelo y del G-code enviado. No se guardan el STL ni el contenido G-code. Los textos de respuesta se limitan y las URLs se ocultan; no se registran tokens ni credenciales.
+
+Ejemplos de eventos: `slice.started/completed/failed`, `printer.upload.received/confirmed`, `printer.print.start_acknowledged`, `printer.command.completed` y `http.request.completed`. La aceptación del comando de inicio se registra como acuse del comando; no prueba por sí sola que el movimiento físico haya comenzado.
+
+### Consulta desde App
+
+El panel **App → Server activity** usa dos rutas autenticadas de solo lectura:
+
+| Método | Ruta | Datos |
+| --- | --- | --- |
+| GET | `/api/observability/summary?hours=24` | Actividad por hora, slices, subidas, errores, latencia p50/p95, último estado conocido de la impresora, memoria del proceso, carga del sistema, espacio libre y tamaño de logs |
+| GET | `/api/observability/events?hours=24&level=error&event=slice&trace_id=...&q=...&offset=0&limit=100` | Eventos filtrados y paginados, con severidad calculada |
+
+`hours` se limita a 1–720, `limit` a 1–200 y `offset` a 0–100 000. La consulta lee solo los cinco ficheros rotativos del servidor y como máximo 100 000 líneas; no admite rutas arbitrarias. Las lecturas del propio panel no se registran para evitar realimentación. La exportación de la interfaz descarga la página filtrada que se está mostrando.
+
 ## Estado y conectividad de impresora
 
 | Método | Ruta | Función |
