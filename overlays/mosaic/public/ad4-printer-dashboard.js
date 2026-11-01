@@ -44,9 +44,9 @@
      '<strong id="ad4-printer-progress-text">—</strong></div>'+
     '<div class="ad4-printer-job-metrics">'+
      '<div class="ad4-printer-print-time">'+icon("clock")+
-      '<div><span>Elapsed</span><strong id="ad4-printer-elapsed">—</strong></div></div>'+
+      '<div><span id="ad4-printer-elapsed-label">Elapsed</span><strong id="ad4-printer-elapsed">—</strong></div></div>'+
      '<div class="ad4-printer-print-time">'+icon("hourglass")+
-      '<div><span>Remaining</span><strong id="ad4-printer-remaining">—</strong></div></div>'+
+      '<div><span id="ad4-printer-remaining-label">Remaining</span><strong id="ad4-printer-remaining">—</strong></div></div>'+
     '</div>'+
    '</section>'+
    '<div class="ad4-printer-jump-grid">'+
@@ -230,7 +230,18 @@
  // Status is published by the shared controller or live viewer. This
  // dashboard never starts a second poller or downloads hidden resources.
  const fmt=(v,suffix="")=>v===null||v===undefined||v===""?"—":String(v)+suffix;
- const seconds=v=>{if(!Number.isFinite(v)||v<0)return "—";const n=Math.round(v);return Math.floor(n/3600)?Math.floor(n/3600)+"h "+Math.floor(n%3600/60)+"m":Math.floor(n/60)+"m"};
+ const seconds=(v,precise=false)=>{
+  if(!Number.isFinite(v)||v<0)return "—";
+  const n=Math.round(v),h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;
+  if(precise)return [h?h+"h":null,m?m+"m":null,s||!h&&!m?s+"s":null].filter(Boolean).join(" ");
+  return h?h+"h "+m+"m":Math.floor(n/60)+"m";
+ };
+ const printTime=(real,estimate)=>{
+  const measured=seconds(real);
+  if(measured!=="—")return {value:measured,estimated:false};
+  const approximate=seconds(estimate,true);
+  return approximate==="—"?{value:"—",estimated:false}:{value:"≈ "+approximate,estimated:true};
+ };
  let savedCount=null;
  function renderStatus(state){
    const backend=Boolean(state);
@@ -253,9 +264,14 @@
    $("ad4-printer-progress-text").textContent=valid?Math.round(percent)+"%":"—";
    const track=$("ad4-printer-progress-track");
    if(valid)track.setAttribute("aria-valuenow",String(percent));else track.removeAttribute("aria-valuenow");
-   // Only display elapsed/remaining if the bridge actually reports these.
-   $("ad4-printer-elapsed").textContent=active?seconds(state.elapsed_seconds):"—";
-   $("ad4-printer-remaining").textContent=active?seconds(state.remaining_seconds):"—";
+   // Measured times win; estimates are visibly identified, never presented as telemetry.
+   // Stale and incomplete responses must not leave plausible-looking times onscreen.
+   const elapsed=active&&!state.stale?printTime(state.elapsed_seconds,state.elapsed_seconds_estimate):{value:"—",estimated:false};
+   const remaining=active&&!state.stale?printTime(state.remaining_seconds,state.remaining_seconds_estimate):{value:"—",estimated:false};
+   $("ad4-printer-elapsed").textContent=elapsed.value;
+   $("ad4-printer-remaining").textContent=remaining.value;
+   $("ad4-printer-elapsed-label").textContent="Elapsed"+(elapsed.estimated?" · estimated":"");
+   $("ad4-printer-remaining-label").textContent="Remaining"+(remaining.estimated?" · estimated":"");
 
    $("ad4-printer-updated").textContent=(state?.stale?"Waiting for status · ":"Updated ")+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
  }

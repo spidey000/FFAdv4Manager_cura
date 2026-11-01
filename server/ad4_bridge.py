@@ -11,6 +11,7 @@ import http.client
 import struct
 import ipaddress
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -192,7 +193,9 @@ def display_status(force=False):
                 with bind_trace_id(identifier):
                     _sample_status(key, argv, None, reservation)
             threading.Thread(target=sample, daemon=True, name='AD4-status-sample').start()
-        return {**_status_view(key), 'selection': dict(SELECTED)}
+        state = {**_status_view(key), 'selection': dict(SELECTED)}
+    # Local metadata only: no additional TCP queries or hardware pollers.
+    return with_estimated_print_times(state)
 
 
 def cached_read(name, reader, ttl=30, force=False):
@@ -356,6 +359,57 @@ def _read_file_metadata():
         return {}
 
 
+def with_estimated_print_times(state):
+    """Attach explicitly approximate times from stored upload metadata and SD bytes.
+
+    This is a local-only decoration of an already-observed printer status.
+    Unavailable, stale, inactive, inconsistent or unmatched jobs have no estimates.
+    """
+    if (not isinstance(state, dict) or state.get('stale')
+            or state.get('status_available') is not True
+            or str(state.get('machine_status') or '').upper()
+            not in ('PRINTING', 'BUILDING', 'BUILDING_FROM_SD', 'PAUSED')):
+        return state
+    remote = state.get('current_file')
+    progress = state.get('progress_percent')
+    if (not isinstance(remote, str) or not remote.strip()
+            or not isinstance(progress, (int, float)) or isinstance(progress, bool)
+            or not math.isfinite(progress) or not 0 <= progress <= 100):
+        return state
+
+    # M27 reports byte position. Check the raw counters as well: the CLI
+    # deliberately clamps progress_percent, which can otherwise hide corruption.
+    current, total = state.get('sd_current'), state.get('sd_total')
+    if current is not None or total is not None:
+        if (not isinstance(current, (int, float)) or isinstance(current, bool)
+                or not isinstance(total, (int, float)) or isinstance(total, bool)
+                or not math.isfinite(current) or not math.isfinite(total)
+                or total <= 0 or not 0 <= current <= total
+                or abs(100 * current / total - progress) > 1):
+            return state
+
+    filename = remote.rsplit('/', 1)[-1]
+    if not filename:
+        return state
+    scoped = _read_file_metadata().get(_metadata_scope(), {})
+    fields = scoped.get(filename, {}) if isinstance(scoped, dict) else {}
+    if not isinstance(fields, dict):
+        return state
+    duration = fields.get('estimated_seconds')
+    if (not isinstance(duration, (int, float)) or isinstance(duration, bool)
+            or not math.isfinite(duration) or not 1 < duration < 30 * 86400):
+        return state
+
+    # For GX files uploaded directly, compare their original byte length with
+    # M27's SD total; a reused filename with different bytes is not this job.
+    uploaded_size = fields.get('remote_size_bytes')
+    if uploaded_size is not None and total is not None and uploaded_size != total:
+        return state
+    elapsed = duration * progress / 100
+    return {**state, 'elapsed_seconds_estimate': round(elapsed, 2),
+            'remaining_seconds_estimate': round(duration - elapsed, 2)}
+
+
 def _print_seconds(value):
     value = value.strip().lower()
     if value.isdecimal():
@@ -371,8 +425,10 @@ def inspect_upload_metadata(file):
     """Read recognized source-file metadata, never claim the printer reported it."""
     with file.open('rb') as handle:
         prefix = handle.read(1024 * 1024)
-    metadata = {'estimated_seconds': None, 'hotend': None, 'bed': None}
+    metadata = {'estimated_seconds': None, 'hotend': None, 'bed': None,
+                'remote_size_bytes': None}
     if prefix.startswith(b'xgcode 1.0\n\0') and len(prefix) >= 58:
+        metadata['remote_size_bytes'] = file.stat().st_size
         seconds = struct.unpack_from('<i', prefix, 28)[0]
         gx_values = struct.unpack_from('<8h', prefix, 42)
         if 1 < seconds < 30 * 86400:
