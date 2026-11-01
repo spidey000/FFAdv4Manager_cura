@@ -5,6 +5,7 @@ Cloudflare Access JWT verification at this loopback-only origin.
 """
 import atexit
 from datetime import datetime, timezone
+import hashlib
 import http.client
 import struct
 import ipaddress
@@ -17,18 +18,23 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unicodedata
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 if __package__:
+    from . import observability
     from .timelapse_service import TimelapseService
     from .gcode_safety import require_safe_artillery_heating
     from .cloudflare_access import load_access_config, verify_access_jwt, _jwks_client
+    from .trace_logging import event as trace_event, begin_request, end_request, set_incoming_trace_id
 else:
+    import observability
     from timelapse_service import TimelapseService
     from gcode_safety import require_safe_artillery_heating
     from cloudflare_access import load_access_config, verify_access_jwt, _jwks_client
+    from trace_logging import event as trace_event, begin_request, end_request, set_incoming_trace_id
 
 ACCESS_CONFIG = load_access_config(os.environ)
 
@@ -74,8 +80,20 @@ def cli_argv(*args, selected=True):
 
 
 def command(*args, timeout=30, selected=True, accepted_codes=(0,)):
-    result = subprocess.run(cli_argv(*args, selected=selected), capture_output=True,
-                            text=True, timeout=timeout, check=False)
+    argv = cli_argv(*args, selected=selected)
+    started = time.monotonic()
+    trace_event(DATA_DIR, 'printer.command.started', command=list(args), timeout_seconds=timeout)
+    try:
+        result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        trace_event(DATA_DIR, 'printer.command.failed', command=list(args),
+                    duration_ms=round((time.monotonic() - started) * 1000, 1),
+                    error=str(error))
+        raise
+    trace_event(DATA_DIR, 'printer.command.completed', command=list(args),
+                return_code=result.returncode,
+                duration_ms=round((time.monotonic() - started) * 1000, 1),
+                stdout=result.stdout[-2000:], stderr=result.stderr[-1000:])
     if result.returncode not in accepted_codes:
         raise RuntimeError((result.stderr or result.stdout).strip()[:1000]
                            or 'CLI exit ' + str(result.returncode))
@@ -112,8 +130,13 @@ def timelapse_state():
 def selected_status_reader(argv):
     """Pin a session to its initial printer, even if the UI selection changes."""
     def get_status():
+        started = time.monotonic()
         result = subprocess.run([*argv, 'status', '--json'], capture_output=True, text=True,
                                 timeout=15, check=False)
+        trace_event(DATA_DIR, 'printer.command.completed', command=['status', '--json'],
+                    return_code=result.returncode,
+                    duration_ms=round((time.monotonic() - started) * 1000, 1),
+                    stdout=result.stdout[-2000:], stderr=result.stderr[-1000:])
         if result.returncode:
             raise RuntimeError('Printer status unavailable')
         return json.loads(result.stdout)
@@ -283,7 +306,41 @@ atexit.register(cleanup)
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
+        self._trace_started = None
+        self._trace_status = None
+        self._trace_identifier = None
         super().__init__(*args, directory=str(DIST), **kwargs)
+
+    def handle_one_request(self):
+        self._trace_started = None
+        self._trace_status = None
+        self._trace_identifier = None
+        set_incoming_trace_id(None)
+        try:
+            super().handle_one_request()
+        finally:
+            if self._trace_started is not None:
+                end_request(DATA_DIR, getattr(self, 'command', ''),
+                            urlsplit(getattr(self, 'path', '/')).path,
+                            self._trace_started, self._trace_status)
+                self._trace_started = None
+
+    def parse_request(self):
+        parsed = super().parse_request()
+        if (parsed and urlsplit(self.path).path.startswith('/api/')
+                and not urlsplit(self.path).path.startswith('/api/observability/')):
+            # A client may propagate an existing trace ID between slice and upload.
+            set_incoming_trace_id(self.headers.get('X-Trace-ID'))
+            self._trace_identifier, self._trace_started = begin_request(
+                DATA_DIR, self.command, urlsplit(self.path).path,
+                int(self.headers.get('Content-Length', '0') or 0))
+        return parsed
+
+    def send_response(self, code, message=None):
+        self._trace_status = code
+        super().send_response(code, message)
+        if self._trace_identifier:
+            self.send_header('X-Trace-ID', self._trace_identifier)
 
     def json(self, status, value):
         body = json.dumps(value, ensure_ascii=False).encode('utf-8')
@@ -421,6 +478,14 @@ class Handler(SimpleHTTPRequestHandler):
         url = urlsplit(self.path)
         path = url.path
         try:
+            if path in ('/api/observability/summary', '/api/observability/events'):
+                query = parse_qs(url.query)
+                try:
+                    result = (observability.summary(DATA_DIR, query) if path.endswith('/summary')
+                              else observability.query_events(DATA_DIR, query))
+                except ValueError as error:
+                    return self.json(400, {'error': str(error)})
+                return self.json(200, result)
             if path in ('/api/printer/current-job', '/api/printer/current-job/toolpath'):
                 from server import current_job
                 return current_job.get(self, path, url, sys.modules[__name__])
@@ -534,6 +599,15 @@ class Handler(SimpleHTTPRequestHandler):
             return self.printer_post(path, url, body)
 
     def printer_post(self, path, url, body=None):
+        query = parse_qs(url.query)
+        is_upload = path in ('/api/printer/jobs', '/api/printer/upload')
+        operation = ('upload_and_print' if query.get('start', ['false'])[0] == 'true'
+                     else 'upload') if is_upload else path.rsplit('/', 1)[-1]
+        filename = query.get('name', [None])[0] if is_upload else (
+            body.get('file') if isinstance(body, dict) else None)
+        trace_event(DATA_DIR, 'printer.transaction.started', operation=operation,
+                    action=body.get('action') if isinstance(body, dict) else None,
+                    filename=filename)
         try:
             if path in ('/api/printer/jobs', '/api/printer/upload'):
                 size = int(self.headers.get('Content-Length', '0'))
@@ -552,6 +626,8 @@ class Handler(SimpleHTTPRequestHandler):
                     name = safe_filename(parse_qs(url.query).get('name', [''])[0])
                 except ValueError as exc:
                     return self.json(400, {'error': str(exc)})
+                trace_event(DATA_DIR, 'printer.upload.received', filename=name, bytes=len(data),
+                            sha256=hashlib.sha256(data).hexdigest())
                 # The server independently verifies the single supported Artillery PLA
                 # temperature envelope; POSTs cannot bypass the browser preflight.
                 try:
@@ -593,6 +669,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if not match:
                     raise RuntimeError('The CLI did not report a confirmed remote upload')
                 remote_path = match.group(1).strip()
+                trace_event(DATA_DIR, 'printer.upload.confirmed', filename=name,
+                            remote_path=remote_path, started=start)
                 preview_error = None
                 try:
                     from server import current_job
@@ -611,6 +689,12 @@ class Handler(SimpleHTTPRequestHandler):
                     except (OSError, ValueError, RuntimeError) as exc:
                         # The physical print already started; report capture failure honestly.
                         timelapse_error = str(exc)
+                if start:
+                    trace_event(DATA_DIR, 'printer.print.start_acknowledged', filename=name,
+                                remote_path=remote_path, verification='command_acknowledged_only')
+                trace_event(DATA_DIR, 'printer.transaction.completed', operation=operation,
+                            filename=name, remote_path=remote_path, started=start,
+                            timelapse_error=timelapse_error, preview_error=preview_error)
                 return self.json(200, {'remote_name': remote_path.rsplit('/', 1)[-1],
                                        'remote_path': remote_path, 'started': start,
                                        'timelapse': timelapse_capture,
@@ -642,6 +726,8 @@ class Handler(SimpleHTTPRequestHandler):
                     if not isinstance(filename, str) or filename not in listed:
                         raise ValueError('El archivo no está en el listado actual')
                     output = command('print', filename, timeout=50)
+                    trace_event(DATA_DIR, 'printer.print.start_acknowledged', filename=filename,
+                                verification='command_acknowledged_only')
                     if auto_timelapse:
                         try:
                             start_print_timelapse(mode=capture_mode, fps=capture_fps,
@@ -655,6 +741,9 @@ class Handler(SimpleHTTPRequestHandler):
                 if action == 'cancel':
                     threading.Thread(target=TIMELAPSES.stop, args=('print_cancelled',),
                                      daemon=True, name='AD4-cancel-encode').start()
+                trace_event(DATA_DIR, 'printer.transaction.completed', operation=operation,
+                            action=action, filename=body.get('file'),
+                            response=output[-1000:] if output else '')
                 return self.json(200, {'detail': output[-1000:]})
             if path == '/api/printer/selection':
                 profile = body.get('profile')
@@ -728,6 +817,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json(200, {'running': worker_running('notifications')})
         except (OSError, RuntimeError, ValueError, TypeError, subprocess.TimeoutExpired,
                 json.JSONDecodeError) as error:
+            trace_event(DATA_DIR, 'printer.transaction.failed', operation=operation,
+                        action=body.get('action') if isinstance(body, dict) else None,
+                        error=str(error))
             return self.json(502, {'error': str(error)})
 
 

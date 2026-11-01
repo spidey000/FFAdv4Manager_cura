@@ -473,7 +473,10 @@ async function upload(start){
   timelapse:String(allowed.timelapse),timelapse_mode:allowed.mode,
   timelapse_interval:String(allowed.interval),timelapse_fps:String(allowed.fps)});
  await task(start?"Sending and printing":"Uploading GX",async()=>{
-  const res=await api("/jobs?"+params,{method:"POST",headers:{"Content-Type":"text/plain; charset=utf-8"},body:prefix+gcode});
+  const traceHeaders={"Content-Type":"text/plain; charset=utf-8"};
+  if(globalThis.AD4SliceTraceID)traceHeaders["X-Trace-ID"]=globalThis.AD4SliceTraceID;
+  const res=await api("/jobs?"+params,{method:"POST",headers:traceHeaders,body:prefix+gcode});
+  globalThis.AD4SliceTraceID=null;
   say("Uploaded as "+res.remote_name+(res.timelapse_error?" · Recording failed: "+res.timelapse_error:""),!!res.timelapse_error);
   return res;
  });

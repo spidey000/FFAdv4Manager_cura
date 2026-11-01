@@ -42,6 +42,7 @@ function to_blob({stl, settings}) {
 
 export async function slice(stl, on_progress) {
   exported_gcode = null;
+  globalThis.AD4SliceTraceID = null;
   if (active_controller) cancel_slice();
   const controller = new AbortController();
   active_controller = controller;
@@ -97,6 +98,8 @@ export async function slice(stl, on_progress) {
     if (!res.ok) throw Error(payload.error || "Server slicing failed");
     if (payload.engine !== "server") throw Error("Server engine verification failed");
     exported_gcode = payload.gcode;
+    // Carry this server trace through the subsequent upload/print transaction.
+    globalThis.AD4SliceTraceID = res.headers.get("X-Trace-ID");
     on_progress?.(1, "Complete");
     document.dispatchEvent(new CustomEvent("ad4:slice-progress", {
       detail: {percent: 100, stage: "Complete", state: "completed"}
