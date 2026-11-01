@@ -136,6 +136,7 @@
  const thumbnailKey=(printer,name)=>JSON.stringify([printer,name]);
  let restoreVersion=0,thumbnailEpoch=0;
  function clearThumbnails(){for(const url of thumbnails.values())URL.revokeObjectURL(url);thumbnails.clear();restoreVersion++;thumbnailEpoch++;for(const img of fileList.querySelectorAll(".ad4-file-row img"))img.remove()}
+ function hideThumbnailsForSelection(){restoreVersion++;thumbnailEpoch++;for(const img of fileList.querySelectorAll(".ad4-file-row img"))img.remove()}
  async function restoreThumbnails(){
   if(demo)return; // Pages has no printer session or thumbnail endpoint.
   const version=++restoreVersion;
@@ -153,7 +154,9 @@
  // is server state and does not send a thumbnail request to the physical printer.
  new MutationObserver(restoreThumbnails).observe(fileList,{childList:true});
  document.addEventListener("ad4:profiles-changed",()=>{clearThumbnails();restoreThumbnails()});
- document.addEventListener("ad4:printer-selection",clearThumbnails);
+ // Keep already fetched previews under their host/profile key. Hide them while
+ // another printer is selected, and reuse them if the user switches back.
+ document.addEventListener("ad4:printer-selection",hideThumbnailsForSelection);
  addEventListener("pagehide",clearThumbnails);
  $("ad4-file-list").addEventListener("click",async e=>{
   const row=e.target.closest(".ad4-file-row");if(!row||e.target.tagName==="BUTTON")return;
