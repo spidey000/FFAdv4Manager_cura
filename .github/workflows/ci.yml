@@ -26,6 +26,8 @@ jobs:
           node --check overlays/mosaic/public/ad4-studio.js
           node --check overlays/mosaic/public/ad4-v3.js
           node --check overlays/mosaic/public/ad4-manager.js
+          node --check overlays/mosaic/public/ad4-printer-dashboard.js
+          node tests/ui/printer_time_estimates.cjs
           node --check overlays/mosaic/src/gui/viewer/ad4-plate-layout.mjs
           node --check overlays/mosaic/src/gui/viewer/ad4-plate-operations.mjs
           node --check frontend/src/gui/viewer/model_viewer.mjs
