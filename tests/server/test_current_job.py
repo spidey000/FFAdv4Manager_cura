@@ -208,3 +208,29 @@ def test_configured_downloader_uses_argv_and_checks_job_after_download(setup_job
     assert source['kind'] == 'printer_download'
     assert source['remote_verified'] is True
 
+
+
+def test_association_bypasses_a_primed_display_cache(setup_job, monkeypatch):
+    # Both validation samples occur within the cache TTL; neither may reuse the
+    # display sample. The printer switches from test.gx to another.gx mid-request.
+    bridge.invalidate_status_cache()
+    argv = bridge.cli_argv()
+    bridge.cached_status(argv, reader=lambda: dict(setup_job))
+    reads = []
+    def read(_bridge, _argv, *args):
+        if args[0] == 'position':
+            return {'Z': .3}
+        reads.append(args)
+        return dict(setup_job) if len(reads) == 1 else {'current_file': '/data/another.gx'}
+    monkeypatch.setattr(jobs, '_read', read)
+    handler = Mock()
+    handler.headers = {'Content-Length': str(len(GCODE)), 'Content-Type': 'application/octet-stream'}
+    handler.rfile = io.BytesIO(GCODE)
+    try:
+        with pytest.raises(ValueError, match='changed jobs'):
+            jobs.post(handler, '/api/printer/current-job/associate',
+                      urlsplit('/?current_file=/data/test.gx&name=original.gcode'), bridge)
+        assert len(reads) == 2
+        assert not jobs._index(bridge)
+    finally:
+        bridge.invalidate_status_cache()

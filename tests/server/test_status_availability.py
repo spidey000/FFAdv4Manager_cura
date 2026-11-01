@@ -24,11 +24,12 @@ def test_concurrent_status_consumers_share_a_single_query(monkeypatch):
         assert release.wait(2)
         return '{"machine_status":"READY"}'
     monkeypatch.setattr(bridge, 'command', command)
+    monkeypatch.setattr(current_job, '_read', lambda *_a: {})
     with ThreadPoolExecutor(max_workers=3) as pool:
         first = pool.submit(bridge.cached_status)
         assert entered.wait(1)
         second = pool.submit(bridge.selected_status_reader(bridge.cli_argv()))
-        third = pool.submit(current_job._read, bridge, bridge.cli_argv(), 'status', '--json')
+        third = pool.submit(lambda: current_job.snapshot(bridge)['status'])
         release.set()
         assert all(f.result(timeout=3)['ready_to_print'] for f in (first, second, third))
     assert len(calls) == 1

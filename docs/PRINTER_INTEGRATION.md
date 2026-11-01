@@ -48,7 +48,14 @@ terminal-only options.
 not proof of disconnection. Each status command uses a two-second read budget
 (or the configured timeout if shorter). Service display consumers share a
 one-second cache keyed by their pinned CLI connection; unavailable observations
-replace previous READY and are cached too to avoid a retry storm.
+replace previous READY and are cached too to avoid a retry storm. Source
+association/download validation always reads fresh status before and after
+obtaining G-code, so the cache cannot hide a change of current job.
+
+Desktop offline notifications and monitor offline records still report total
+communication loss. Partial responses or a busy control lock are unknown-state
+observations, not disconnect alerts. Doctor reports unavailable/partial status
+as a failed check even when the camera remains accessible.
 
 Only explicit READY/IDLE permits upload/start by default. The CLI repeats this
 check under the control lock; the display cache never authorizes a print.

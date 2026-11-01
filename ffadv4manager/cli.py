@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 from contextlib import nullcontext
-from .core.control import control_session
+from .core.control import ControlBusy, control_session
 import sys
 import time
 import urllib.request
@@ -848,7 +848,12 @@ def _handle_doctor(args) -> int:
     started = time.monotonic()
     try:
         status = FlashForgeClient(str(host), port, timeout).status()
-        result["checks"].append({"name": "printer_status", "ok": True, "status": status.machine_status})
+        if not status.status_available:
+            failures += 1
+        result["checks"].append({"name": "printer_status", "ok": status.status_available,
+                                 "status": status.machine_status,
+                                 "connection_status": status.connection_status,
+                                 "status_errors": status.status_errors})
     except Exception as exc:
         failures += 1
         result["checks"].append({"name": "printer_status", "ok": False, "error": str(exc)})
@@ -924,9 +929,10 @@ def _monitor(client, args, host: str) -> int:
         stamp = _utc_now()
         try:
             status = client.status()
-            state = status.machine_status or "UNKNOWN"
+            state = status.machine_status or ("OFFLINE" if status.connection_status == "unavailable" else "UNKNOWN")
             changed = state != previous
-            record: dict[str, object] = {"timestamp": stamp, "event": "status" if not changed else "state_change", **_status_json(status)}
+            event = ("offline" if changed else "poll_error") if state == "OFFLINE" else ("state_change" if changed else "status")
+            record: dict[str, object] = {"timestamp": stamp, "event": event, **_status_json(status)}
             if changed and snapshots and camera_url:
                 image = snapshots / f"event-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')}-{samples:06d}.jpg"
                 try:
@@ -935,6 +941,9 @@ def _monitor(client, args, host: str) -> int:
                 except Exception as exc:
                     record["snapshot_error"] = str(exc)
             previous = state
+        except ControlBusy as exc:
+            state = previous = "UNKNOWN"
+            record = {"timestamp": stamp, "event": "status_unavailable", "error": str(exc)}
         except Exception as exc:
             state = "OFFLINE"
             changed = state != previous
@@ -962,7 +971,14 @@ def _notify(client, args) -> int:
         try:
             status = client.status()
             raw_state = (status.machine_status or "unknown").casefold()
-            state = "paused" if raw_state == "paused" else "printing" if status.is_printing else "ready" if raw_state == "ready" else raw_state
+            if status.connection_status == "unavailable":
+                state = "offline"  # Complete communication loss, not a partial response.
+            elif not status.status_available:
+                state = "unknown"
+            else:
+                state = "paused" if raw_state == "paused" else "printing" if status.is_printing else "ready" if status.ready_to_print else raw_state
+        except ControlBusy:
+            state = "unknown"  # An ongoing transfer is not a disconnect notification.
         except Exception:
             state = "offline"
         if state != previous and state in wanted:
