@@ -86,7 +86,9 @@ def test_convert_cli_local_output_and_upload_conversion(monkeypatch, tmp_path, c
             return PrinterStatus(raw="", machine_status="READY")
 
         def upload_and_confirm_listed(self, path, remote_name, **_kwargs):
-            assert path.read_bytes()[GCODE_OFFSET:] == original
+            prepared = path.read_bytes()[GCODE_OFFSET:]
+            assert prepared.startswith(original)
+            assert prepared.endswith(b"G162 Z F1800\nG28 X Y\n")
             assert remote_name == "01_02_0.12m_part.gx"
             return "0:/user/01_02_0.12m_part.gx"
 
