@@ -47,6 +47,15 @@ El panel **App → Server activity** usa dos rutas autenticadas de solo lectura:
 | POST | `/api/printer/profiles` | Añade un perfil |
 | POST | `/api/printer/profiles/delete` | Elimina un perfil |
 
+El estado incluye `connection_status` (`online`, `partial` o `unavailable`),
+`status_available`, `ready_to_print`, `status_errors`, `observed_at` y
+`cached_for_ms`. Un M27 válido sin MachineStatus se representa como respuesta
+parcial, nunca como permiso de impresión. Una consulta fallida devuelve 200 con
+estado no disponible y su error; no demuestra que la impresora esté desconectada.
+Las consultas simultáneas de estado, visor de trabajo y timelapse comparten una
+muestra durante un segundo. El envío comprueba de nuevo READY/IDLE bajo bloqueo,
+sin utilizar esa caché.
+
 ## Archivos y acciones
 
 | Método | Ruta | Función |
@@ -61,6 +70,12 @@ El panel **App → Server activity** usa dos rutas autenticadas de solo lectura:
 | POST | `/api/printer/tools/rename` | Cambia nombre de impresora (requiere confirmación de firmware) |
 
 `start=true` autoriza inicio físico; `start=false` no debe mandar M23/M24. Una subida exitosa confirma listado de nombre en la impresora, **no** una comparación byte a byte con su almacenamiento ni la seguridad del movimiento real. La validación térmica se repite en servidor, al margen de la interfaz. Los errores y los trabajos activos se gestionan de forma conservadora.
+
+Un 502 de transferencia o inicio incluye `stage`, `outcome` y `retry_safe`.
+Si la fase es `preflight`, no se ha iniciado la transferencia. Si falla durante
+`upload_and_verify` o `print_start`, `outcome: "unknown"` y `retry_safe: false`
+obligan a comprobar el archivo/trabajo en la impresora antes de repetir. No hay
+reenvíos automáticos; los detalles quedan en las trazas y el journal del servicio.
 
 Para asociar captura automática a un inicio de impresión pueden utilizarse `timelapse=true` y `timelapse_mode=interval|layer` en las rutas de subida con `start=true`; `actions` también permite esas opciones al arrancar un archivo almacenado. Un fallo posterior al inicio físico se señala con `timelapse_error` en vez de fingir que no se inició la impresión.
 

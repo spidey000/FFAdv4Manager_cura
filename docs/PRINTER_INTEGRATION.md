@@ -21,8 +21,15 @@ The existing Printer manager now includes:
   server and stops after one hour; closing the browser does not cancel it.
 
 All file/tool routes use the bridge's existing same-origin authentication.
-Uploads, new print starts and connection changes are serialized; urgent pause,
-resume and cancel controls remain responsive during a transfer or encoding.
+Uploads, new print starts and connection changes are serialized. All control-port
+traffic also shares a per-host/port reentrant lock across service-user processes
+(status, file listings, previews, position, monitor and timelapse readers). Status
+holds it across M119/M105/M27; upload/start holds it from fresh preflight through
+M29, listing verification and M23/M24. Lock acquisition fails busy after two
+seconds instead of opening a concurrent TCP session. Pause, resume and cancel
+bypass server bookkeeping and video encoding, but cannot interrupt an active
+control-port transaction; a busy response means no control command was sent.
+Camera HTTP traffic remains independent.
 Tool routes never accept
 arbitrary server file paths or shell commands. Connection forms accept private
 IPv4 printer addresses. Diagnostics remain available if the printer is offline.
@@ -32,6 +39,30 @@ variable physical speed control. The read-only live status view provides the
 equivalent of CLI `watch`; CLI `camera open` is represented by the embedded camera
 and does not open a browser on the Linux host. `--force` and `--no-convert` remain
 terminal-only options.
+
+## Incomplete state and failed transfers
+
+`status --json` and `/api/printer/status` expose `connection_status` (`online`,
+`partial` or `unavailable`), `status_available`, `ready_to_print` and per-command
+`status_errors`. M27 answering while M119/M105 are empty is a partial response,
+not proof of disconnection. Each status command uses a two-second read budget
+(or the configured timeout if shorter). Service display consumers share a
+one-second cache keyed by their pinned CLI connection; unavailable observations
+replace previous READY and are cached too to avoid a retry storm.
+
+Only explicit READY/IDLE permits upload/start by default. The CLI repeats this
+check under the control lock; the display cache never authorizes a print.
+`--force` remains a terminal-only override for a known busy state and cannot
+bypass an unknown state. No write or print-start command is automatically retried.
+
+A failed transfer/start reports its `stage` (`preflight`, `upload_and_verify` or
+`print_start`) and `outcome`. `unknown` with `retry_safe: false` means bytes or a
+start command may already have reached the printer: inspect the printer before
+retrying. Structured command/transaction errors appear both in operations.jsonl
+and the service journal. Different Unix users, containers with separate temp
+filesystems, different host aliases and unrelated third-party printer clients
+do not share this cooperative lock; use one service account and a consistent
+printer address for managed workers.
 
 ## Validation
 

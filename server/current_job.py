@@ -75,6 +75,12 @@ def remember(bridge, scope, remote, payload, name, kind='server_upload'):
 
 
 def _read(bridge, argv, *args):
+    if args == ('status', '--json'):
+        return bridge.cached_status(argv, reader=lambda: _read_cli(bridge, argv, *args))
+    return _read_cli(bridge, argv, *args)
+
+
+def _read_cli(bridge, argv, *args):
     started = time.monotonic()
     result = subprocess.run([*argv, *args], capture_output=True, text=True, timeout=20, check=False)
     bridge.trace_event(bridge.DATA_DIR, 'printer.command.completed', command=list(args),

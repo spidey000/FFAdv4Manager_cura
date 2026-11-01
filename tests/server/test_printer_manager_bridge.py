@@ -154,6 +154,23 @@ class BridgeChecks(unittest.TestCase):
         self.assertEqual(result['remote_path'], '0:/user/01_02_1.23m_Benchy.gx')
         self.assertFalse(result['started'])
 
+    def test_failed_transfer_reports_phase_and_never_repeats_send(self):
+        base = 'http://127.0.0.1:' + str(self.port)
+        for stage in ('preflight', 'upload_and_verify', 'print_start'):
+            with self.subTest(stage=stage):
+                error = bridge.PrinterCommandError('missing response', {'stage': stage})
+                with patch.object(bridge, 'command', side_effect=error) as command:
+                    req = Request(base + '/api/printer/jobs?name=part.gcode&start=true',
+                                  data=b'M104 S205\nG1 X1\n', method='POST',
+                                  headers={'Origin': base, 'Content-Type': 'text/plain'})
+                    with self.assertRaises(HTTPError) as ctx:
+                        urlopen(req, timeout=4)
+                    result = json.load(ctx.exception)
+                self.assertEqual(command.call_count, 1)
+                self.assertEqual(result['stage'], stage)
+                self.assertEqual(result['retry_safe'], stage == 'preflight')
+                self.assertEqual(result['outcome'], 'not_started' if stage == 'preflight' else 'unknown')
+
     def test_uploaded_gx_filename_is_preserved_and_missing_job_name_rejected(self):
         def fake_cli(*args, **kwargs):
             self.assertEqual(Path(args[1]).name, 'my-part.gx')
