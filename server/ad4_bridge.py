@@ -18,6 +18,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
+from ffadv4manager.core.job_file import ensure_final_xy_homing
 import threading
 import time
 import unicodedata
@@ -819,6 +821,15 @@ class Handler(SimpleHTTPRequestHandler):
                     require_safe_artillery_heating(data, name)
                 except ValueError as exc:
                     return self.json(422, {'error': str(exc)})
+                try:
+                    prepared = ensure_final_xy_homing(data, name)
+                except ValueError as exc:
+                    return self.json(422, {'error': str(exc)})
+                if prepared != data:
+                    trace_event(DATA_DIR, 'printer.upload.final_homing_added', filename=name,
+                                original_bytes=len(data), prepared_bytes=len(prepared),
+                                sha256=hashlib.sha256(prepared).hexdigest())
+                data = prepared
                 query = parse_qs(url.query)
                 start = query.get('start', ['false'])[0] == 'true'
                 auto_timelapse = start and query.get('timelapse', ['false'])[0] == 'true'
