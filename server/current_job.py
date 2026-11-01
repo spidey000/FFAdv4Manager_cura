@@ -109,6 +109,10 @@ def snapshot(bridge, *, fresh=False, include_position=True):
         scope, values = connection(bridge)
         status = (_read(bridge, argv, 'status', '--json') if fresh else
                   bridge.cached_status(argv, reader=lambda: _read(bridge, argv, 'status', '--json')))
+        if not fresh:
+            # The live monitoring endpoint shares this status with the dashboard.
+            # Decorate locally, without a second printer read.
+            status = bridge.with_estimated_print_times(status)
         try:
             active = status.get('status_available') is not False and status.get('machine_status') in ('PRINTING', 'BUILDING', 'BUILDING_FROM_SD', 'PAUSED')
             position = _read(bridge, argv, 'position', '--json') if include_position and active and not fresh and not status.get('refreshing') else {}
