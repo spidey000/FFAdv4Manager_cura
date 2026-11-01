@@ -21,6 +21,7 @@
  async function request(url,options={}){
   const {force=false,...fetchOptions}=options,method=(options.method||"GET").toUpperCase();
   const read=method==="GET",key=String(url),entry=cache.get(key),lifetime=ttl(key);
+  if(read&&options.signal?.aborted)throw abortError();
   if(read&&!force&&entry&&Date.now()-entry.at<lifetime)return entry.value;
   if(read&&pending.has(key))return join(pending.get(key),options.signal);
   const mutates=!read&&!/\/tools\/(?:inspect|convert)(?:\?|$)/.test(key);
