@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+from .job_file import ensure_final_xy_homing
 from .gx_converter.gx_writer import encode_gx
 from .gx_converter.metadata import extract_metadata
 from .gx_converter.printers.registry import resolve_profile
@@ -74,21 +75,42 @@ def convert_gcode_to_gx(source: str | Path, output: str | Path) -> Path:
 
 @contextmanager
 def upload_file(source: str | Path, *, no_convert: bool = False) -> Iterator[tuple[Path, str | None]]:
-    """Yield upload file and remote name adjustment, cleaning converted temp output."""
+    """Prepare a temporary print file with a guaranteed final X/Y home.
+
+    --no-convert skips GX wrapping, *not* the Adventurer 4 ending safety rule.
+    The original source is never edited. Files of unknown suffix are passed
+    through only with the explicit --no-convert flag.
+    """
     path = Path(source)
-    if no_convert:
+    if no_convert and path.suffix.casefold() not in GCODE_SUFFIXES | {".gx"}:
         yield path, None
         return
     if is_gx(path):
-        remote_name = (
-            path.name
-            if path.suffix.casefold() == ".gx"
-            else path.with_suffix(".gx").name
-        )
-        yield path, remote_name if remote_name != path.name else None
+        remote_name = path.name if path.suffix.casefold() == ".gx" else path.with_suffix(".gx").name
+        if path.suffix.casefold() != ".gx":
+            # Preserve historical behavior for a GX container with unusual
+            # suffix; the printer receives a .gx remote name.
+            yield path, remote_name if remote_name != path.name else None
+            return
+        original = path.read_bytes()
+        updated = ensure_final_xy_homing(original, path.name)
+        if updated == original:
+            yield path, None
+            return
+        with tempfile.TemporaryDirectory(prefix="ffadv4-final-home-") as directory:
+            prepared = Path(directory) / path.name
+            prepared.write_bytes(updated)
+            yield prepared, None
         return
     if path.suffix.casefold() not in GCODE_SUFFIXES:
         raise ValueError(f"cannot automatically convert {path.name!r}: expected .gcode, .gco, or .g")
+    original = path.read_bytes()
+    updated = ensure_final_xy_homing(original, path.name)
     with tempfile.TemporaryDirectory(prefix="ffadv4-upload-gx-") as directory:
-        converted = convert_gcode_to_gx(path, Path(directory) / (path.stem + ".gx"))
-        yield converted, converted.name
+        prepared = Path(directory) / path.name
+        prepared.write_bytes(updated)
+        if no_convert:
+            yield prepared, None
+        else:
+            converted = convert_gcode_to_gx(prepared, Path(directory) / (path.stem + ".gx"))
+            yield converted, converted.name
