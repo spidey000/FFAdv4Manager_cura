@@ -192,30 +192,27 @@
     byId("preview-tab-button")?.setAttribute("title", "G-code preview requires server slicing");
     byId("slice-button")?.setAttribute("disabled", "");
   }
+  let printerChecking=false,engineChecking=false,printerRetry=null;
+  function showPrinter(status){
+    const trigger=byId("ad4-open-manager");
+    const label=status?.status_available===false?"Status unavailable":String(status?.machine_status||"Unknown");
+    const online=status?.status_available!==false&&!/^(?:offline|disconnected|unknown|error)/i.test(label);
+    document.body.classList.toggle("ad4-printer-online",online);
+    if(trigger){trigger.textContent="AD4 · "+label.slice(0,24);trigger.title="Open printer manager · "+label}
+  }
+  document.addEventListener("ad4:printer-state",event=>showPrinter(event.detail));
   async function checkPrinter() {
-    if (staticPreview) return;
-    const trigger = byId("ad4-open-manager");
-    try {
-      const response = await fetch("./api/printer/status", {cache:"no-store"});
-      if (!response.ok) throw Error("Printer offline");
-      const status = await response.json();
-      const label = String(status.machine_status || status.status || "Unknown");
-      const online = !/^(?:offline|disconnected|unknown|error)/i.test(label);
-      document.body.classList.toggle("ad4-printer-online", online);
-      if (trigger) {
-        trigger.textContent = "AD4 · " + label.slice(0, 24);
-        trigger.title = "Open printer manager · " + label;
-      }
-    } catch {
-      document.body.classList.remove("ad4-printer-online");
-      if (trigger) {
-        trigger.textContent = "AD4 · Offline";
-        trigger.title = "Open printer manager to diagnose connection";
-      }
-    }
+    if(staticPreview||document.hidden||printerChecking||byId("ad4-manager")?.open||globalThis.AD4Printer?.busy||globalThis.AD4PreflightOpen)return;
+    printerChecking=true;clearTimeout(printerRetry);
+    try{
+      const status=await globalThis.AD4Printer.api("/status");showPrinter(status);
+      if(status.refreshing)printerRetry=setTimeout(checkPrinter,1500);
+    }catch{showPrinter({status_available:false})}
+    finally{printerChecking=false}
   }
   async function checkEngine() {
-    if (staticPreview) return;
+    if (staticPreview||document.hidden||engineChecking) return;
+    engineChecking=true;
     try {
       const response = await fetch("./api/slice/engine", {cache:"no-store"});
       const state = await response.json();
@@ -225,7 +222,7 @@
     } catch {
       engineAvailable = false;
       engineNotice = "Cannot reach server CuraEngine";
-    }
+    }finally{engineChecking=false}
     if(Object.keys(globalThis.app?.gui?.model_viewer?.models||{}).length){
       document.dispatchEvent(new CustomEvent(
         engineAvailable?"ad4:viewer-recovered":"ad4:viewer-error",{
@@ -295,10 +292,11 @@
   refreshDock();
   setInterval(refreshDock, 800);
   if (!staticPreview) {
-    setInterval(checkEngine, 30000);
-    setInterval(checkPrinter, 12000);
+    setInterval(()=>{if(!engineAvailable)checkEngine()},60000);
+    setInterval(checkPrinter,30000);
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) { checkEngine(); checkPrinter(); }
+      if (!document.hidden) { if(!engineAvailable)checkEngine(); checkPrinter(); }
+      else clearTimeout(printerRetry);
     });
   }
 })();

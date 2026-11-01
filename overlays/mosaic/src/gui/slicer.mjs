@@ -64,7 +64,7 @@ export async function slice(stl, on_progress) {
     };
     report(0, "Preparing");
     const poll = async () => {
-      if (polling || controller.signal.aborted || finished) return;
+      if (polling || controller.signal.aborted || finished || document.hidden) return;
       polling = true;
       try {
         const response = await fetch("./api/slice/progress?job_id=" + encodeURIComponent(jobId), {
@@ -85,7 +85,7 @@ export async function slice(stl, on_progress) {
         polling = false;
       }
     };
-    progressTimer = setInterval(poll, 400);
+    progressTimer = setInterval(poll, 1000);
     const res = await fetch("./api/slice", {
       method: "POST",
       headers: {"Content-Type": "application/vnd.ffadv4-slice", "X-AD4-Slice-Id": jobId},

@@ -40,7 +40,7 @@ def build():
                  DEST/"public/three-slicer-viewer-LICENSE.txt")
     shutil.copy2(OV/"public/ad4-manager.js",DEST/"public/ad4-manager.js")
     shutil.copy2(OV/"public/ad4-stl-worker.js", DEST/"public/ad4-stl-worker.js")
-    for name in ("ad4-manager-tools.js", "ad4-manager-tools.css", "ad4-live-job.js", "ad4-live-job.css"):
+    for name in ("ad4-requests.js", "ad4-manager-tools.js", "ad4-manager-tools.css", "ad4-live-job.js", "ad4-live-job.css"):
         shutil.copy2(OV/"public"/name, DEST/"public"/name)
     shutil.copy2(OV/"public/ad4.css",DEST/"public/ad4.css")
     shutil.copy2(OV/"public/ad4-settings.css",DEST/"public/ad4-settings.css")
@@ -83,7 +83,7 @@ def build():
     },sort_keys=True,separators=(",",":"))+"\n",encoding="utf-8")
     shutil.copy2(OV/"src/gui/ad4-icon-pack.mjs",DEST/"src/gui/ad4-icon-pack.mjs")
     webpack=DEST/"webpack.config.js"
-    cfg=webpack.read_text()
+    cfg=(UP/"webpack.config.js").read_text()
     marker=',\n  {\n    name: "curaengine_worker"'
     if marker not in cfg: raise RuntimeError("Cannot remove client-side Cura worker")
     webpack.write_text(cfg[:cfg.index(marker)]+"\n];\n")
@@ -697,6 +697,7 @@ export function ad4_delete_model(uuid) {
   </details>
 </dialog>
 <link rel="stylesheet" href="ad4-manager-tools.css"><link rel="stylesheet" href="ad4-live-job.css">
+<script src="ad4-requests.js"></script>
 <script type="module" src="ad4-manager.js"></script><script type="module" src="ad4-manager-tools.js"></script><script type="module" src="ad4-live-job.js"></script>\n<script type="module" src="ad4-studio.js"></script>\n<script src="ad4-slide-ruler.js"></script><script type="module" src="ad4-v3.js"></script>\n<script type="module" src="ad4-printer-dashboard.js"></script>
 """
     html.write_text(source.replace("</body>",dialog+"</body>"))

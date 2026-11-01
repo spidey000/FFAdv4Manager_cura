@@ -50,6 +50,7 @@ def run():
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, executable_path=os.environ.get("CHROME_BIN") or shutil.which("google-chrome") or shutil.which("chromium") or None, args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'])
             for width in (390, 1280):
+                request_start = len(requests)
                 page = browser.new_page(viewport={'width': width, 'height': 1000})
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
@@ -65,6 +66,13 @@ def run():
                 assert page.locator("#ad4-printer-progress-track").get_attribute("aria-valuenow")=="42"
                 assert page.locator("#ad4-live-camera-toggle").locator("xpath=ancestor::*[contains(@class,'ad4-live-visual-head')]").count()==1
                 page.wait_for_function('!document.querySelector("#ad4-live-consult").disabled', timeout=15000)
+                assert not any(path.startswith('/files') or path in ('/profiles', '/timelapses', '/tools/telemetry') for path in requests[request_start:]), 'Overview must not fetch hidden resources'
+                tracked_before = requests.count('/current-job')
+                with page.expect_response('**/api/printer/camera/live'):
+                    page.locator('#ad4-live-camera-toggle').check()
+                page.wait_for_function('document.querySelector("#ad4-live-camera").naturalWidth > 0')
+                assert requests.count('/current-job') == tracked_before, 'Camera-only mode must not start position/toolpath polling'
+                page.locator('#ad4-live-camera-toggle').uncheck()
                 page.locator('#ad4-live-consult').click()
                 page.wait_for_function('document.querySelector("#ad4-live-canvas canvas") !== null', timeout=15000)
                 assert not page.locator('#ad4-live-camera-toggle').is_checked()

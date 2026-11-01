@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from contextlib import contextmanager
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -22,6 +23,16 @@ _URL = re.compile(r"https?://[^\s'\"]+", re.I)
 
 def trace_id() -> str | None:
     return getattr(_LOCAL, "trace_id", None)
+
+
+@contextmanager
+def bind_trace_id(identifier):
+    previous = trace_id()
+    _LOCAL.trace_id = identifier
+    try:
+        yield
+    finally:
+        _LOCAL.trace_id = previous
 
 
 def set_incoming_trace_id(value: str | None) -> None:

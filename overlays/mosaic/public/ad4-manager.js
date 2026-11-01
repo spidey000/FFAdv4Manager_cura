@@ -3,7 +3,9 @@ const root="./api/printer";
 const el=id=>document.getElementById(id);
 const dialog=el("ad4-manager"), status=el("ad4-manager-status");
 let files=[], page=0, poll=null, isLive=false, gallery=[], playing=null, busy=false;
-let hardwareConnected=false, printerReady=false, activeJob=false, recordingState=null, refreshPromise=null;
+let lastSessionKey=null;
+let lastPrinterReceivedAt=0;
+let lastPrinterState=null, hardwareConnected=false, printerReady=false, activeJob=false, recordingState=null, refreshPromise=null;
 const encode=encodeURIComponent;
 function say(msg,isError=false){
  status.textContent=msg;status.dataset.error=String(isError);
@@ -19,21 +21,59 @@ function fmt(v,suffix=""){return v==null||v===""?"—":String(v)+suffix}
 function bytes(n){return Number.isFinite(n)?(n/1024/1024).toFixed(1)+" MB":"—"}
 function duration(seconds){if(!Number.isFinite(seconds))return "—";const v=Math.round(seconds);return Math.floor(v/3600)+"h "+Math.floor(v%3600/60)+"m"}
 function date(iso){if(!iso)return "—";const value=new Date(iso);return Number.isNaN(value.getTime())?"—":value.toLocaleString()}
+const emit=(name,detail)=>{if(typeof CustomEvent==="function")document.dispatchEvent?.(new CustomEvent(name,{detail}))};
+function publishSession(session){
+ const key=JSON.stringify([session.host||null,session.profile||null]);
+ if(lastSessionKey!==null&&key!==lastSessionKey){
+  globalThis.AD4Requests?.invalidate();files=[];gallery=[];
+  emit("ad4:printer-selection",session);
+ }
+ lastSessionKey=key;emit("ad4:printer-session",session);
+}
+function publishResponse(path,result,options){
+ const method=(options.method||"GET").toUpperCase();
+ if(method==="GET"){
+  if(path==="/status"||path==="/current-job"){
+   const state=path==="/status"?result:result?.status;
+   if(state){
+    if(state.selection)publishSession(state.selection);
+    if(state!==lastPrinterState)emit("ad4:printer-state",state);
+   }
+  }
+  if(path==="/session")publishSession(result);
+ }else if(/^\/(?:jobs|upload|selection|timelapse|timelapses\/delete|tools\/config)(?:[?\/]|$)/.test(path)){
+  recordingState=null;
+  emit("ad4:printer-mutated",{path});
+ }
+ return result;
+}
+function expirePrinterState(message){
+ const state={machine_status:null,status_available:false,ready_to_print:false,
+  connection_status:"unavailable",stale:true,status_errors:{query:message}};
+ applyPrinterState(state);lastPrinterReceivedAt=0;emit("ad4:printer-state",state);
+}
 async function api(path, options={}){
- const response=await fetch(root+path,{cache:"no-store",...options});
- const contentType=response.headers.get("Content-Type")||"";
- const payload=contentType.includes("json")?await response.json():await response.blob();
- if(!response.ok)throw Error(payload?.error||"Printer service returned HTTP "+response.status);
- return payload;
+ if(globalThis.__AD4_STATIC_PREVIEW__===true)throw Error("Printer service requires the authenticated server");
+ try{
+  if(globalThis.AD4Requests)return publishResponse(path,await globalThis.AD4Requests.request(root+path,options),options);
+  const response=await fetch(root+path,{cache:"no-store",...options});
+  const contentType=response.headers.get("Content-Type")||"";
+  const payload=contentType.includes("json")?await response.json():await response.blob();
+  if(!response.ok)throw Error(payload?.error||"Printer service returned HTTP "+response.status);
+  return publishResponse(path,payload,options);
+ }catch(error){
+  if((options.method||"GET").toUpperCase()==="GET"&&["/status","/current-job"].includes(path)&&error.name!=="AbortError")expirePrinterState(error.message);
+  throw error;
+ }
 }
 async function post(path,data){return api(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)})}
 async function task(label,fn){
  if(busy)return;
- busy=true;say(label+"…");
+ busy=true;setHardwareAvailability(hardwareConnected);say(label+"…");
  try{
   const result=await fn();
   say(result?.timelapse_error?"Print started; recording failed: "+result.timelapse_error:label+" completed",!!result?.timelapse_error);
-  await refresh().catch(()=>{});
+  if(!document.hidden)await refresh().catch(()=>{});
   return result;
  }catch(e){say(e.message,true)}
  finally{busy=false;setHardwareAvailability(hardwareConnected);renderFiles()}
@@ -53,7 +93,7 @@ function setHardwareAvailability(available){
  el("ad4-timelapse-stop").disabled=!recordingState?.running||recordingState?.encoding;
  if(!available){
   for(const id of ["ad4-machine","ad4-nozzle","ad4-bed","ad4-progress","ad4-layer","ad4-file"]){
-   const field=el(id);if(field)field.textContent="—";
+   const field=el(id);if(field)field.textContent=id==="ad4-machine"?printerStateLabel(lastPrinterState):"—";
   }
   for(const id of ["ad4-pause","ad4-resume","ad4-cancel"]){const button=el(id);if(button)button.disabled=true}
   closeVideo();
@@ -89,7 +129,7 @@ function renderFiles(){
  const holder=el("ad4-file-list");holder.replaceChildren();
  for(const file of list.slice(page*size,(page+1)*size)){
   const line=document.createElement("div");line.className="ad4-file-row";
-  line.tabIndex=0;line.setAttribute("role","group");line.title="Select "+file.name+" to load its thumbnail";
+  line.dataset.remotePath=file.path;line.tabIndex=0;line.setAttribute("role","group");line.title="Select "+file.name+" to load its thumbnail";
   line.addEventListener("keydown",event=>{
    if(event.target===line&&(event.key==="Enter"||event.key===" ")){
     event.preventDefault();line.click();
@@ -175,36 +215,68 @@ function renderGallery(){
  if(!gallery.length)holder.textContent=hardwareConnected?"No timelapses recorded":"Gallery unavailable · Printer status unavailable";
  globalThis.AD4Icons?.hydrate?.(holder);
 }
-async function loadGallery(){gallery=await api("/timelapses");renderGallery()}
-async function refresh(){
+const currentView=()=>el("ad4-v3-printer-page")?.dataset.printerView||"all";
+async function loadGallery(force=false){gallery=await api("/timelapses",{force});renderGallery();emit("ad4:printer-gallery",gallery)}
+async function loadFiles(force=false){
+ const result=await api("/files?details=1",{force});files=Array.isArray(result)?result:[];
+ renderFiles();emit("ad4:printer-files",files);
+}
+async function loadVisibleData(force=false){
+ if(globalThis.__AD4_STATIC_PREVIEW__===true)return;
+ const view=currentView(),work=[];
+ if(view==="files"||view==="all")work.push(loadFiles(force));
+ if(view==="media"||view==="all")work.push(loadGallery(force));
+ if(view==="diagnostics"||view==="all")work.push(loadProfiles(force));
+ await Promise.allSettled(work);
+}
+function applyPrinterState(state){
+ if(state!==lastPrinterState)lastPrinterReceivedAt=Date.now();
+ lastPrinterState=state;
+ const available=printerIsAvailable(state);
+ activeJob=available&&isPrinting(state.machine_status);printerReady=printerCanStart(state);
+ if(available)updateState(state);
+ setHardwareAvailability(available);
+ if(!available)el("ad4-machine").textContent=printerStateLabel(state);
+ renderFiles();
+}
+document.addEventListener("ad4:printer-state",event=>applyPrinterState(event.detail));
+async function refresh(force=false){
  if(refreshPromise)return refreshPromise;
- refreshPromise=refreshNow();
+ refreshPromise=refreshNow(force);
  try{return await refreshPromise}finally{refreshPromise=null}
 }
-async function refreshNow(){
- const responses=await Promise.allSettled([api("/status"),api("/files?details=1"),api("/timelapse")]);
- const [state,remote,recording]=responses;
- const available=state.status==="fulfilled"&&printerIsAvailable(state.value);
- activeJob=available&&isPrinting(state.value.machine_status);
- printerReady=state.status==="fulfilled"&&printerCanStart(state.value);
- if(available)updateState(state.value);
- setHardwareAvailability(available);
- if(remote.status==="fulfilled"&&available)files=Array.isArray(remote.value)?remote.value:[];
- else files=[];
- renderFiles();
+async function refreshNow(force=false){
+ // Live tracking already includes status; no second hardware status reader.
+ const tracking=dialog.dataset.liveViewing==="true";
+ if(tracking&&lastPrinterState&&Date.now()-lastPrinterReceivedAt>=10000)expirePrinterState("Live status sample expired");
+ const live=tracking&&lastPrinterState&&Date.now()-lastPrinterReceivedAt<10000;
+ const needRecording=!recordingState||recordingState.running||recordingState.encoding||currentView()==="media";
+ const responses=await Promise.allSettled([
+  live&&!force?Promise.resolve(lastPrinterState):api("/status",{force}),
+  needRecording?api("/timelapse"):Promise.resolve(recordingState)]);
+ const [state,recording]=responses;
+ if(state.status==="fulfilled"){if(lastPrinterState!==state.value||hardwareConnected!==printerIsAvailable(state.value))applyPrinterState(state.value);if(state.value.refreshing&&dialog.open)schedulePoll(1500)}
+ else{hardwareConnected=false;printerReady=false;setHardwareAvailability(false)}
  if(recording.status==="fulfilled"){
-  const r=recording.value;
+  const r=recording.value,wasActive=recordingState?.running||recordingState?.encoding;
   recordingState=r;
   el("ad4-timelapse-status").textContent=r.encoding?"Encoding MP4…":r.running?
    "● Recording "+r.frames+" frames · "+(r.mode==="layer"?"Z layers (experimental)":"10-second interval"):
    r.error?"Recording error: "+r.error:"No active recording";
-  el("ad4-timelapse-start").disabled=r.running||r.encoding;
-  el("ad4-timelapse-stop").disabled=!r.running;
+  emit("ad4:printer-recording",r);
+  if(wasActive&&!r.running&&!r.encoding&&(currentView()==="media"||currentView()==="all"))loadGallery(true).catch(()=>{});
  }else recordingState=null;
- setHardwareAvailability(available);
- if(state.status==="fulfilled"&&!available)el("ad4-machine").textContent=printerStateLabel(state.value);
- if(!available&&!recordingState?.running&&!recordingState?.encoding)el("ad4-timelapse-status").textContent="Printer status unavailable";
+ setHardwareAvailability(hardwareConnected);
  if(responses.every(x=>x.status==="rejected"))throw state.reason;
+}
+function schedulePoll(delay=10000){
+ clearTimeout(poll);
+ if(!dialog.open||document.hidden)return;
+ poll=setTimeout(async()=>{
+  if(!dialog.open||document.hidden)return;
+  if(!busy&&!globalThis.AD4PreflightOpen)await refresh().catch(e=>say(e.message,true));
+  schedulePoll(lastPrinterState?.refreshing?1500:hardwareConnected?10000:30000);
+ },delay);
 }
 function closeVideo(){
  isLive=false;el("ad4-live-toggle").textContent="Start live video";
@@ -225,20 +297,16 @@ function openManagerPanel(){
   return;
  }
  say("Loading printer status…");
- refresh().catch(e=>say(e.message,true));loadGallery().catch(e=>say(e.message,true));
- clearInterval(poll);poll=setInterval(()=>{
-  if(!dialog.open){clearInterval(poll);return}
-  refresh().catch(e=>say(e.message,true));
-  loadGallery().catch(()=>{});
- },9000);
+ refresh().then(()=>schedulePoll(lastPrinterState?.refreshing?1500:10000)).catch(e=>{say(e.message,true);schedulePoll(30000)});
+ loadVisibleData();api("/session").catch(()=>{});
 }
 el("ad4-open-manager").addEventListener("click",openManagerPanel);
 document.addEventListener("ad4:printer-enter",openManagerPanel);
-const close=()=>{clearInterval(poll);closeVideo();el("ad4-timelapse-preview").pause();dialog.close()};
+const close=()=>{clearTimeout(poll);closeVideo();el("ad4-timelapse-preview").pause();dialog.close()};
 el("ad4-close-manager").addEventListener("click",close);
-dialog.addEventListener("close",()=>{clearInterval(poll);closeVideo();el("ad4-timelapse-preview").pause()});
-el("ad4-refresh").addEventListener("click",()=>refresh().then(()=>say("Updated")).catch(e=>say(e.message,true)));
-el("ad4-refresh-files").addEventListener("click",()=>refresh().catch(e=>say(e.message,true)));
+dialog.addEventListener("close",()=>{clearTimeout(poll);closeVideo();el("ad4-timelapse-preview").pause()});
+el("ad4-refresh").addEventListener("click",()=>Promise.all([refresh(true),loadVisibleData(true)]).then(()=>say("Updated")).catch(e=>say(e.message,true)));
+el("ad4-refresh-files").addEventListener("click",()=>loadFiles(true).catch(e=>say(e.message,true)));
 for(const id of ["ad4-file-sort","ad4-page-size"])el(id).addEventListener("change",()=>{page=0;renderFiles()});
 el("ad4-files-prev").addEventListener("click",()=>{page--;renderFiles()});
 el("ad4-files-next").addEventListener("click",()=>{page++;renderFiles()});
@@ -262,7 +330,7 @@ el("ad4-live-toggle").addEventListener("click",()=>{
  say("Live camera streaming via protected server");
 });
 el("ad4-camera").addEventListener("error",()=>{if(isLive){closeVideo();say("Live camera unavailable",true)}});
-el("ad4-gallery-refresh").addEventListener("click",()=>loadGallery().catch(e=>say(e.message,true)));
+el("ad4-gallery-refresh").addEventListener("click",()=>loadGallery(true).catch(e=>say(e.message,true)));
 el("ad4-timelapse-start").addEventListener("click",()=>task("Starting timelapse",()=>post("/timelapse",{action:"start",mode:el("ad4-capture-mode").value})));
 el("ad4-timelapse-stop").addEventListener("click",()=>task("Finalizing MP4",async()=>{const result=await post("/timelapse",{action:"stop"});await loadGallery();return result}));
 // Preview only. Exact frame counts depend on actual print duration, camera availability,
@@ -404,9 +472,10 @@ async function confirmPrint({
   accept.disabled=checking||Boolean(issue.textContent);
  }
  async function checkHardware(){
-  if(checking||done)return false;
+  if(checking||done||document.hidden)return false;
   checking=true;ready();
-  const [printer,session]=await Promise.allSettled([api("/status"),api("/timelapse")]);
+  const needRecording=start&&enabled.checked;
+  const [printer,session]=await Promise.allSettled([api("/status"),needRecording?api("/timelapse"):Promise.resolve({})]);
   if(done)return false;
   printerOk=printer.status==="fulfilled"&&printerCanStart(printer.value);
   recordingOk=session.status==="fulfilled"&&!session.value.running&&!session.value.encoding&&!session.value.id;
@@ -414,11 +483,11 @@ async function confirmPrint({
   const temp=(state,current,target)=>state.status==="fulfilled"?value(state.value[current])+" °C / "+value(state.value[target])+" °C":"Unavailable";
   actualNozzle.textContent=temp(printer,"nozzle_current","nozzle_target");
   actualBed.textContent=temp(printer,"bed_current","bed_target");
-  recording.textContent=session.status==="fulfilled"?(recordingOk?"None active":session.value.encoding?"Encoding MP4":session.value.running?"Recording":"Session occupied"):"Unavailable";
+  recording.textContent=!needRecording?"Not checked · timelapse disabled":session.status==="fulfilled"?(recordingOk?"None active":session.value.encoding?"Encoding MP4":session.value.running?"Recording":"Session occupied"):"Unavailable";
   live.title="Last checked "+new Date().toLocaleTimeString();
   checking=false;ready();return !accept.disabled;
  }
- enabled.addEventListener("change",()=>{refreshPrediction();ready()});
+ enabled.addEventListener("change",()=>{refreshPrediction();ready();checkHardware()});
  mode.addEventListener("change",refreshPrediction);
  interval.addEventListener("change",refreshPrediction);
  fps.addEventListener("change",refreshPrediction);
@@ -429,7 +498,7 @@ async function confirmPrint({
  return new Promise(resolve=>{
   const finish=selection=>{
    if(done)return;
-   done=true;clearInterval(poll);document.removeEventListener("ad4:gcode-stale",stale);
+   done=true;globalThis.AD4PreflightOpen=false;clearInterval(poll);document.removeEventListener("ad4:gcode-stale",stale);
    if(thumbnailURL)URL.revokeObjectURL(thumbnailURL);
    dlg.close();dlg.remove();resolve(selection);
   };
@@ -444,7 +513,7 @@ async function confirmPrint({
    finish(selection);
   };
   dlg.addEventListener("cancel",e=>{e.preventDefault();finish(null)});
-  dlg.showModal();
+  globalThis.AD4PreflightOpen=true;dlg.showModal();
   checkHardware();
   poll=setInterval(()=>{if(dlg.open)checkHardware()},5000);
  });
@@ -488,10 +557,11 @@ async function upload(start){
 }
 el("ad4-upload").addEventListener("click",()=>upload(false));
 el("ad4-send-print").addEventListener("click",()=>upload(true));
-globalThis.AD4Printer={upload,refresh,api,post,task,confirmPrint,say,closeVideo,
+globalThis.AD4Printer={upload,refresh,loadVisibleData,api,post,task,confirmPrint,say,closeVideo,
+ get busy(){return busy},get status(){return lastPrinterState},
  setFileSearch:()=>{page=0;renderFiles()}};
-async function loadProfiles(){
- const [profiles,session]=await Promise.all([api("/profiles"),api("/session")]);
+async function loadProfiles(force=false){
+ const [profiles,session]=await Promise.all([api("/profiles",{force}),api("/session",{force})]);
  const select=el("ad4-connection-profiles");select.replaceChildren();
  for(const name of profiles){const op=document.createElement("option");op.value=name;op.textContent=name+(session.profile===name?" · active":"");select.append(op)}
  if(session.profile)select.value=session.profile;
@@ -512,10 +582,20 @@ for(const kind of ["doctor","info","position"])el("ad4-diagnostic-"+kind).addEve
  el("ad4-diagnostic-result").textContent=typeof result.output==="string"?result.output:JSON.stringify(result.output,null,2)}
  catch(e){say(e.message,true)}
 });
-dialog.addEventListener("toggle",()=>{
- if(dialog.open && globalThis.__AD4_STATIC_PREVIEW__!==true)loadProfiles().catch(()=>{});
+document.addEventListener("ad4:printer-view",()=>{if(dialog.open&&!document.hidden)loadVisibleData()});
+document.addEventListener("ad4:printer-mutated",event=>{
+ if(!dialog.open||document.hidden)return;
+ const view=currentView(),path=event.detail.path;
+ if(/^\/(jobs|upload)/.test(path)){if(view==="files"||view==="all")loadFiles(true).catch(()=>{})}
+ else if(/^\/timelapse/.test(path)){if(view==="media"||view==="all")loadGallery(true).catch(()=>{})}
+ else loadVisibleData(true);
 });
-el("ad4-open-manager").addEventListener("click",()=>{
- if(globalThis.__AD4_STATIC_PREVIEW__!==true)loadProfiles().catch(()=>{});
+document.addEventListener("ad4:printer-selection",()=>{if(dialog.open&&!document.hidden)loadVisibleData(true)});
+document.addEventListener("ad4:profiles-changed",()=>{
+ files=[];renderFiles();
+ if(dialog.open){loadProfiles(true).catch(()=>{});if(currentView()==="files"||currentView()==="all")loadFiles(true).catch(()=>{})}
 });
-document.addEventListener("ad4:profiles-changed",()=>loadProfiles().catch(()=>{}));
+document.addEventListener("visibilitychange",()=>{
+ if(document.hidden){clearTimeout(poll);closeVideo()}
+ else if(dialog.open)schedulePoll(0);
+});

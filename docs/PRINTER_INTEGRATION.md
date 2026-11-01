@@ -47,8 +47,13 @@ terminal-only options.
 `status_errors`. M27 answering while M119/M105 are empty is a partial response,
 not proof of disconnection. Each status command uses a two-second read budget
 (or the configured timeout if shorter). Service display consumers share a
-one-second cache keyed by their pinned CLI connection; unavailable observations
-replace previous READY and are cached too to avoid a retry storm. Source
+sample keyed by their pinned CLI connection. Status HTTP requests return
+immediately with the latest sample and its age, starting at most one background
+reader per connection (two globally). There is no queue of pending samplers.
+Healthy observations can refresh after three seconds; incomplete/failed readings
+back off for fifteen seconds. Observations older than fifteen seconds cannot
+report READY. Mutation invalidation also discards observations that were still
+being read before that mutation. Source
 association/download validation always reads fresh status before and after
 obtaining G-code, so the cache cannot hide a change of current job.
 
@@ -70,6 +75,40 @@ and the service journal. Different Unix users, containers with separate temp
 filesystems, different host aliases and unrelated third-party printer clients
 do not share this cooperative lock; use one service account and a consistent
 printer address for managed workers.
+
+## Demand-driven UI requests
+
+The header, Printer workspace and live viewer share GET requests in flight.
+The browser reuses short-lived status/recording samples and caches file lists,
+profiles, sessions and galleries for thirty seconds. Mutations discard relevant
+cached observations; explicit Refresh bypasses browser and file-list caches.
+
+| Data | When requested |
+| --- | --- |
+| Header printer status | Every 30 seconds while visible and Printer is closed |
+| Printer status | Every 10 seconds while open; 30 seconds when unavailable |
+| Initial background sample | A short follow-up while `refreshing` is true |
+| Live status/position | Every 3 seconds only after Start toolpath; slower when idle or failing |
+| Printer files | Opening Files, explicit refresh, or a completed upload while Files is visible |
+| Gallery | Opening Timelapses, explicit refresh, deletion, or recording completion |
+| Profiles | Opening Diagnostics or after editing a connection |
+| History/wait telemetry | Only in their visible panels or for explicitly enabled browser alerts |
+| Engine availability | Initially; retry every minute only while unavailable and visible |
+| Backend version | Initially and on a later return to the tab, not periodically |
+| Slice progress | At most once a second while slicing and visible |
+
+Closed panels and hidden tabs stop automatic reads. Explicit browser desktop
+alerts retain their requested monitoring. Camera-only viewing does not start
+M114/toolpath sampling. Status included in live tracking also updates the header
+and dashboard, so they do not run additional status pollers. M114 is skipped
+when no active job exists or a status read is already in progress.
+
+Concurrent cold file-list/current-job reads are rejected with 503 instead of
+waiting in a queue. A second printer transaction returns 409 before sending
+anything; writes are never automatically retried. HTTP status latency measures
+reading the sample, not the physical printer response time. Hardware command
+durations and background sampling failures remain in the operation logs under
+the initiating request trace.
 
 ## Validation
 
