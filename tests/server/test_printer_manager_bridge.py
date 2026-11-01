@@ -165,7 +165,11 @@ class BridgeChecks(unittest.TestCase):
             request = Request(url, data=b'G28\nG1 X10\n', headers=headers, method='POST')
             with urlopen(request, timeout=4) as response:
                 result = json.load(response)
-        self.assertEqual(calls, [('Benchy.gcode', b'G28\nG1 X10\n')])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0], 'Benchy.gcode')
+        self.assertEqual(calls[0][1],
+                         b'G28\nG1 X10\n; AD4 final movement: home X/Y\n'
+                         b'G162 Z F1800\nG28 X Y\n')
         self.assertEqual(result['remote_name'], '01_02_1.23m_Benchy.gx')
         self.assertEqual(result['remote_path'], '0:/user/01_02_1.23m_Benchy.gx')
         self.assertFalse(result['started'])

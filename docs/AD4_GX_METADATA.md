@@ -18,6 +18,32 @@ inform metadata viewers; heater commands still come from executable G-code.
 `ffadv4manager convert part.gcode --output part.gx` converts locally.
 `ffadv4manager upload part.gcode` also converts before uploading.
 
+## Homing final obligatorio (backend)
+
+Todo archivo de impresión que pase por el backend (laminado Cura, subida web
+G-code/GX y subida mediante CLI) garantiza que el último movimiento físico
+sea el homing de **X/Y** de la Adventurer 4, después de retirar la plataforma
+en Z según el cierre oficial de Cura:
+
+```gcode
+G162 Z F1800
+G28 X Y
+```
+
+Los comandos de apagado de motores (`M18`/`M84`) o fin de programa
+(`M2`/`M30`) se mantienen **después** del homing para que este no se
+omita. Si el último movimiento ya era `G28 X Y` (o `G28`), no se
+duplica. El homing completo de Z no se impone al finalizar: podría acercar
+el cabezal a la pieza. La secuencia de la máquina hace primero `G162 Z`
+para retirarla. La transformación modifica únicamente el segmento ejecutable
+del GX; conserva cabecera y miniatura, además de los metadatos de tiempo y
+filamento. No altera el archivo local de origen ni los trabajos almacenados
+previamente en la impresora.
+
+Las conversiones locales con `ffadv4manager convert` siguen siendo un
+envoltorio fiel del G-code original; la modificación se aplica al preparar
+un trabajo para imprimir y en el G-code generado por el servidor.
+
 ## G-code annotations
 
 Put optional slicer-produced comments at the beginning of G-code:
