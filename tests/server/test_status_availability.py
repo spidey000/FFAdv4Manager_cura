@@ -210,3 +210,12 @@ def test_status_sampling_keeps_the_request_trace_id(monkeypatch):
         bridge.display_status()
     wait_for_sample()
     assert seen == ['sampling-trace-12345']
+
+
+def test_profile_host_update_invalidates_the_previous_printer_file_listing(monkeypatch):
+    monkeypatch.setattr(bridge, 'SELECTED', {'host': None, 'profile': 'AD4'})
+    assert bridge.cached_read('files', lambda: ['/data/printer-a.gx']) == ['/data/printer-a.gx']
+    completed = subprocess.CompletedProcess([], 0, 'updated', '')
+    monkeypatch.setattr(bridge.subprocess, 'run', lambda *_a, **_k: completed)
+    bridge.command('profiles', 'update', 'AD4', '--host', '192.168.1.43', selected=False)
+    assert bridge.cached_read('files', lambda: ['/data/printer-b.gx']) == ['/data/printer-b.gx']

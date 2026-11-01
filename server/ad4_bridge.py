@@ -247,7 +247,7 @@ def cli_argv(*args, selected=True):
 def command(*args, timeout=30, selected=True, accepted_codes=(0,), _argv=None):
     argv = [*_argv, *args] if _argv is not None else cli_argv(*args, selected=selected)
     if args and (args[0] in ('upload', 'print', 'pause', 'resume', 'cancel', 'printer') or
-                 (args[0] in ('profiles', 'config') and args[1:2] in (('add',), ('delete',), ('set',), ('unset',)))):
+                 (args[0] in ('profiles', 'config') and args[1:2] in (('add',), ('update',), ('delete',), ('set',), ('unset',)))):
         invalidate_status_cache()
     started = time.monotonic()
     trace_event(DATA_DIR, 'printer.command.started', command=list(args), timeout_seconds=timeout)

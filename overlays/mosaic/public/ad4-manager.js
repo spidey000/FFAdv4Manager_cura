@@ -4,6 +4,7 @@ const el=id=>document.getElementById(id);
 const dialog=el("ad4-manager"), status=el("ad4-manager-status");
 let files=[], page=0, poll=null, isLive=false, gallery=[], playing=null, busy=false;
 let lastSessionKey=null;
+let lastPrinterReceivedAt=0;
 let lastPrinterState=null, hardwareConnected=false, printerReady=false, activeJob=false, recordingState=null, refreshPromise=null;
 const encode=encodeURIComponent;
 function say(msg,isError=false){
@@ -46,13 +47,24 @@ function publishResponse(path,result,options){
  }
  return result;
 }
+function expirePrinterState(message){
+ const state={machine_status:null,status_available:false,ready_to_print:false,
+  connection_status:"unavailable",stale:true,status_errors:{query:message}};
+ applyPrinterState(state);lastPrinterReceivedAt=0;emit("ad4:printer-state",state);
+}
 async function api(path, options={}){
- if(globalThis.AD4Requests)return publishResponse(path,await globalThis.AD4Requests.request(root+path,options),options);
- const response=await fetch(root+path,{cache:"no-store",...options});
- const contentType=response.headers.get("Content-Type")||"";
- const payload=contentType.includes("json")?await response.json():await response.blob();
- if(!response.ok)throw Error(payload?.error||"Printer service returned HTTP "+response.status);
- return publishResponse(path,payload,options);
+ if(globalThis.__AD4_STATIC_PREVIEW__===true)throw Error("Printer service requires the authenticated server");
+ try{
+  if(globalThis.AD4Requests)return publishResponse(path,await globalThis.AD4Requests.request(root+path,options),options);
+  const response=await fetch(root+path,{cache:"no-store",...options});
+  const contentType=response.headers.get("Content-Type")||"";
+  const payload=contentType.includes("json")?await response.json():await response.blob();
+  if(!response.ok)throw Error(payload?.error||"Printer service returned HTTP "+response.status);
+  return publishResponse(path,payload,options);
+ }catch(error){
+  if((options.method||"GET").toUpperCase()==="GET"&&["/status","/current-job"].includes(path)&&error.name!=="AbortError")expirePrinterState(error.message);
+  throw error;
+ }
 }
 async function post(path,data){return api(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)})}
 async function task(label,fn){
@@ -210,6 +222,7 @@ async function loadFiles(force=false){
  renderFiles();emit("ad4:printer-files",files);
 }
 async function loadVisibleData(force=false){
+ if(globalThis.__AD4_STATIC_PREVIEW__===true)return;
  const view=currentView(),work=[];
  if(view==="files"||view==="all")work.push(loadFiles(force));
  if(view==="media"||view==="all")work.push(loadGallery(force));
@@ -217,6 +230,7 @@ async function loadVisibleData(force=false){
  await Promise.allSettled(work);
 }
 function applyPrinterState(state){
+ if(state!==lastPrinterState)lastPrinterReceivedAt=Date.now();
  lastPrinterState=state;
  const available=printerIsAvailable(state);
  activeJob=available&&isPrinting(state.machine_status);printerReady=printerCanStart(state);
@@ -233,7 +247,9 @@ async function refresh(force=false){
 }
 async function refreshNow(force=false){
  // Live tracking already includes status; no second hardware status reader.
- const live=dialog.dataset.liveViewing==="true"&&lastPrinterState;
+ const tracking=dialog.dataset.liveViewing==="true";
+ if(tracking&&lastPrinterState&&Date.now()-lastPrinterReceivedAt>=10000)expirePrinterState("Live status sample expired");
+ const live=tracking&&lastPrinterState&&Date.now()-lastPrinterReceivedAt<10000;
  const needRecording=!recordingState||recordingState.running||recordingState.encoding||currentView()==="media";
  const responses=await Promise.allSettled([
   live&&!force?Promise.resolve(lastPrinterState):api("/status",{force}),
@@ -467,7 +483,7 @@ async function confirmPrint({
   const temp=(state,current,target)=>state.status==="fulfilled"?value(state.value[current])+" °C / "+value(state.value[target])+" °C":"Unavailable";
   actualNozzle.textContent=temp(printer,"nozzle_current","nozzle_target");
   actualBed.textContent=temp(printer,"bed_current","bed_target");
-  recording.textContent=session.status==="fulfilled"?(recordingOk?"None active":session.value.encoding?"Encoding MP4":session.value.running?"Recording":"Session occupied"):"Unavailable";
+  recording.textContent=!needRecording?"Not checked · timelapse disabled":session.status==="fulfilled"?(recordingOk?"None active":session.value.encoding?"Encoding MP4":session.value.running?"Recording":"Session occupied"):"Unavailable";
   live.title="Last checked "+new Date().toLocaleTimeString();
   checking=false;ready();return !accept.disabled;
  }
@@ -575,7 +591,10 @@ document.addEventListener("ad4:printer-mutated",event=>{
  else loadVisibleData(true);
 });
 document.addEventListener("ad4:printer-selection",()=>{if(dialog.open&&!document.hidden)loadVisibleData(true)});
-document.addEventListener("ad4:profiles-changed",()=>{if(dialog.open)loadProfiles(true).catch(()=>{})});
+document.addEventListener("ad4:profiles-changed",()=>{
+ files=[];renderFiles();
+ if(dialog.open){loadProfiles(true).catch(()=>{});if(currentView()==="files"||currentView()==="all")loadFiles(true).catch(()=>{})}
+});
 document.addEventListener("visibilitychange",()=>{
  if(document.hidden){clearTimeout(poll);closeVideo()}
  else if(dialog.open)schedulePoll(0);

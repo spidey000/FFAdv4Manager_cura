@@ -36,6 +36,7 @@
       signal:read?controller.signal:options.signal});
     const type=response.headers.get("Content-Type")||"";
     const value=type.includes("json")?await response.json():await response.blob();
+    if(read&&(generation!==epoch||controller.signal.aborted))throw abortError();
     if(!response.ok){const error=Error(value?.error||"Printer service HTTP "+response.status);error.status=response.status;throw error}
     if(read&&generation===epoch&&lifetime){
      if(cache.size>=32)cache.delete(cache.keys().next().value);

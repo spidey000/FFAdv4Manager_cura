@@ -8,13 +8,13 @@ function controller(machine,recording){
  const context={document:{getElementById:el,createElement:()=>el('generated'),addEventListener(){}},URL,URLSearchParams,encodeURIComponent,
   setInterval:()=>1,clearInterval(){},setTimeout:()=>1,clearTimeout(){},confirm:()=>true,fetch:async url=>{
    calls.push(url);
-   const value=url.endsWith('/status')?machine:url.endsWith('/timelapse')?recording:[];
+   const value=url.endsWith('/status')?machine:url.endsWith('/current-job')?(machine instanceof Error?machine:{status:machine}):url.endsWith('/timelapse')?recording:[];
    if(value instanceof Error)throw value;
    return {ok:true,headers:{get:()=> 'application/json'},json:async()=>value};
   }};
  context.globalThis=context;vm.createContext(context);
  vm.runInContext(fs.readFileSync('overlays/mosaic/public/ad4-manager.js','utf8'),context);
- return {el,context,calls,refresh:()=>vm.runInContext('refresh()',context)};
+ return {el,context,calls,setMachine:value=>{machine=value},refresh:()=>vm.runInContext('refresh()',context)};
 }
 (async()=>{
  const idle=controller({machine_status:'READY'},{running:false,encoding:false});await idle.refresh();
@@ -40,6 +40,21 @@ function controller(machine,recording){
  await selective.context.AD4Printer.loadVisibleData();
  assert.equal(selective.calls.filter(url=>url.includes('/files')).length,1);
  assert.equal(selective.calls.filter(url=>url.endsWith('/profiles')||url.endsWith('/timelapses')).length,0,'hidden resources are not fetched');
+ const live=controller({machine_status:'READY'},{running:false,encoding:false});await live.refresh();
+ live.el('ad4-manager').dataset.liveViewing='true';
+ const liveReads=live.calls.filter(url=>url.endsWith('/status')).length;
+ await live.refresh();assert.equal(live.calls.filter(url=>url.endsWith('/status')).length,liveReads,'fresh live samples need no extra status poll');
+ vm.runInContext('lastPrinterReceivedAt=Date.now()-11000',live.context);
+ await live.refresh();assert.equal(live.calls.filter(url=>url.endsWith('/status')).length,liveReads+1,'expired live samples resume status reads');
+ live.setMachine(new Error('backend unreachable'));
+ await assert.rejects(live.context.AD4Printer.api('/current-job'));
+ assert.equal(live.el('ad4-send-print').disabled,true,'a failed live read must immediately disable hardware actions');
+ assert.match(live.el('ad4-machine').textContent,/unavailable/i);
+ const preview=controller({machine_status:'READY'},{running:false,encoding:false});
+ preview.context.__AD4_STATIC_PREVIEW__=true;
+ await preview.context.AD4Printer.loadVisibleData();
+ await assert.rejects(preview.context.AD4Printer.api('/status'));
+ assert.equal(preview.calls.length,0,'public preview navigation cannot request printer endpoints');
  idle.el('ad4-open-manager').click();
  assert.equal(idle.el('ad4-upload').disabled,true);
  await idle.context.AD4Printer.upload(false);
