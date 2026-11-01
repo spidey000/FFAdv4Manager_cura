@@ -70,7 +70,14 @@ class BridgeChecks(unittest.TestCase):
                 return 'ok'
             raise AssertionError('unexpected command ' + repr(args))
         with patch.object(bridge, 'command', side_effect=cmd):
-            self.assertEqual(self.request('/api/printer/status')['machine_status'], 'READY')
+            import time
+            self.request('/api/printer/status')  # Cold display read starts one worker.
+            for _ in range(30):
+                state = self.request('/api/printer/status')
+                if not state.get('refreshing'):
+                    break
+                time.sleep(.01)
+            self.assertEqual(state['machine_status'], 'READY')
             self.assertEqual(self.request('/api/printer/actions', {'action': 'pause'}), {'detail': 'ok'})
         with self.assertRaises(HTTPError) as ctx:
             self.request('/api/printer/actions', {'action': 'home'})
@@ -107,6 +114,15 @@ class BridgeChecks(unittest.TestCase):
             with bridge.PRINTER_WRITE_LOCK:
                 for action in ('pause', 'resume'):
                     self.assertEqual(self.request('/api/printer/actions', {'action': action}), {'detail': 'ok'})
+
+    def test_duplicate_transfer_is_rejected_instead_of_queued(self):
+        with bridge.PRINTER_WRITE_LOCK:
+            with patch.object(bridge, 'command') as command:
+                with self.assertRaises(HTTPError) as ctx:
+                    self.request('/api/printer/actions', {'action': 'print', 'file': '/data/test.gx'})
+                self.assertEqual(ctx.exception.code, 409)
+                self.assertEqual(json.load(ctx.exception)['outcome'], 'not_started')
+                command.assert_not_called()
 
     def test_remote_print_requires_listed_filename(self):
         def cmd(*args, **kwargs):

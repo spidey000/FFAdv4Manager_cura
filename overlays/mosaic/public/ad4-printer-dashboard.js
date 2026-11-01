@@ -213,6 +213,7 @@
    link.setAttribute("aria-pressed",String(selected));
   }
   if(scroll)page.scrollTop=0;
+  document.dispatchEvent(new CustomEvent("ad4:printer-view",{detail:{view}}));
  }
  page.addEventListener("click",event=>{
   const target=event.target.closest("[data-printer-go]");
@@ -226,28 +227,13 @@
   if(target){if(target.closest("details"))target.closest("details").open=true;
    requestAnimationFrame(()=>target.scrollIntoView({block:"nearest",behavior:"smooth"}))}
  });
- // The header refreshes status; the native controller refreshes file state.
- const get=async path=>{
-  const response=await fetch("./api/printer"+path,{cache:"no-store",credentials:"same-origin"});
-  if(!response.ok)throw Error("Printer service HTTP "+response.status);
-  return response.json();
- };
+ // Status is published by the shared controller or live viewer. This
+ // dashboard never starts a second poller or downloads hidden resources.
  const fmt=(v,suffix="")=>v===null||v===undefined||v===""?"—":String(v)+suffix;
- const seconds=v=>{
-  if(!Number.isFinite(v)||v<0)return "—";
-  const n=Math.round(v),h=Math.floor(n/3600),m=Math.floor(n%3600/60);
-  return h?h+"h "+m+"m":m+"m";
- };
- let refreshSerial=0,inFlight=false,lastPoll=0;
- async function refresh(){
-  if(demo||document.body.dataset.ad4Screen!=="printer"||inFlight)return;
-  inFlight=true;lastPoll=Date.now();const serial=++refreshSerial;
-  $("ad4-v3-printer-page-state").textContent="Checking printer…";
-  try{
-   const responses=await Promise.allSettled([get("/status"),get("/files?details=1"),get("/timelapse"),get("/timelapses"),get("/profiles"),get("/session")]);
-   if(serial!==refreshSerial||document.body.dataset.ad4Screen!=="printer")return;
-   const state=responses[0].status==="fulfilled"?responses[0].value:null;
-   const backend=responses.some(x=>x.status==="fulfilled");
+ const seconds=v=>{if(!Number.isFinite(v)||v<0)return "—";const n=Math.round(v);return Math.floor(n/3600)?Math.floor(n/3600)+"h "+Math.floor(n%3600/60)+"m":Math.floor(n/60)+"m"};
+ let savedCount=null;
+ function renderStatus(state){
+   const backend=Boolean(state);
    const connected=Boolean(state?.status_available!==false&&state?.machine_status&&!/OFFLINE|DISCONNECT|UNAVAILABLE|ERROR|UNKNOWN|NOT CONNECTED/i.test(String(state.machine_status)));
    const raw=fmt(state?.machine_status);
    const active=connected&&/BUILDING|PRINTING|PAUSED/i.test(raw);
@@ -270,28 +256,26 @@
    // Only display elapsed/remaining if the bridge actually reports these.
    $("ad4-printer-elapsed").textContent=active?seconds(state.elapsed_seconds):"—";
    $("ad4-printer-remaining").textContent=active?seconds(state.remaining_seconds):"—";
-   if(responses[1].status==="fulfilled"&&connected){
-    const files=responses[1].value;
-    $("ad4-printer-file-count").textContent=Array.isArray(files)?files.length+" files":"—";
-   }else $("ad4-printer-file-count").textContent="—";
-   if(responses[2].status==="fulfilled"){
-    const recording=responses[2].value;
-    const saved=responses[3].status==="fulfilled"&&Array.isArray(responses[3].value)?responses[3].value.length:null;
-    $("ad4-printer-record-summary").textContent=(recording?.running?"Recording":recording?.encoding?"Encoding":saved==null?"On demand":saved+" saved");
-   }else $("ad4-printer-record-summary").textContent="Unavailable";
-   const activeProfile=responses[5].status==="fulfilled"?responses[5].value?.profile:null;
-   $("ad4-printer-profile-summary").textContent=fmt(activeProfile);
-   $("ad4-printer-connection-note").textContent="Selected network profile: "+fmt(activeProfile)+". Connection profiles choose an address and camera configuration, not another printer model.";
-   const updated=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
-   $("ad4-printer-updated").textContent="Updated "+updated;
-  }catch(error){
-   page.dataset.printerConnection="error";
-   $("ad4-v3-printer-page-state").textContent="Connection error";
-   globalThis.AD4Printer?.say?.(error.message,true);
-  }finally{inFlight=false}
+
+   $("ad4-printer-updated").textContent=(state?.stale?"Waiting for status · ":"Updated ")+new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
  }
+ document.addEventListener("ad4:printer-state",event=>renderStatus(event.detail));
+ document.addEventListener("ad4:printer-files",event=>{
+  $("ad4-printer-file-count").textContent=event.detail.length+" files";
+ });
+ document.addEventListener("ad4:printer-gallery",event=>{
+  savedCount=event.detail.length;$("ad4-printer-record-summary").textContent=savedCount+" saved";
+ });
+ document.addEventListener("ad4:printer-recording",event=>{
+  const r=event.detail;$("ad4-printer-record-summary").textContent=r.running?"Recording":r.encoding?"Encoding":savedCount==null?"On demand":savedCount+" saved";
+ });
+ document.addEventListener("ad4:printer-session",event=>{
+  const connection=event.detail.profile||event.detail.host;
+  $("ad4-printer-profile-summary").textContent=fmt(connection);
+  $("ad4-printer-connection-note").textContent="Selected connection: "+fmt(connection)+". Profiles choose an address and camera configuration.";
+ });
  $("ad4-printer-refresh").addEventListener("click",()=>{
-  refresh();if(!demo)globalThis.AD4Printer?.refresh?.().catch(()=>{});
+  if(!demo){globalThis.AD4Printer?.refresh?.(true).catch(()=>{});globalThis.AD4Printer?.loadVisibleData?.(true)}
  });
  if(demo){
   if($("ad4-file-list"))$("ad4-file-list").textContent="Files unavailable · Public preview";
@@ -301,8 +285,7 @@
   $("ad4-printer-refresh").disabled=true;
   $("ad4-printer-refresh").title="Live status requires the authenticated server";
  }
- document.querySelector('#ad4-v3-top [data-route="printer"]')?.addEventListener("click",()=>queueMicrotask(refresh));
- setInterval(()=>{if(!demo&&document.body.dataset.ad4Screen==="printer"&&Date.now()-lastPoll>15000)refresh()},2500);
+ if(globalThis.AD4Printer?.status)renderStatus(globalThis.AD4Printer.status);
  navigate("overview",{scroll:false});
  globalThis.AD4Icons?.hydrate?.(page);
 })();

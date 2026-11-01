@@ -18,7 +18,7 @@ def test_manager_has_controller_for_every_generated_dialog_element():
     ids = set(re.findall(r'\bel\("([^"]+)"\)', source))
     declared = set(re.findall(r'\bid="([^"]+)"', recipe))
     # The canonical Mosaic editor owns these IDs in its upstream index.html.
-    native_mosaic_ids={"gcode-time-estimate","material-estimate","slice-export-container"}
+    native_mosaic_ids={"gcode-time-estimate","material-estimate","slice-export-container","ad4-v3-printer-page"}
     missing = ids - declared - native_mosaic_ids
     assert not missing, f"JS references absent HTML IDs: {sorted(missing)}"
     assert len(ids) >= 38, "Unexpected loss of enhanced manager controls"

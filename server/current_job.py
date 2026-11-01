@@ -101,14 +101,17 @@ def download_command():
     return argv
 
 
-def snapshot(bridge, *, fresh=False):
-    with bridge.PRINTER_WRITE_LOCK:
+def snapshot(bridge, *, fresh=False, include_position=True):
+    # Display reads never wait behind a transfer. Validation callers already
+    # own the write lock; its RLock remains reentrant for those fresh reads.
+    with bridge.read_slot(bridge.PRINTER_WRITE_LOCK):
         argv = bridge.cli_argv()
         scope, values = connection(bridge)
         status = (_read(bridge, argv, 'status', '--json') if fresh else
                   bridge.cached_status(argv, reader=lambda: _read(bridge, argv, 'status', '--json')))
         try:
-            position = _read(bridge, argv, 'position', '--json')
+            active = status.get('status_available') is not False and status.get('machine_status') in ('PRINTING', 'BUILDING', 'BUILDING_FROM_SD', 'PAUSED')
+            position = _read(bridge, argv, 'position', '--json') if include_position and active and not fresh and not status.get('refreshing') else {}
         except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired):
             position = {}
     if not isinstance(position, dict):
@@ -117,7 +120,7 @@ def snapshot(bridge, *, fresh=False):
                 if k.upper() in ('X', 'Y', 'Z') and isinstance(v, (int, float)) and math.isfinite(v)}
     name = status.get('current_file') or ''
     machine = str(status.get('machine_status', '')).upper()
-    active = machine in ('PRINTING', 'BUILDING', 'BUILDING_FROM_SD', 'PAUSED')
+    active = status.get('status_available') is not False and machine in ('PRINTING', 'BUILDING', 'BUILDING_FROM_SD', 'PAUSED')
     source = _index(bridge).get(scope + ':' + name.rsplit('/', 1)[-1]) if name else None
     result = {'status': status, 'position': position, 'active': active, 'source': source,
               'job_token': None, 'layer_current': None, 'layer_total': None,
@@ -152,7 +155,7 @@ def snapshot(bridge, *, fresh=False):
 
 
 def known_layer_heights(bridge):
-    state = snapshot(bridge)
+    state = snapshot(bridge, include_position=False)
     if not state['geometry_available']:
         return None
     source = state['source']
@@ -161,7 +164,7 @@ def known_layer_heights(bridge):
 
 
 def get(handler, path, url, bridge):
-    state = snapshot(bridge)
+    state = snapshot(bridge, include_position=not path.endswith('/toolpath'))
     if path.endswith('/toolpath'):
         token = parse_qs(url.query).get('token', [''])[0]
         if not token or token != state['job_token']:
@@ -176,9 +179,10 @@ def get(handler, path, url, bridge):
 
 def post(handler, path, url, bridge):
     with bridge.PRINTER_WRITE_LOCK:
-        before = snapshot(bridge, fresh=True)
-        remote = before['status'].get('current_file')
-        if not remote or not before['active']:
+        before = _read(bridge, bridge.cli_argv(), 'status', '--json')
+        remote = before.get('current_file')
+        active = before.get('status_available') is not False and before.get('machine_status') in ('PRINTING', 'BUILDING', 'BUILDING_FROM_SD', 'PAUSED')
+        if not remote or not active:
             raise ValueError('No active printer job is reported')
         scope, values = connection(bridge)
         if path.endswith('/associate'):

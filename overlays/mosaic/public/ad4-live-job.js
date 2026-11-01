@@ -25,17 +25,18 @@
   <button id="ad4-live-fetch" type="button" disabled>Fetch printer file</button>
  </div>`;
  manager.querySelector(".ad4-grid").after(section);
+ let nextReadAt=0;
  let viewing=false,inFlight=false,timer=null,renderer=null,token=null,snapshot=null,attemptedFile=null,controller=null;
  function text(id,value){$(id).textContent=value}
  function camera(){
   const img=$("ad4-live-camera");
-  if(viewing&&!document.hidden&&$("ad4-live-camera-toggle").checked){
+  if(manager.open&&!document.hidden&&$("ad4-live-camera-toggle").checked){
    if(!img.getAttribute("src")||!img.getAttribute("src").includes("/api/printer/camera/live"))img.src="./api/printer/camera/live";
    img.hidden=false;text("ad4-live-camera-state","");
   }else{img.removeAttribute("src");img.hidden=true;text("ad4-live-camera-state","Camera stopped")}
  }
  $("ad4-live-camera").onerror=()=>{text("ad4-live-camera-state","Camera unavailable");$("ad4-live-camera").hidden=true};
- $("ad4-live-camera-toggle").onchange=()=>{if($("ad4-live-camera-toggle").checked&&!viewing)start();else camera()};
+ $("ad4-live-camera-toggle").onchange=()=>{if($("ad4-live-camera-toggle").checked)P.closeVideo();camera()};
  function ensureRenderer(){
   if(!renderer){
    if(!globalThis.AD4LiveRenderer)throw Error("3D renderer is still loading; retry in a moment");
@@ -47,7 +48,7 @@
   await P.post("/current-job/fetch",{current_file:snapshot.status.current_file});token=null;
  }
  async function refresh(){
-  if(!viewing||inFlight||!manager.open||document.hidden)return;
+  if(!viewing||inFlight||!manager.open||document.hidden||P.busy||globalThis.AD4PreflightOpen||Date.now()<nextReadAt)return;
   inFlight=true;const activeController=controller;
   try{
    let state=await P.api("/current-job",{signal:activeController.signal});
@@ -56,7 +57,7 @@
     try{await fetchSource();state=await P.api("/current-job",{signal:activeController.signal})}catch(error){P.say("Printer download unavailable: "+error.message,true)}
    }
    if(!viewing||activeController!==controller)return;
-   snapshot=state;
+   snapshot=state;nextReadAt=state.active?0:Date.now()+15000;
    if(state.layer_current!=null){
     globalThis.AD4LayerEstimate={file:state.status.current_file,layer:state.layer_current,total:state.layer_total,stamp:Date.now()};
     $("ad4-layer").textContent=state.layer_current+" / "+state.layer_total+" (estimated)";
@@ -86,15 +87,15 @@
     }
     renderer.update(state);
    }
-  }catch(error){if(error.name!=="AbortError")text("ad4-live-status","Tracking unavailable: "+error.message)}
-  finally{inFlight=false}
+  }catch(error){if(error.name!=="AbortError"){nextReadAt=Date.now()+15000;text("ad4-live-status","Tracking unavailable: "+error.message)}}
+  finally{if(activeController===controller)inFlight=false}
  }
  function start(){
   if(demo)return;
-  if(!viewing){P.closeVideo();viewing=true;controller=new AbortController();attemptedFile=null;camera();timer=setInterval(refresh,3000)}
+  if(!viewing){P.closeVideo();viewing=true;manager.dataset.liveViewing="true";nextReadAt=0;controller=new AbortController();attemptedFile=null;camera();timer=setInterval(refresh,3000)}
   refresh();
  }
- function stop(){$("ad4-live-camera-toggle").checked=false;viewing=false;clearInterval(timer);controller?.abort();camera();if(renderer){renderer.dispose();renderer=null}token=null;inFlight=false;text("ad4-live-status","Live viewing stopped")}
+ function stop(){$("ad4-live-camera-toggle").checked=false;viewing=false;manager.dataset.liveViewing="false";clearInterval(timer);controller?.abort();camera();if(renderer){renderer.dispose();renderer=null}token=null;inFlight=false;text("ad4-live-status","Live viewing stopped")}
  $("ad4-live-consult").onclick=start;$("ad4-live-stop").onclick=stop;
  $("ad4-live-right").onclick=()=>renderer?.reset();
  $("ad4-live-fetch").onclick=async()=>{try{await fetchSource();await refresh()}catch(error){P.say(error.message,true)}};
@@ -102,7 +103,7 @@
  $("ad4-open-manager").addEventListener("click",()=>queueMicrotask(()=>{if(manager.querySelector('[data-pane="live"][aria-pressed="true"]'))start()}));
  manager.addEventListener("close",stop);
  for(const id of ["ad4-live-toggle","ad4-snapshot"])$(id).addEventListener("click",()=>{$("ad4-live-camera-toggle").checked=false;camera()});
- document.addEventListener("visibilitychange",()=>{if(document.hidden){controller?.abort();camera()}else if(viewing){controller=new AbortController();camera();refresh()}});
+ document.addEventListener("visibilitychange",()=>{camera();if(document.hidden)controller?.abort();else if(viewing){controller=new AbortController();inFlight=false;nextReadAt=0;refresh()}});
  if(demo){$("ad4-live-consult").disabled=true;text("ad4-live-status","Live tracking requires the printer server")}
 })();
 

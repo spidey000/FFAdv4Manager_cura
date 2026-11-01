@@ -4,6 +4,7 @@ The GitHub Pages demo has no printer API. Protected remote access must use
 Cloudflare Access JWT verification at this loopback-only origin.
 """
 import atexit
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import hashlib
 import http.client
@@ -28,13 +29,13 @@ if __package__:
     from .timelapse_service import TimelapseService
     from .gcode_safety import require_safe_artillery_heating
     from .cloudflare_access import load_access_config, verify_access_jwt, _jwks_client
-    from .trace_logging import event as trace_event, begin_request, end_request, set_incoming_trace_id
+    from .trace_logging import event as trace_event, begin_request, end_request, set_incoming_trace_id, trace_id, bind_trace_id
 else:
     import observability
     from timelapse_service import TimelapseService
     from gcode_safety import require_safe_artillery_heating
     from cloudflare_access import load_access_config, verify_access_jwt, _jwks_client
-    from trace_logging import event as trace_event, begin_request, end_request, set_incoming_trace_id
+    from trace_logging import event as trace_event, begin_request, end_request, set_incoming_trace_id, trace_id, bind_trace_id
 
 ACCESS_CONFIG = load_access_config(os.environ)
 
@@ -57,7 +58,15 @@ FILE_METADATA_PATH = DATA_DIR / 'uploaded-files.json'
 TIMELAPSES = TimelapseService(TIMELAPSE_ROOT)
 STATUS_CACHE_LOCK = threading.RLock()
 STATUS_CACHE = {}
-STATUS_CACHE_TTL = 1.0
+STATUS_INFLIGHT = {}
+STATUS_EPOCH = 0
+STATUS_CACHE_TTL = 3.0
+STATUS_ERROR_TTL = 15.0
+STATUS_MAX_AGE = 15.0
+ADMISSION_TIMEOUT = 0.05
+READ_CACHE = {}
+READ_INFLIGHT = set()
+CURRENT_JOB_READ_LOCK = threading.Lock()
 
 
 class PrinterCommandError(RuntimeError):
@@ -66,24 +75,60 @@ class PrinterCommandError(RuntimeError):
         self.transaction = transaction or {}
 
 
+class PrinterReadBusy(RuntimeError):
+    pass
+
+
+@contextmanager
+def read_slot(lock):
+    if not lock.acquire(timeout=ADMISSION_TIMEOUT):
+        raise PrinterReadBusy('Printer query already running; no request was queued')
+    try:
+        yield
+    finally:
+        lock.release()
+
+
 def invalidate_status_cache():
+    global STATUS_EPOCH
     with STATUS_CACHE_LOCK:
+        STATUS_EPOCH += 1
         STATUS_CACHE.clear()
+        READ_CACHE.clear()
+        # Keep running readers registered until they finish. Invalidating must
+        # never create a second worker for a connection already being sampled.
 
 
-def cached_status(argv=None, reader=None):
-    """Coalesce simultaneous polls, including current-job and timelapse readers.
+def _status_view(key):
+    cached = STATUS_CACHE.get(key)
+    age = time.monotonic() - cached[0] if cached else None
+    refreshing = key in STATUS_INFLIGHT
+    if cached and age <= STATUS_MAX_AGE:
+        return {**cached[1], 'cached_for_ms': round(age * 1000),
+                'sample_age_ms': round(age * 1000), 'refreshing': refreshing, 'stale': False}
+    return {'machine_status': None, 'status_available': False, 'ready_to_print': False,
+            'connection_status': 'unavailable', 'refreshing': refreshing, 'stale': True,
+            'observed_at': cached[1].get('observed_at') if cached else None,
+            'sample_age_ms': round(age * 1000) if age is not None else None,
+            'cached_for_ms': round(age * 1000) if age is not None else None,
+            'status_errors': {'query': 'Status sample expired' if cached else 'Checking printer status'}}
 
-    This short-lived display cache is never used to authorize an upload/start:
-    the CLI performs fresh preflight under its process-shared control lock.
-    """
-    argv = list(cli_argv() if argv is None else argv)
-    key = tuple(argv)
-    with STATUS_CACHE_LOCK:
-        now = time.monotonic()
-        cached = STATUS_CACHE.get(key)
-        if cached and now - cached[0] < STATUS_CACHE_TTL:
-            return {**cached[1], 'cached_for_ms': round((now - cached[0]) * 1000)}
+
+def _reserve_status(key):
+    cached = STATUS_CACHE.get(key)
+    ttl = STATUS_CACHE_TTL if cached and cached[1].get('status_available') else STATUS_ERROR_TTL
+    if cached and time.monotonic() - cached[0] < ttl:
+        return None
+    if key in STATUS_INFLIGHT or len(STATUS_INFLIGHT) >= 2:
+        return None  # Bounded workers; there is deliberately no pending queue.
+    token = object()
+    STATUS_INFLIGHT[key] = token
+    return token, STATUS_EPOCH
+
+
+def _sample_status(key, argv, reader, reservation):
+    token, epoch = reservation
+    try:
         try:
             value = reader() if reader else json.loads(command('status', '--json', _argv=argv))
             if not isinstance(value, dict):
@@ -95,18 +140,86 @@ def cached_status(argv=None, reader=None):
                      'ready_to_print': available and machine in ('READY', 'IDLE'),
                      'connection_status': value.get('connection_status') or ('online' if available else 'unavailable')}
         except (OSError, RuntimeError, ValueError, TypeError, subprocess.TimeoutExpired) as error:
-            # A lock timeout, transport failure or malformed response cannot prove
-            # that the physical printer is disconnected. Never reuse old READY.
             value = {'machine_status': None, 'status_available': False,
                      'ready_to_print': False, 'connection_status': 'unavailable',
                      'status_errors': {'query': str(error)}}
-        value.update(observed_at=datetime.now(timezone.utc).isoformat(), cached_for_ms=0)
-        if len(STATUS_CACHE) >= 8:
-            STATUS_CACHE.clear()
-        STATUS_CACHE[key] = (time.monotonic(), value)
+        value['observed_at'] = datetime.now(timezone.utc).isoformat()
+        with STATUS_CACHE_LOCK:
+            if epoch == STATUS_EPOCH:
+                if len(STATUS_CACHE) >= 8:
+                    STATUS_CACHE.pop(next(iter(STATUS_CACHE)))
+                STATUS_CACHE[key] = (time.monotonic(), value)
         trace_event(DATA_DIR, 'printer.status.observed', **value)
-        return dict(value)
+    finally:
+        with STATUS_CACHE_LOCK:
+            if STATUS_INFLIGHT.get(key) is token:
+                STATUS_INFLIGHT.pop(key, None)
+    with STATUS_CACHE_LOCK:
+        return _status_view(key)
 
+
+def cached_status(argv=None, reader=None):
+    """Internal sampler: reuse an active read immediately instead of queueing.
+
+    Source association and print preflight deliberately bypass this cache.
+    """
+    argv = list(cli_argv() if argv is None else argv)
+    key = tuple(argv)
+    with STATUS_CACHE_LOCK:
+        reservation = _reserve_status(key)
+        if reservation is None:
+            return _status_view(key)
+    return _sample_status(key, argv, reader, reservation)
+
+
+def display_status(force=False):
+    """HTTP never waits for TCP: at most one background sample per connection."""
+    argv = cli_argv()
+    key = tuple(argv)
+    # No status subprocess while a transfer owns the server transaction lock.
+    if not PRINTER_WRITE_LOCK.acquire(timeout=ADMISSION_TIMEOUT):
+        return {'machine_status': None, 'status_available': False, 'ready_to_print': False,
+                'connection_status': 'unavailable', 'refreshing': False, 'stale': True,
+                'status_errors': {'query': 'Printer transaction in progress'}}
+    PRINTER_WRITE_LOCK.release()
+    with STATUS_CACHE_LOCK:
+        if force:
+            STATUS_CACHE.pop(key, None)
+        reservation = _reserve_status(key)
+        if reservation is not None:
+            identifier = trace_id()
+            def sample():
+                with bind_trace_id(identifier):
+                    _sample_status(key, argv, None, reservation)
+            threading.Thread(target=sample, daemon=True, name='AD4-status-sample').start()
+        return {**_status_view(key), 'selection': dict(SELECTED)}
+
+
+def cached_read(name, reader, ttl=30, force=False):
+    key = (*cli_argv(), name)
+    with STATUS_CACHE_LOCK:
+        if force:
+            READ_CACHE.pop(key, None)
+        cached = READ_CACHE.get(key)
+        if cached and time.monotonic() - cached[0] < ttl:
+            return cached[1]
+        if key in READ_INFLIGHT:
+            raise PrinterReadBusy('Printer query already running; no request was queued')
+        if len(READ_INFLIGHT) >= 2:
+            raise PrinterReadBusy('Printer read capacity occupied; no request was queued')
+        READ_INFLIGHT.add(key)
+        epoch = STATUS_EPOCH
+    try:
+        value = reader()
+        with STATUS_CACHE_LOCK:
+            if epoch == STATUS_EPOCH:
+                if len(READ_CACHE) >= 8:
+                    READ_CACHE.pop(next(iter(READ_CACHE)))
+                READ_CACHE[key] = (time.monotonic(), value)
+        return value
+    finally:
+        with STATUS_CACHE_LOCK:
+            READ_INFLIGHT.discard(key)
 
 
 def private_ip(value):
@@ -133,7 +246,8 @@ def cli_argv(*args, selected=True):
 
 def command(*args, timeout=30, selected=True, accepted_codes=(0,), _argv=None):
     argv = [*_argv, *args] if _argv is not None else cli_argv(*args, selected=selected)
-    if args and args[0] in ('upload', 'print', 'pause', 'resume', 'cancel'):
+    if args and (args[0] in ('upload', 'print', 'pause', 'resume', 'cancel', 'printer') or
+                 (args[0] in ('profiles', 'config') and args[1:2] in (('add',), ('delete',), ('set',), ('unset',)))):
         invalidate_status_cache()
     started = time.monotonic()
     trace_event(DATA_DIR, 'printer.command.started', command=list(args), timeout_seconds=timeout)
@@ -316,8 +430,12 @@ def save_upload_metadata(filename, metadata):
         os.replace(temporary, FILE_METADATA_PATH)
 
 
-def printer_file_details():
-    names = json.loads(command('files', '--json'))
+def listed_files(force=False):
+    return cached_read('files', lambda: json.loads(command('files', '--json')), force=force)
+
+
+def printer_file_details(force=False):
+    names = listed_files(force)
     if not isinstance(names, list):
         raise ValueError('Invalid printer file listing')
     metadata = _read_file_metadata().get(_metadata_scope(), {})
@@ -540,7 +658,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json(200, result)
             if path in ('/api/printer/current-job', '/api/printer/current-job/toolpath'):
                 from server import current_job
-                return current_job.get(self, path, url, sys.modules[__name__])
+                with read_slot(CURRENT_JOB_READ_LOCK):
+                    return current_job.get(self, path, url, sys.modules[__name__])
             if path.startswith('/api/printer/tools/'):
                 from server import manager_tools
                 return manager_tools.get(self, path.rsplit('/', 1)[-1], url, sys.modules[__name__])
@@ -549,7 +668,7 @@ class Handler(SimpleHTTPRequestHandler):
                     selection = dict(SELECTED)
                 return self.json(200, {**selection, 'notifying': worker_running('notifications')})
             if path == '/api/printer/status':
-                return self.json(200, cached_status())
+                return self.json(200, display_status(force=self.headers.get('X-AD4-Refresh') == '1'))
             if path == '/api/printer/discover':
                 devices = json.loads(command('discover', '--json', timeout=12, selected=False))
                 if not isinstance(devices, list):
@@ -561,8 +680,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json(200, devices)
             if path == '/api/printer/files':
                 if parse_qs(url.query).get('details') == ['1']:
-                    return self.json(200, printer_file_details())
-                return self.json(200, json.loads(command('files', '--json')))
+                    return self.json(200, printer_file_details(force=self.headers.get('X-AD4-Refresh') == '1'))
+                return self.json(200, listed_files(force=self.headers.get('X-AD4-Refresh') == '1'))
             if path == '/api/printer/profiles':
                 return self.json(200, json.loads(command('profiles', 'list', selected=False)))
             if path == '/api/printer/diagnostics':
@@ -597,6 +716,8 @@ class Handler(SimpleHTTPRequestHandler):
                     command('camera', 'snapshot', str(frame), timeout=25)
                     data = frame.read_bytes()
                 return self.picture(data)
+        except PrinterReadBusy as error:
+            return self.json(503, {'error': str(error), 'retry_after_ms': 3000})
         except (OSError, RuntimeError, ValueError, TypeError, subprocess.TimeoutExpired,
                 json.JSONDecodeError) as error:
             return self.json(502, {'error': str(error)})
@@ -604,6 +725,19 @@ class Handler(SimpleHTTPRequestHandler):
         if path.startswith('/api/'):
             return self.json(404, {'error': 'Unknown API route'})
         return super().do_GET()
+
+    def printer_write(self, operation):
+        # Never queue a second physical operation behind an upload. The caller
+        # gets an explicit rejection and can check state before trying again.
+        # A tiny hand-off window covers the previous HTTP response being
+        # delivered just before its handler releases the transaction lock.
+        if not PRINTER_WRITE_LOCK.acquire(timeout=ADMISSION_TIMEOUT):
+            return self.json(409, {'error': 'Printer transaction already running; request was not queued',
+                                   'outcome': 'not_started', 'retry_safe': True})
+        try:
+            return operation()
+        finally:
+            PRINTER_WRITE_LOCK.release()
 
     def do_POST(self):
         url = urlsplit(self.path)
@@ -613,18 +747,17 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json(401 if ACCESS_CONFIG else 403, {'error': 'Unauthorized request'})
             from server import current_job
             try:
-                return current_job.post(self, path, url, sys.modules[__name__])
+                return self.printer_write(lambda: current_job.post(self, path, url, sys.modules[__name__]))
             except (OSError, ValueError, RuntimeError, KeyError, TypeError, subprocess.TimeoutExpired) as error:
                 return self.json(422, {'error': str(error)})
         if path.startswith('/api/printer/tools/'):
             if not self.request_authorized(write=True):
                 return self.json(401 if ACCESS_CONFIG else 403, {'error': 'Unauthorized request'})
             from server import manager_tools
-            with PRINTER_WRITE_LOCK:
-                try:
-                    return manager_tools.post(self, path.rsplit('/', 1)[-1], url, sys.modules[__name__])
-                except (OSError, ValueError, RuntimeError, TypeError, subprocess.TimeoutExpired) as error:
-                    return self.json(422, {'error': str(error)})
+            try:
+                return self.printer_write(lambda: manager_tools.post(self, path.rsplit('/', 1)[-1], url, sys.modules[__name__]))
+            except (OSError, ValueError, RuntimeError, TypeError, subprocess.TimeoutExpired) as error:
+                return self.json(422, {'error': str(error)})
         if path not in ('/api/printer/jobs', '/api/printer/upload', '/api/printer/actions',
                         '/api/printer/selection', '/api/printer/profiles',
                         '/api/printer/profiles/delete', '/api/printer/timelapse',
@@ -647,8 +780,7 @@ class Handler(SimpleHTTPRequestHandler):
             if isinstance(body, dict) and body.get('action') in ('pause', 'resume', 'cancel'):
                 return self.printer_post(path, url, body)
         # Pin the connection and serialize writes through the whole transaction.
-        with PRINTER_WRITE_LOCK:
-            return self.printer_post(path, url, body)
+        return self.printer_write(lambda: self.printer_post(path, url, body))
 
     def printer_post(self, path, url, body=None):
         query = parse_qs(url.query)
@@ -818,6 +950,7 @@ class Handler(SimpleHTTPRequestHandler):
                         raise ValueError('Selecciona una impresora descubierta con puerto 8899')
                     with STATE_LOCK:
                         SELECTED.update(host=host, profile=None)
+                invalidate_status_cache()
                 return self.json(200, dict(SELECTED))
             if path == '/api/printer/profiles':
                 name, host = body.get('name'), body.get('host')

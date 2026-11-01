@@ -11,7 +11,7 @@ const root = document.body;
  * The build system replaces REVISION_UI with the exact frontend checkout hash.
  * Neither a GitHub Pages preview nor a failed API request may invent a backend version.
  */
-const VERSION_UI = "0.2.13";
+const VERSION_UI = "0.2.14";
 const REVISION_UI = "__AD4_FRONTEND_REV__";
 const validRevision = value => /^[0-9a-f]{7,40}$/i.test(value || "");
 const versionStamp = document.createElement("div");
@@ -27,8 +27,10 @@ apiStamp.textContent = staticPreview ? "API —" : "API …";
 apiStamp.title = staticPreview ? "No backend on GitHub Pages" : "Checking backend version";
 versionStamp.append(uiStamp, apiStamp);
 document.getElementById("viewer")?.append(versionStamp);
+let versionChecking=false,versionCheckedAt=0;
 async function refreshBackendVersion() {
-  if (staticPreview) return;
+  if (staticPreview||document.hidden||versionChecking||Date.now()-versionCheckedAt<60000) return;
+  versionChecking=true;versionCheckedAt=Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
   try {
@@ -48,14 +50,11 @@ async function refreshBackendVersion() {
     apiStamp.textContent = "API offline";
     apiStamp.title = "Backend disconnected or version endpoint unavailable";
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timeout);versionChecking=false;
   }
 }
 if (!staticPreview) {
   refreshBackendVersion();
-  setInterval(() => {
-    if (!document.hidden) refreshBackendVersion();
-  }, 60000);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refreshBackendVersion();
   });

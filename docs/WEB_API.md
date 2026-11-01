@@ -49,12 +49,23 @@ El panel **App → Server activity** usa dos rutas autenticadas de solo lectura:
 
 El estado incluye `connection_status` (`online`, `partial` o `unavailable`),
 `status_available`, `ready_to_print`, `status_errors`, `observed_at` y
-`cached_for_ms`. Un M27 válido sin MachineStatus se representa como respuesta
+`cached_for_ms`, `sample_age_ms`, `refreshing` y `stale`. Un M27 válido sin MachineStatus se representa como respuesta
 parcial, nunca como permiso de impresión. Una consulta fallida devuelve 200 con
 estado no disponible y su error; no demuestra que la impresora esté desconectada.
-Las consultas simultáneas de estado, visor de trabajo y timelapse comparten una
-muestra durante un segundo. El envío comprueba de nuevo READY/IDLE bajo bloqueo,
-sin utilizar esa caché.
+`/status` responde inmediatamente con la última muestra y puede iniciar una
+actualización en segundo plano. Solo hay una lectura en curso por conexión y
+como máximo dos muestreadores en total, sin cola. Una muestra correcta puede
+renovarse tras 3 s; los fallos esperan 15 s antes de otro intento. Si la muestra
+supera 15 s se marca obsoleta y no puede declarar READY. `refreshing` permite
+mostrar la actualización pendiente sin fingir disponibilidad. El envío comprueba
+de nuevo READY/IDLE bajo bloqueo, sin utilizar esa caché.
+
+Los listados de archivos se comparten durante 30 s. La cabecera autenticada
+`X-AD4-Refresh: 1` omite esa caché o solicita una muestra de estado nueva, sin
+crear otra lectura si ya existe una en curso. Las lecturas duplicadas de archivos
+o trabajo actual sin capacidad disponible devuelven 503 y `retry_after_ms`;
+una segunda transacción de impresora devuelve 409 y `outcome: not_started`.
+Ninguna de estas peticiones se deja esperando en una cola ni se reintenta sola.
 
 ## Archivos y acciones
 

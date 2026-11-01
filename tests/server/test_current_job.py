@@ -169,7 +169,7 @@ def test_current_job_change_rejects_association(setup_job, monkeypatch):
     handler = Mock()
     handler.headers = {'Content-Length': str(len(GCODE)), 'Content-Type': 'application/octet-stream'}
     handler.rfile = io.BytesIO(GCODE)
-    monkeypatch.setattr(jobs, '_read', Mock(side_effect=[setup_job, {'Z': .3}, {'current_file': 'another.gx'}]))
+    monkeypatch.setattr(jobs, '_read', Mock(side_effect=[setup_job, {'current_file': 'another.gx'}]))
     with pytest.raises(ValueError, match='changed jobs'):
         jobs.post(handler, '/api/printer/current-job/associate',
                   urlsplit('/?current_file=/data/test.gx&name=original.gcode'), bridge)
@@ -232,5 +232,25 @@ def test_association_bypasses_a_primed_display_cache(setup_job, monkeypatch):
                       urlsplit('/?current_file=/data/test.gx&name=original.gcode'), bridge)
         assert len(reads) == 2
         assert not jobs._index(bridge)
+    finally:
+        bridge.invalidate_status_cache()
+
+
+def test_geometry_and_layer_metadata_do_not_sample_m114_again(setup_job, monkeypatch):
+    bridge.invalidate_status_cache()
+    scope, _ = jobs.connection(bridge)
+    jobs.remember(bridge, scope, '/data/test.gx', GCODE, 'original.gcode')
+    original_read = jobs._read
+    read = Mock(side_effect=original_read)
+    monkeypatch.setattr(jobs, '_read', read)
+    try:
+        state = jobs.snapshot(bridge)
+        read.reset_mock()
+        handler = Mock()
+        jobs.get(handler, '/api/printer/current-job/toolpath',
+                 urlsplit('/?token=' + state['job_token']), bridge)
+        assert handler.json.call_args.args[0] == 200
+        assert jobs.known_layer_heights(bridge) == [.3, .5, .8]
+        assert not any(call.args[2:3] == ('position',) for call in read.call_args_list)
     finally:
         bridge.invalidate_status_cache()

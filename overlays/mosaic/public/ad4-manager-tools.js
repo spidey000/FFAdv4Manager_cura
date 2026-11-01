@@ -109,7 +109,10 @@
  $("ad4-wait-stop").onclick=()=>run("Cancelling wait",()=>P.post("/tools/wait",{action:"stop"}));
  let lastEvent=null,polling=false;
  async function poll(){
-  if(demo||polling||(!manager.open&&!$("ad4-browser-notify").checked))return;
+  const alerts=$("ad4-browser-notify").checked;
+  const history=$("ad4-monitor-state").closest("details"),wait=$("ad4-wait-result").closest("details");
+  const visible=manager.open&&!document.hidden&&(!history?.closest("[hidden]")&&history?.open||!wait?.closest("[hidden]")&&wait?.open);
+  if(demo||polling||P.busy||(!alerts&&!visible))return;
   polling=true;
   try{
    const [t,s]=await Promise.all([P.api("/tools/telemetry"),P.api("/session")]);
@@ -124,8 +127,9 @@
    if(event)lastEvent=event.timestamp;
   }catch{}finally{polling=false}
  }
- $("ad4-open-manager").addEventListener("click",poll);
- setInterval(poll,5000);
+ for(const id of ["ad4-monitor-state","ad4-wait-result"]){$(id).closest("details")?.addEventListener("toggle",poll)}
+ $("ad4-browser-notify").addEventListener("change",poll);
+ setInterval(poll,10000);
  // Thumbnail loading is deliberately on demand: never issue one request per file during polling.
  const thumbnails=new Map(),pendingThumbnails=new Set(),fileList=$("ad4-file-list");
  const identity=s=>JSON.stringify([s.host||null,s.profile||null]);
@@ -149,6 +153,7 @@
  // is server state and does not send a thumbnail request to the physical printer.
  new MutationObserver(restoreThumbnails).observe(fileList,{childList:true});
  document.addEventListener("ad4:profiles-changed",()=>{clearThumbnails();restoreThumbnails()});
+ document.addEventListener("ad4:printer-selection",clearThumbnails);
  addEventListener("pagehide",clearThumbnails);
  $("ad4-file-list").addEventListener("click",async e=>{
   const row=e.target.closest(".ad4-file-row");if(!row||e.target.tagName==="BUTTON")return;
@@ -158,7 +163,7 @@
    const epoch=thumbnailEpoch,printer=identity(await P.api("/session"));key=thumbnailKey(printer,name);
    if(thumbnails.has(key)){await restoreThumbnails();return}
    if(pendingThumbnails.has(key))return;pendingThumbnails.add(key);
-   const listed=await P.api("/files"),path=listed.find(p=>p.split('/').pop()===name);if(!path)return;
+   const path=row.dataset.remotePath;if(!path)return; // Server revalidates before M662.
    const blob=await P.api("/tools/preview?file="+encodeURIComponent(path));
    if(identity(await P.api("/session"))!==printer||epoch!==thumbnailEpoch)return;
    thumbnails.set(key,URL.createObjectURL(blob));
