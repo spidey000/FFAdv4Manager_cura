@@ -16,6 +16,8 @@ import tempfile
 import threading
 from dataclasses import dataclass
 
+from ffadv4manager.core.job_file import ensure_final_xy_homing
+
 ROOT = Path(__file__).resolve().parents[1]
 MAX_STL = 50 * 1024 * 1024
 MAX_JSON = 512 * 1024
@@ -273,6 +275,7 @@ def slice_model(stl: bytes, settings: dict, *, timeout: int = 240, job_id: str =
             if not output_path.is_file() or output_path.stat().st_size > MAX_GCODE:
                 raise SlicingError("CuraEngine generated no output or an oversized G-code file")
             gcode = finalized_gcode(output_path.read_text(encoding="utf-8", errors="replace"), log_text)
+            gcode = ensure_final_xy_homing(gcode.encode("utf-8"), "output.gcode").decode("utf-8")
             if not re.search(r"(?m)^(?:G0|G1|M104|M109)\b", gcode):
                 raise SlicingError("CuraEngine did not return executable G-code")
             match = re.search(r"(?m)^;TIME:(\d+)", gcode)

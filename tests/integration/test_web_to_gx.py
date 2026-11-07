@@ -31,6 +31,7 @@ def test_server_slice_output_converts_to_flashforge_gx(tmp_path, monkeypatch):
     result = slice_model(stl, config)
     assert result.seconds == 3723
     assert result.filament_mm == 1234
+    assert result.gcode.endswith("G162 Z F1800\nG28 X Y\n")
     source = tmp_path / "benchy.gcode"
     source.write_text(result.gcode)
     output = tmp_path / "benchy.gx"
