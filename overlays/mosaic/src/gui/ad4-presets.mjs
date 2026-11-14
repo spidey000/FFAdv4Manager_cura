@@ -3,6 +3,12 @@
  * Only the connected Adventurer 4 definition may authorize editable preset keys.
  */
 export const KEY="ffadv4-mosaic-custom-presets-v1";
+export const DEFAULT_PROCESS={layer_height:0.2,support_z_distance:0.3};
+export const BUILTIN_PROCESSES=[DEFAULT_PROCESS.layer_height,0.3,0.4].map(height=>({
+  id:"builtin:"+height,
+  name:"Conservative · "+height.toFixed(2)+" mm",
+  values:{...DEFAULT_PROCESS,layer_height:height}
+}));
 export const GROUPS={
   Quality:["resolution","quality","shell"],
   Strength:["shell","top_bottom","infill"],

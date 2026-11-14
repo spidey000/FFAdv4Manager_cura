@@ -5,10 +5,11 @@ import {update_all} from "./actions.mjs";
 import {models} from "./viewer/model_viewer.mjs";
 import {cura_engine} from "./slicer.mjs";
 import {installSettingHelp,openSettingHelp,helpIcon} from "./ad4-setting-help.mjs";
-import {KEY,GROUPS,LEVELS,TIERS,allowed,readLibrary,savePreset,configureCatalog,validate} from "./ad4-presets.mjs";
+import {KEY,BUILTIN_PROCESSES,GROUPS,LEVELS,TIERS,allowed,readLibrary,savePreset,configureCatalog,validate} from "./ad4-presets.mjs";
 
 const $=id=>document.getElementById(id);
 const categories=["All",...Object.keys(GROUPS)];
+const inheritedSupportDistances=new Set(["support_top_distance","support_bottom_distance"]);
 let selected="Quality",tier="All",library={},original={},autoTimer;
 const printer=()=>active_containers.containers.extruders[0];
 const meta=id=>printer().settings[id]||active_containers.containers.global.settings[id];
@@ -33,7 +34,10 @@ function reSlice(){
   const button=$("slice-button");if(button&&!button.disabled)button.click();
  },1000);
 }
-function applyOverrides(values){
+function applyOverrides(values,inherit=[]){
+ for(const stack of [active_containers.containers.global,printer()]){
+  for(const key of inherit)delete stack.active_profiles.user.values[key];
+ }
  for(const [key,next]of Object.entries(values)){
   const descriptor=meta(key);if(!descriptor)continue;
   const target=descriptor.settable_per_extruder?printer():active_containers.containers.global;
@@ -61,16 +65,21 @@ function capture(type){
 function drawPresets(){
  for(const type of ["process","material"]){
   const select=$("ad4-"+type+"-preset"),old=select.value;
-  select.replaceChildren(element("option",{value:""},type==="material"?"Artillery PLA Basic":"Conservative · 0.20 mm"));
+  const defaults=type==="process"?BUILTIN_PROCESSES:[{id:"",name:"Artillery PLA Basic"}];
+  select.replaceChildren(...defaults.map(p=>element("option",{value:p.id},p.name)));
   for(const p of library[type])select.append(element("option",{value:p.name},p.name));
-  if(library[type].some(p=>p.name===old))select.value=old;
+  if(defaults.some(p=>p.id===old)||library[type].some(p=>p.name===old))select.value=old;
  }
 }
 function choose(type,name){
+ const builtin=type==="process"&&BUILTIN_PROCESSES.find(p=>p.id===name);
  const item=library[type].find(p=>p.name===name);
- const values=item?item.values:Object.fromEntries(Object.entries(original).filter(([key])=>allowed(type).has(key)));
- applyOverrides(values);
- notice(item?"Applied "+name+"; re-slice before uploading.":"Restored default "+type+" values.");
+ const inherit=type==="process"&&!item?inheritedSupportDistances:[];
+ const values=builtin?.values??item?.values??Object.fromEntries(Object.entries(original).filter(([key])=>
+  allowed(type).has(key)&&!(type==="process"&&inheritedSupportDistances.has(key))));
+ applyOverrides(values,inherit);
+ const profile=builtin||item;
+ notice(profile?"Applied "+profile.name+"; re-slice before uploading.":"Restored default "+type+" values.");
 }
 function dialogHelp(id,trigger){
  const setting=meta(id);
@@ -248,6 +257,7 @@ export function install_ad4_features(){
   const type=document.body.dataset.ad4Screen==="filament"?"material":"process";
   if(!confirm("Restore the default "+type+" values?"))return;
   choose(type,"");
+  $("ad4-"+type+"-preset").selectedIndex=0;
  });
  
  const legacy=$("profile-selector-div");
@@ -294,11 +304,11 @@ export function install_ad4_features(){
  }
  $("ad4-save-preset").addEventListener("click",()=>save(kind.value,$("ad4-preset-name").value.trim()));
  $("ad4-update-preset").addEventListener("click",()=>{const {type,name}=selectedPreset();
-  if(!name){notice("Select a saved preset first");return}save(type,name,true)});
+  if(!library[type].some(p=>p.name===name)){notice("Select a saved preset first");return}save(type,name,true)});
  $("ad4-delete-preset").addEventListener("click",()=>{const {type,name}=selectedPreset();
-  if(!name||!confirm("Delete "+name+"?"))return;
+  if(!library[type].some(p=>p.name===name)||!confirm("Delete "+name+"?"))return;
   library[type]=library[type].filter(p=>p.name!==name);
-  try{persist();drawPresets();$("ad4-"+type+"-preset").value="";notice("Deleted "+name)}
+  try{persist();drawPresets();notice("Deleted "+name)}
   catch(e){notice(e.message)}
  });
  installSettingHelp();

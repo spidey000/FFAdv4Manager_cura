@@ -412,6 +412,23 @@ with sync_playwright() as p:
                 # Ensure enough Cura settings exist for actual scrolling, then use a
                 # physical wheel gesture instead of assigning scrollTop directly.
                 page.locator("#ad4-presets-toggle").click()
+                if width == 390:
+                    process_profile=page.locator("#ad4-process-preset")
+                    profile_settings="""() => {
+                        const {global: settings}=app.settings.active_containers.export_settings();
+                        return [settings.layer_height, settings.support_z_distance,
+                                settings.support_top_distance, settings.support_bottom_distance];
+                    }"""
+                    assert page.evaluate(profile_settings)==[0.2, 0.3, 0.3, 0.3]
+                    page.evaluate("""() => {
+                        const stack=app.settings.active_containers.containers.global;
+                        Object.assign(stack.active_profiles.user.values, {
+                            support_top_distance: 0.45, support_bottom_distance: 0.55
+                        });
+                    }""")
+                    for height in (0.3, 0.4, 0.2):
+                        process_profile.select_option(label=f"Conservative · {height:.2f} mm")
+                        assert page.evaluate(profile_settings)==[height, 0.3, 0.3, 0.3]
                 # The flat All tab replaces the native-category dropdown but
                 # still exposes every Cura setting and keeps groups collapsed.
                 if page.locator("#ad4-profile-summary").count():
