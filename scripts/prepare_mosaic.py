@@ -136,7 +136,9 @@ main().catch(error => {
     source=settings.read_text()
     start=source.index("export function apply_prefs() {")
     stop=source.index("export function export_prefs()",start)
-    replacement="""export function apply_prefs() {
+    replacement="""import {DEFAULT_PROCESS} from "../gui/ad4-presets.mjs";
+
+export function apply_prefs() {
   prefs.active_printer = null;
   prefs.printers = {};
   loaded_printers.length = 0;
@@ -147,7 +149,7 @@ main().catch(error => {
   Object.assign(global, {
     machine_width:220, machine_depth:200, machine_height:250,
     machine_center_is_zero:true, machine_extruder_count:1, machine_nozzle_size:0.4,
-    layer_height:0.2, speed_print:40, speed_travel:80,
+    ...DEFAULT_PROCESS, speed_print:40, speed_travel:80,
     acceleration_print:650, acceleration_travel:950,
     material_print_temperature:205, material_print_temperature_layer_0:210,
     material_bed_temperature:55, material_bed_temperature_layer_0:55,
